@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { rankingService, type LeaderboardEntry, type SortKey } from "../services/ranking";
 import { challengeService } from "../services/challenge";
+import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
 
 type Tab = "Friends" | "State" | "National";
@@ -19,6 +21,8 @@ export default function RanksPage() {
   const [loading, setLoading] = useState(true);
   const { principal, profile } = useAuthStore();
   const myState = profile?.state || "TX";
+  const navigate = useNavigate();
+  const [challenging, setChallenging] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -32,14 +36,25 @@ export default function RanksPage() {
   const top = entries[0];
 
   async function handleChallenge(entry: LeaderboardEntry) {
+    setChallenging(true);
     try {
-      await challengeService.sendChallenge(
+      const articleIds = ["ncaa_basketball:art4"];
+      const qs = await questionService.sampleQuiz({
+        sportId: "ncaa_basketball", articleIds, casebook: true, difficulty: [], count: 10n,
+      });
+      if (qs.length === 0) {
+        alert("No questions available for this challenge yet.");
+        return;
+      }
+      const challenge = await challengeService.sendChallenge(
         entry.principal, "ncaa_basketball",
-        ["ncaa_basketball:art4"], [], 10,
+        articleIds, qs.map(q => q.id), qs.length,
       );
-      alert(`Challenge sent to ${entry.displayName}!`);
+      navigate(`/challenge/${challenge.id}`);
     } catch (e: any) {
       alert(e.message ?? "Failed to send challenge");
+    } finally {
+      setChallenging(false);
     }
   }
 
@@ -145,14 +160,15 @@ export default function RanksPage() {
         <div style={{ padding: "16px 16px 0" }}>
           <button
             onClick={() => handleChallenge(top)}
+            disabled={challenging}
             style={{
               width: "100%", padding: "14px 0",
-              background: T.red, color: T.white,
+              background: challenging ? T.border : T.red, color: T.white,
               borderRadius: 8, fontSize: 15, fontWeight: 700,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
-            ⚡ Challenge {top.displayName} to a Rematch
+            {challenging ? "Sending…" : `⚡ Challenge ${top.displayName} to a Rematch`}
           </button>
         </div>
       )}

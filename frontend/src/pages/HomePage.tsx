@@ -36,7 +36,7 @@ export default function HomePage() {
     setAccepting(id);
     try {
       await challengeService.acceptChallenge(id);
-      refreshChallenges();
+      navigate(`/challenge/${id}`);
     } catch {
       // leave it in the inbox; user can retry
     } finally {

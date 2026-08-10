@@ -115,4 +115,10 @@ export const challengeService = {
     if ("err" in res) throw new Error(res.err);
     return res.ok;
   },
+
+  async getChallenge(id: string): Promise<Challenge | null> {
+    if (!CANISTER_ID) return MOCK_CHALLENGES.find(c => c.id === id) ?? null;
+    const res = await actor().getChallenge(id);
+    return res.length ? res[0] : null;
+  },
 };
