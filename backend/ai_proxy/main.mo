@@ -1,10 +1,12 @@
-import Text "mo:base/Text";
-import Blob "mo:base/Blob";
-import Nat "mo:base/Nat";
-import Nat64 "mo:base/Nat64";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
-import ExperimentalCycles "mo:base/ExperimentalCycles";
+import Text "mo:core/Text";
+import Blob "mo:core/Blob";
+import Nat "mo:core/Nat";
+import Nat64 "mo:core/Nat64";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
+
+// Skill: use `ic:aaaaa-aa` compiler import, not actor cast of aaaaa-aa
+import IC "ic:aaaaa-aa";
 
 persistent actor AiProxy {
 
@@ -21,38 +23,28 @@ persistent actor AiProxy {
     switch adminPrincipal { case (?a) a == p; case null false }
   };
 
-  // IC HTTP outcall — used for ElevenLabs TTS and future AI calls
-  // Returns raw response body bytes; caller is responsible for uploading to R2.
+  // Transform function strips non-deterministic headers so all replicas agree
+  public query func transform({ response : IC.http_request_result; context : Blob }) : async IC.http_request_result {
+    { response with headers = [] }
+  };
+
+  // HTTPS outcall — used for ElevenLabs TTS audio generation
+  // Returns raw response body bytes; caller uploads to Cloudflare R2.
   public shared ({ caller }) func httpPost(
     url      : Text,
-    headers  : [(Text, Text)],
+    headers  : [IC.HttpHeader],
     bodyJson : Text,
     maxBytes : Nat64,
   ) : async Result.Result<Blob, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
 
-    let httpHeaders = Array.map<(Text, Text), { name : Text; value : Text }>(
-      headers, func((k, v)) { { name = k; value = v } }
-    );
-
-    ExperimentalCycles.add(100_000_000);
-
-    let resp = await (actor "aaaaa-aa" : actor {
-      http_request : ({
-        url            : Text;
-        max_response_bytes : ?Nat64;
-        headers        : [{ name : Text; value : Text }];
-        body           : ?Blob;
-        method         : { #get; #post; #head };
-        transform      : ?{ function : shared query ({ response : { status : Nat; headers : [{ name : Text; value : Text }]; body : Blob }; context : Blob }) -> async { status : Nat; headers : [{ name : Text; value : Text }]; body : Blob }; context : Blob };
-      }) -> async { status : Nat; headers : [{ name : Text; value : Text }]; body : Blob };
-    }).http_request({
-      url                = url;
+    let resp = await IC.http_request({
+      url;
       max_response_bytes = ?maxBytes;
-      headers            = httpHeaders;
+      headers;
       body               = ?Text.encodeUtf8(bodyJson);
       method             = #post;
-      transform          = null;
+      transform          = ?{ function = transform; context = Blob.fromArray([]) };
     });
 
     if (resp.status == 200) #ok(resp.body) else #err("HTTP " # Nat.toText(resp.status))

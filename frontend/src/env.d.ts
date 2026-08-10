@@ -1,0 +1,10 @@
+/// <reference types="vite/client" />
+
+// Globals injected by vite.config.ts define block
+declare const CANISTER_ID_USER:      string;
+declare const CANISTER_ID_CONTENT:   string;
+declare const CANISTER_ID_QUESTION:  string;
+declare const CANISTER_ID_EXAM:      string;
+declare const CANISTER_ID_RANKING:   string;
+declare const CANISTER_ID_CHALLENGE: string;
+declare const DFX_NETWORK:           string;

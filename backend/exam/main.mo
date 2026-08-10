@@ -1,11 +1,11 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Array "mo:base/Array";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
 
 persistent actor Exam {
 
@@ -30,15 +30,15 @@ persistent actor Exam {
   };
 
   public type ExamSession = {
-    id         : Text;
-    owner      : Principal;
-    config     : ExamConfig;
-    questionIds: [Text];
-    answers    : [AnswerRecord];
-    score      : ?Nat;   // percentage 0-100, set when submitted
-    shareToken : ?Text;
-    startedAt  : Int;
-    finishedAt : ?Int;
+    id          : Text;
+    owner       : Principal;
+    config      : ExamConfig;
+    questionIds : [Text];
+    answers     : [AnswerRecord];
+    score       : ?Nat;
+    shareToken  : ?Text;
+    startedAt   : Int;
+    finishedAt  : ?Int;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -51,23 +51,16 @@ persistent actor Exam {
 
   var nextId : Nat = 0;
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  func genToken(id : Text, ts : Int) : Text {
-    // Deterministic short token — good enough for share links (no crypto needed here)
-    "eq" # id # Text.fromChar(if (ts % 2 == 0) 'a' else 'b')
-  };
-
   // ─── Mutations ────────────────────────────────────────────────────────────
 
   public shared ({ caller }) func createSession(config : ExamConfig, questionIds : [Text]) : async Result.Result<ExamSession, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
-    let id = "ex" # Nat.toText(nextId);
+    let id  = "ex" # Nat.toText(nextId);
     nextId += 1;
     let now = Time.now();
     let shareToken : ?Text = switch config.mode {
       case (#ShareLink) {
-        let t = genToken(id, now);
+        let t = "eq" # id;
         shareIndex.put(t, id);
         ?t
       };
@@ -93,16 +86,20 @@ persistent actor Exam {
       case null { #err("Session not found") };
       case (?s) {
         if (s.owner != caller) return #err("Not your session");
-        let correct = Array.foldLeft<AnswerRecord, Nat>(answers, 0, func(acc, a) {
-          if (a.isCorrect) acc + 1 else acc
-        });
+        var correct : Nat = 0;
+        for (a in answers.vals()) { if (a.isCorrect) correct += 1 };
         let pct : Nat = if (answers.size() == 0) 0
           else (correct * 100) / answers.size();
         let updated : ExamSession = {
-          s with
-          answers    = answers;
-          score      = ?pct;
-          finishedAt = ?Time.now();
+          id          = s.id;
+          owner       = s.owner;
+          config      = s.config;
+          questionIds = s.questionIds;
+          answers     = answers;
+          score       = ?pct;
+          shareToken  = s.shareToken;
+          startedAt   = s.startedAt;
+          finishedAt  = ?Time.now();
         };
         sessions.put(id, updated);
         #ok(updated)
@@ -113,11 +110,15 @@ persistent actor Exam {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
-    var out : [ExamSession] = [];
+    let buf = Array.init<ExamSession>(sessions.size(), {
+      id = ""; owner = caller; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
+      questionIds = []; answers = []; score = null; shareToken = null; startedAt = 0; finishedAt = null;
+    });
+    var i = 0;
     for ((_, s) in sessions.entries()) {
-      if (s.owner == caller) out := Array.append(out, [s]);
+      if (s.owner == caller) { buf[i] := s; i += 1 };
     };
-    out
+    Array.tabulate<ExamSession>(i, func(j) { buf[j] })
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {

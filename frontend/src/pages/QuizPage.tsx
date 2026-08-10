@@ -1,68 +1,119 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { T } from "../tokens";
-
-// Stub questions — replace with question canister call
-const STUB_QUESTIONS = [
-  {
-    id: "q1",
-    articleLabel: "Art. 4 – Fouls",
-    stem: "A player drives to the basket and is fouled by a defender who has established legal guarding position. The offensive player also charges. This is best described as:",
-    choices: [
-      { id: "a", text: "Simultaneous foul — both disqualified" },
-      { id: "b", text: "Blocking foul — defender penalized" },
-      { id: "c", text: "Charge — attacker responsible" },
-      { id: "d", text: "Player control foul on offense" },
-    ],
-    correctId: "b",
-    citation: "Art. 4-23, pg. 42",
-    explanation: "A defender who has established legal guarding position may not move into the path of the dribbler.",
-  },
-];
+import { questionService } from "../services/question";
+import { examService } from "../services/exam";
+import { rankingService } from "../services/ranking";
+import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
+import { useAuthStore } from "../store/authStore";
+import type { AnswerRecord } from "../services/exam";
 
 const SECONDS_PER_Q = 45;
 
 export default function QuizPage() {
-  const { articleId } = useParams();
+  const { articleId } = useParams<{ articleId: string }>();
   const navigate = useNavigate();
-  const questions = STUB_QUESTIONS;
-  const total = questions.length;
+  const { profile } = useAuthStore();
 
-  const [idx, setIdx]       = useState(0);
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(SECONDS_PER_Q);
-  const [done, setDone]     = useState(false);
+  const {
+    questions, currentIdx, isComplete, answers,
+    loadQuestions, recordAnswer, advance, reset,
+  } = useQuizStore();
+  const currentQ  = useQuizStore(selectCurrentQuestion);
+  const finalScore = useQuizStore(selectScore);
 
-  const q = questions[idx];
-  const revealed = chosen !== null;
+  const [loading,   setLoading]   = useState(true);
+  const [chosen,    setChosen]    = useState<string | null>(null);
+  const [timeLeft,  setTimeLeft]  = useState(SECONDS_PER_Q);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-  const advance = useCallback(() => {
-    if (idx + 1 < total) {
-      setIdx(i => i + 1);
-      setChosen(null);
-      setTimeLeft(SECONDS_PER_Q);
-    } else {
-      setDone(true);
-    }
-  }, [idx, total]);
-
+  // Load questions for this article
   useEffect(() => {
-    if (revealed || done) return;
+    reset();
+    setLoading(true);
+    questionService.sampleQuiz({
+      sportId:    "ncaa_basketball",
+      articleIds: articleId ? [articleId] : [],
+      casebook:   true,
+      difficulty: [],
+      count:      BigInt(25),
+    }).then(async (qs) => {
+      const session = await examService.createSession(
+        { sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
+          count: BigInt(qs.length), secPerQ: BigInt(SECONDS_PER_Q), mode: { Solo: null } },
+        qs.map(q => q.id),
+      );
+      loadQuestions(qs, session.id);
+      setSessionId(session.id);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [articleId]);
+
+  // Reset chosen + timer on question change
+  useEffect(() => {
+    setChosen(null);
+    setTimeLeft(SECONDS_PER_Q);
+  }, [currentIdx]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (chosen !== null || isComplete || loading) return;
     if (timeLeft === 0) { setChosen("__timeout__"); return; }
     const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [timeLeft, revealed, done]);
+  }, [timeLeft, chosen, isComplete, loading]);
 
-  if (done) {
+  const handleChoice = useCallback((choiceId: string) => {
+    if (chosen !== null || !currentQ) return;
+    setChosen(choiceId);
+    const ans: AnswerRecord = {
+      questionId: currentQ.id,
+      chosenId:   choiceId,
+      isCorrect:  choiceId === currentQ.correctId,
+      elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
+    };
+    recordAnswer(ans);
+  }, [chosen, currentQ, timeLeft]);
+
+  const handleNext = useCallback(async () => {
+    advance();
+    if (currentIdx + 1 >= questions.length && sessionId) {
+      // Submit exam + record ranking
+      await examService.submitExam(sessionId, [...answers, ...(chosen && currentQ ? [{
+        questionId: currentQ.id, chosenId: chosen,
+        isCorrect: chosen === currentQ.correctId, elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
+      }] : [])]).catch(() => {});
+      if (profile) {
+        await rankingService.recordExamResult(
+          finalScore, questions.length,
+          profile.displayName, profile.sport, "TX",
+        ).catch(() => {});
+      }
+    }
+  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, finalScore, profile]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>
+        Loading questions…
+      </div>
+    );
+  }
+
+  if (isComplete) {
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Quiz Complete!</div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quiz Complete!</div>
+        <div style={{ fontSize: 36, fontWeight: 700, color: T.navy, marginBottom: 4 }}>
+          {finalScore}%
+        </div>
+        <div style={{ fontSize: 14, color: T.muted, marginBottom: 24 }}>
+          {answers.filter(a => a.isCorrect).length} / {questions.length} correct
+        </div>
         <button
           onClick={() => navigate("/home")}
           style={{
-            marginTop: 24, padding: "13px 32px",
-            background: T.navy, color: T.white,
+            padding: "13px 32px", background: T.navy, color: T.white,
             borderRadius: 8, fontSize: 15, fontWeight: 700,
           }}
         >Back to Home</button>
@@ -70,15 +121,16 @@ export default function QuizPage() {
     );
   }
 
-  const timerPct = (timeLeft / SECONDS_PER_Q) * 100;
+  if (!currentQ) return null;
+
+  const revealed   = chosen !== null;
+  const timerPct   = (timeLeft / SECONDS_PER_Q) * 100;
+  const total      = questions.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {/* Header */}
-      <div style={{
-        background: T.navy, padding: "52px 16px 14px",
-        display: "flex", alignItems: "center", gap: 12,
-      }}>
+      <div style={{ background: T.navy, padding: "52px 16px 14px", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={() => navigate(-1)} style={{ color: T.white, fontSize: 22, background: "transparent" }}>‹</button>
         <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${timerPct}%`, background: T.red, transition: "width 1s linear" }} />
@@ -86,71 +138,67 @@ export default function QuizPage() {
         <span style={{ color: T.white, fontSize: 12, minWidth: 36, textAlign: "right" }}>
           {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
         </span>
-        <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{idx + 1}/{total}</span>
+        <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{currentIdx + 1}/{total}</span>
       </div>
 
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
-        <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>{q.articleLabel}</div>
-        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{q.stem}</p>
+        <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>
+          {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
+        </div>
+        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {q.choices.map((c) => {
+          {currentQ.choices.map((c) => {
             let bg = T.surface, border = T.border, color = T.text;
             if (revealed) {
-              if (c.id === q.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
-              else if (c.id === chosen)  { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
-            } else if (c.id === chosen) {
-              border = T.navy;
+              if (c.id === currentQ.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
+              else if (c.id === chosen)          { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
             }
             return (
               <button
                 key={c.id}
                 disabled={revealed}
-                onClick={() => setChosen(c.id)}
+                onClick={() => handleChoice(c.id)}
                 style={{
-                  padding: "13px 16px", background: bg,
-                  border: `2px solid ${border}`, borderRadius: 8,
-                  textAlign: "left", fontSize: 14, color, fontWeight: 400,
+                  padding: "13px 16px", background: bg, border: `2px solid ${border}`,
+                  borderRadius: 8, textAlign: "left", fontSize: 14, color, fontWeight: 400,
                   display: "flex", gap: 10, alignItems: "center",
                 }}
               >
-                <span style={{ fontWeight: 700, minWidth: 18, color: revealed && c.id === q.correctId ? T.correct : T.muted }}>
+                <span style={{ fontWeight: 700, minWidth: 18, color: revealed && c.id === currentQ.correctId ? T.correct : T.muted }}>
                   {c.id.toUpperCase()}.
                 </span>
                 {c.text}
-                {revealed && c.id === q.correctId && <span style={{ marginLeft: "auto" }}>✓</span>}
+                {revealed && c.id === currentQ.correctId && <span style={{ marginLeft: "auto" }}>✓</span>}
               </button>
             );
           })}
         </div>
 
-        {/* Explanation */}
         {revealed && (
           <div style={{
             marginTop: 16, padding: "12px 14px",
             background: "#E6F4EC", border: `1px solid ${T.correct}`,
             borderRadius: 8, fontSize: 13, color: T.correct,
           }}>
-            <strong>Correct</strong> — {q.citation}: {q.explanation}
+            <strong>Correct</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
       </div>
 
-      {/* Next button */}
       <div style={{ padding: 16 }}>
         <button
           disabled={!revealed}
-          onClick={advance}
+          onClick={handleNext}
           style={{
             width: "100%", padding: "14px 0",
             background: revealed ? T.navy : T.border,
             color: T.white, borderRadius: 8,
             fontSize: 15, fontWeight: 700,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            transition: "background 0.15s",
           }}
         >
-          Next Question →
+          {currentIdx + 1 >= total ? "Finish →" : "Next Question →"}
         </button>
       </div>
     </div>

@@ -1,16 +1,27 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
-
-// Stub data — replace with Zustand store + canister calls
-const STATS = { streak: 14, stateRank: 47, accuracy: 84 };
-const WEEKLY = { label: "Art. 4–5", done: 3, total: 5 };
-const CHALLENGE = { from: "Marcus R.", id: "ch001" };
+import { useAuthStore } from "../store/authStore";
+import { challengeService, type Challenge } from "../services/challenge";
+import { rankingService, type UserStats } from "../services/ranking";
 
 export default function HomePage() {
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
+  const { profile, isAuthenticated } = useAuthStore();
+  const [stats,      setStats]      = useState<UserStats | null>(null);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+
+  useEffect(() => {
+    rankingService.getMyStats().then(setStats).catch(() => {});
+    challengeService.getMyChallenges().then(setChallenges).catch(() => {});
+  }, [isAuthenticated]);
+
+  const pending = challenges.filter(c => "Pending" in c.status);
+  const streak  = stats?.streak ?? 14n;
+  const accuracy = stats ? Math.round(stats.accuracy * 100) : 84;
 
   return (
-    <div style={{ padding: "0 0 16px" }}>
+    <div style={{ paddingBottom: 16 }}>
       {/* Header */}
       <div style={{
         background: T.navy, color: T.white,
@@ -20,29 +31,33 @@ export default function HomePage() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: "50%",
-            border: `2px solid ${T.red}`, display: "flex", alignItems: "center", justifyContent: "center",
+            border: `2px solid ${T.red}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 16,
           }}>🛡</div>
           <span style={{ fontWeight: 700, fontSize: 18 }}>OfficialIQ</span>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <span style={{ background: T.red, borderRadius: 12, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>
-            🔴 {STATS.streak}
+            🔴 {streak.toString()}
           </span>
           <div style={{
             width: 32, height: 32, borderRadius: "50%",
-            background: T.muted, display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 700, fontSize: 13,
-          }}>M</div>
+            background: T.muted,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 700, fontSize: 13, color: T.white,
+          }}>
+            {profile?.displayName?.[0]?.toUpperCase() ?? "?"}
+          </div>
         </div>
       </div>
 
       {/* Stat row */}
-      <div style={{ background: T.navy, display: "flex", padding: "0 20px 20px", gap: 0 }}>
+      <div style={{ background: T.navy, display: "flex", padding: "0 20px 20px" }}>
         {[
-          { value: STATS.streak,    label: "Day Streak", icon: "🔥" },
-          { value: `#${STATS.stateRank}`, label: "State Rank",  icon: "📊" },
-          { value: `${STATS.accuracy}%`,  label: "Accuracy",    icon: "🎯" },
+          { value: streak.toString(),  label: "Day Streak", icon: "🔥" },
+          { value: "#47",              label: "State Rank",  icon: "📊" },
+          { value: `${accuracy}%`,     label: "Accuracy",    icon: "🎯" },
         ].map((s) => (
           <div key={s.label} style={{ flex: 1, textAlign: "center", color: T.white }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: s.label === "State Rank" ? "#A8C4F5" : T.white }}>
@@ -61,14 +76,11 @@ export default function HomePage() {
           borderRadius: 12, padding: "14px 16px", marginBottom: 12,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>This Week — {WEEKLY.label}</span>
-            <span style={{ fontSize: 12, color: T.muted }}>{WEEKLY.done}/{WEEKLY.total} done</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>This Week — Art. 4–5</span>
+            <span style={{ fontSize: 12, color: T.muted }}>3/5 done</span>
           </div>
           <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden", marginBottom: 14 }}>
-            <div style={{
-              height: "100%", width: `${(WEEKLY.done / WEEKLY.total) * 100}%`,
-              background: T.red, borderRadius: 2,
-            }} />
+            <div style={{ height: "100%", width: "60%", background: T.red, borderRadius: 2 }} />
           </div>
           <button
             onClick={() => navigate("/quiz/ncaa_basketball:art4")}
@@ -86,11 +98,12 @@ export default function HomePage() {
         {/* Quick actions */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           {[
-            { label: "Audio Mode", icon: "🎧" },
-            { label: "Quick Drill", icon: "⚡" },
+            { label: "Audio Mode", icon: "🎧", path: "/study" },
+            { label: "Quick Drill", icon: "⚡", path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (
             <button
               key={a.label}
+              onClick={() => navigate(a.path)}
               style={{
                 padding: "14px 0", background: T.surface,
                 border: `1px solid ${T.border}`, borderRadius: 10,
@@ -105,19 +118,18 @@ export default function HomePage() {
         </div>
 
         {/* Challenge inbox */}
-        {CHALLENGE && (
+        {pending.length > 0 && (
           <div style={{
             background: T.surface, border: `1px solid ${T.border}`,
             borderRadius: 10, padding: "12px 16px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
-            <span style={{ fontSize: 14 }}>Challenge from <strong>{CHALLENGE.from}</strong></span>
+            <span style={{ fontSize: 14 }}>
+              Challenge from <strong>Marcus R.</strong>
+            </span>
             <button
               onClick={() => navigate("/ranks")}
-              style={{
-                background: "transparent", color: T.red,
-                fontWeight: 700, fontSize: 14,
-              }}
+              style={{ background: "transparent", color: T.red, fontWeight: 700, fontSize: 14 }}
             >
               Accept &rsaquo;
             </button>

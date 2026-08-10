@@ -1,11 +1,11 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Array "mo:base/Array";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
 
 persistent actor Challenge {
 
@@ -14,9 +14,9 @@ persistent actor Challenge {
   public type ChallengeStatus = { #Pending; #Accepted; #Completed; #Declined; #Expired };
 
   public type ChallengeResult = {
-    principal : Principal;
-    score     : Nat;   // 0-100
-    finishedAt: Int;
+    principal  : Principal;
+    score      : Nat;
+    finishedAt : Int;
   };
 
   public type Challenge = {
@@ -30,7 +30,7 @@ persistent actor Challenge {
     status      : ChallengeStatus;
     results     : [ChallengeResult];
     createdAt   : Int;
-    expiresAt   : Int;   // 72h window
+    expiresAt   : Int;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ persistent actor Challenge {
 
   var nextId : Nat = 0;
 
-  let TTL_NS : Int = 72 * 3600 * 1_000_000_000; // 72 hours in nanoseconds
+  let TTL_NS : Int = 72 * 3600 * 1_000_000_000;
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -52,17 +52,17 @@ persistent actor Challenge {
     count       : Nat,
   ) : async Result.Result<Challenge, Text> {
     if (caller == opponent) return #err("Cannot challenge yourself");
-    let id = "ch" # Nat.toText(nextId);
+    let id  = "ch" # Nat.toText(nextId);
     nextId += 1;
     let now = Time.now();
     let ch : Challenge = {
       id          = id;
       challenger  = caller;
       challenged  = opponent;
-      sport       = sport;
-      articleIds  = articleIds;
-      questionIds = questionIds;
-      count       = count;
+      sport;
+      articleIds;
+      questionIds;
+      count;
       status      = #Pending;
       results     = [];
       createdAt   = now;
@@ -78,10 +78,20 @@ persistent actor Challenge {
       case (?ch) {
         if (ch.challenged != caller) return #err("Not your challenge");
         if (Time.now() > ch.expiresAt) {
-          challenges.put(id, { ch with status = #Expired });
+          challenges.put(id, {
+            id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
+            sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
+            count = ch.count; status = #Expired; results = ch.results;
+            createdAt = ch.createdAt; expiresAt = ch.expiresAt;
+          });
           return #err("Challenge expired");
         };
-        let updated = { ch with status = #Accepted };
+        let updated : Challenge = {
+          id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
+          sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
+          count = ch.count; status = #Accepted; results = ch.results;
+          createdAt = ch.createdAt; expiresAt = ch.expiresAt;
+        };
         challenges.put(id, updated);
         #ok(updated)
       };
@@ -93,10 +103,17 @@ persistent actor Challenge {
       case null { #err("Challenge not found") };
       case (?ch) {
         if (ch.challenger != caller and ch.challenged != caller) return #err("Not a participant");
-        let res : ChallengeResult = { principal = caller; score = score; finishedAt = Time.now() };
-        let newResults = Array.append(ch.results, [res]);
+        let res : ChallengeResult = { principal = caller; score; finishedAt = Time.now() };
+        let newResults = Array.append<ChallengeResult>(ch.results, [res]);
         let done = newResults.size() == 2;
-        let updated = { ch with results = newResults; status = if (done) #Completed else ch.status };
+        let updated : Challenge = {
+          id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
+          sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
+          count = ch.count;
+          status = if (done) #Completed else ch.status;
+          results = newResults;
+          createdAt = ch.createdAt; expiresAt = ch.expiresAt;
+        };
         challenges.put(id, updated);
         #ok(updated)
       };
@@ -106,13 +123,19 @@ persistent actor Challenge {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyChallenges() : async [Challenge] {
-    var out : [Challenge] = [];
+    let buf = Array.init<Challenge>(challenges.size(), {
+      id = ""; challenger = caller; challenged = caller; sport = "";
+      articleIds = []; questionIds = []; count = 0; status = #Pending;
+      results = []; createdAt = 0; expiresAt = 0;
+    });
+    var i = 0;
     for ((_, ch) in challenges.entries()) {
       if (ch.challenger == caller or ch.challenged == caller) {
-        out := Array.append(out, [ch]);
+        buf[i] := ch;
+        i += 1;
       };
     };
-    out
+    Array.tabulate<Challenge>(i, func(j) { buf[j] })
   };
 
   public query func getChallenge(id : Text) : async ?Challenge {

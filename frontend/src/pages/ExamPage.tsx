@@ -1,25 +1,77 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
+import { examService } from "../services/exam";
+import { questionService } from "../services/question";
 
-const ARTICLES = ["Art. 1", "Art. 2", "Art. 3", "Art. 4", "Art. 5"];
-const MODES = ["Solo", "Share Link", "Timed"];
+const ARTICLES = [
+  { label: "Art. 1", id: "ncaa_basketball:art1" },
+  { label: "Art. 2", id: "ncaa_basketball:art2" },
+  { label: "Art. 3", id: "ncaa_basketball:art3" },
+  { label: "Art. 4", id: "ncaa_basketball:art4" },
+  { label: "Art. 5", id: "ncaa_basketball:art5" },
+];
+
+const MODES = ["Solo", "Share Link", "Timed"] as const;
+type Mode = typeof MODES[number];
 
 export default function ExamPage() {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState<string[]>(["Art. 1", "Art. 4", "Art. 5"]);
-  const [casebook, setCasebook] = useState(true);
-  const [count, setCount] = useState(25);
-  const [secPerQ, setSecPerQ] = useState(45);
-  const [mode, setMode] = useState("Share Link");
-  const [generated, setGenerated] = useState(false);
 
-  const toggle = (a: string) => setSelected(s =>
-    s.includes(a) ? s.filter(x => x !== a) : [...s, a]
-  );
+  const [selected, setSelected] = useState<string[]>(["ncaa_basketball:art1", "ncaa_basketball:art4", "ncaa_basketball:art5"]);
+  const [casebook,  setCasebook]  = useState(true);
+  const [count,     setCount]     = useState(25);
+  const [secPerQ,   setSecPerQ]   = useState(45);
+  const [mode,      setMode]      = useState<Mode>("Share Link");
+  const [loading,   setLoading]   = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+
+  const toggle = (id: string) =>
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
 
   const estMinutes = Math.round((count * secPerQ) / 60);
   const difficulty = count <= 10 ? "Beginner" : count <= 25 ? "Intermediate" : "Advanced";
+
+  const modeMap: Record<Mode, { Solo: null } | { ShareLink: null } | { Timed: null }> = {
+    "Solo":       { Solo: null },
+    "Share Link": { ShareLink: null },
+    "Timed":      { Timed: null },
+  };
+
+  async function generate() {
+    setLoading(true);
+    try {
+      const qs = await questionService.sampleQuiz({
+        sportId:    "ncaa_basketball",
+        articleIds: selected,
+        casebook,
+        difficulty: [],
+        count:      BigInt(count),
+      });
+      const session = await examService.createSession(
+        {
+          sportId:    "ncaa_basketball",
+          articleIds: selected,
+          casebook,
+          count:      BigInt(qs.length),
+          secPerQ:    BigInt(secPerQ),
+          mode:       modeMap[mode],
+        },
+        qs.map(q => q.id),
+      );
+      const token = session.shareToken.length ? session.shareToken[0] : null;
+      if (token) {
+        setShareToken(token);
+        await navigator.clipboard.writeText(`${window.location.origin}/quiz/${token}`).catch(() => {});
+      } else {
+        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div>
@@ -28,7 +80,9 @@ export default function ExamPage() {
           <span style={{ fontSize: 20 }}>📋</span>
           <span style={{ fontSize: 20, fontWeight: 700 }}>Build Exam</span>
         </div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Customize and generate your exam</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+          Customize and generate your exam
+        </div>
       </div>
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -38,11 +92,11 @@ export default function ExamPage() {
           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>Rule Articles</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {ARTICLES.map((a) => {
-              const on = selected.includes(a);
+              const on = selected.includes(a.id);
               return (
                 <button
-                  key={a}
-                  onClick={() => toggle(a)}
+                  key={a.id}
+                  onClick={() => toggle(a.id)}
                   style={{
                     padding: "7px 14px", borderRadius: 6,
                     background: on ? T.navy : T.surface,
@@ -50,17 +104,9 @@ export default function ExamPage() {
                     border: `1px solid ${on ? T.navy : T.border}`,
                     fontSize: 13, fontWeight: on ? 700 : 400,
                   }}
-                >{a}</button>
+                >{a.label}</button>
               );
             })}
-            {selected.length < ARTICLES.length && (
-              <button
-                style={{
-                  padding: "7px 14px", borderRadius: 6, background: T.surface,
-                  color: T.muted, border: `1px solid ${T.border}`, fontSize: 13,
-                }}
-              >+ {ARTICLES.length - Math.max(selected.length, 0)} more</button>
-            )}
           </div>
         </div>
 
@@ -85,21 +131,25 @@ export default function ExamPage() {
           </button>
         </div>
 
-        {/* Count + time */}
-        {[
-          { label: "Questions",        value: count,    set: setCount,  min: 5,  max: 100, step: 5 },
-          { label: "Time per question", value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: " sec" },
-        ].map((row) => (
+        {/* Count + time steppers */}
+        {([
+          { label: "Questions",          value: count,  set: setCount,  min: 5,  max: 100, step: 5 },
+          { label: "Time per question",  value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: " sec" },
+        ] as const).map((row) => (
           <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14 }}>{row.label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => row.set(v => Math.max(row.min, v - row.step))}
-                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}>−</button>
+              <button
+                onClick={() => (row.set as any)(v => Math.max(row.min, v - row.step))}
+                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+              >−</button>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 40, textAlign: "center" }}>
-                {row.value}{row.suffix ?? ""}
+                {row.value}{"suffix" in row ? row.suffix : ""}
               </span>
-              <button onClick={() => row.set(v => Math.min(row.max, v + row.step))}
-                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}>+</button>
+              <button
+                onClick={() => (row.set as any)(v => Math.min(row.max, v + row.step))}
+                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+              >+</button>
             </div>
           </div>
         ))}
@@ -109,11 +159,8 @@ export default function ExamPage() {
           <span style={{ fontSize: 14 }}>Mode</span>
           <select
             value={mode}
-            onChange={e => setMode(e.target.value)}
-            style={{
-              fontSize: 14, fontWeight: 700, color: T.red,
-              background: "transparent", border: "none", cursor: "pointer",
-            }}
+            onChange={e => setMode(e.target.value as Mode)}
+            style={{ fontSize: 14, fontWeight: 700, color: T.red, background: "transparent", border: "none", cursor: "pointer" }}
           >
             {MODES.map(m => <option key={m}>{m}</option>)}
           </select>
@@ -130,33 +177,35 @@ export default function ExamPage() {
           <span style={{ marginLeft: "auto" }}>~ {estMinutes} min exam</span>
         </div>
 
-        {/* Generate */}
-        {!generated ? (
+        {/* Generate / share link result */}
+        {!shareToken ? (
           <button
-            onClick={() => setGenerated(true)}
+            onClick={generate}
+            disabled={loading || selected.length === 0}
             style={{
               width: "100%", padding: "14px 0",
-              background: T.navy, color: T.white,
-              borderRadius: 8, fontSize: 15, fontWeight: 700,
+              background: loading || selected.length === 0 ? T.border : T.navy,
+              color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
             }}
-          >Generate & Copy Link</button>
+          >
+            {loading ? "Generating…" : "Generate & Copy Link"}
+          </button>
         ) : (
           <div style={{
             padding: 20, background: "#EEF3FC",
-            border: `1px solid ${T.navy}`, borderRadius: 8,
-            textAlign: "center",
+            border: `1px solid ${T.navy}`, borderRadius: 8, textAlign: "center",
           }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ready to generate!</div>
-            <div style={{ fontSize: 13, color: T.muted, marginBottom: 14 }}>Your exam link will be ready to share or copy.</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ready!</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 14 }}>
+              Link copied to clipboard — share it with your opponent.
+            </div>
             <button
-              onClick={() => navigate(`/quiz/exam_${Date.now()}`)}
-              style={{
-                padding: "12px 24px",
-                background: T.navy, color: T.white,
-                borderRadius: 8, fontSize: 14, fontWeight: 700,
-              }}
-            >Generate & Copy Link</button>
+              onClick={() => navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`)}
+              style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+            >
+              Start My Attempt
+            </button>
           </div>
         )}
       </div>

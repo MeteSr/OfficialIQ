@@ -1,11 +1,11 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Array "mo:base/Array";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
 
 persistent actor Question {
 
@@ -18,12 +18,12 @@ persistent actor Question {
   public type Question = {
     id          : Text;
     sportId     : Text;
-    articleId   : Text;   // e.g. "ncaa_basketball:art4"
-    citation    : Text;   // "Art. 4-23, pg. 42"
-    stem        : Text;   // question text
+    articleId   : Text;
+    citation    : Text;
+    stem        : Text;
     choices     : [Choice];
-    correctId   : Text;   // id of the correct Choice
-    explanation : Text;   // shown after answer
+    correctId   : Text;
+    explanation : Text;
     difficulty  : Difficulty;
     isCasebook  : Bool;
     createdAt   : Int;
@@ -43,10 +43,10 @@ persistent actor Question {
 
   public type QuizFilter = {
     sportId    : Text;
-    articleIds : [Text];   // empty = all articles
+    articleIds : [Text];
     casebook   : Bool;
     difficulty : ?Difficulty;
-    count      : Nat;      // desired question count (1-100)
+    count      : Nat;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -98,29 +98,34 @@ persistent actor Question {
   };
 
   public query func sampleQuiz(filter : QuizFilter) : async [Question] {
-    var pool : [Question] = [];
+    let buf = Array.init<Question>(questions.size(), {
+      id = ""; sportId = ""; articleId = ""; citation = ""; stem = "";
+      choices = []; correctId = ""; explanation = "";
+      difficulty = #Beginner; isCasebook = false; createdAt = 0;
+    });
+    var i = 0;
     for ((_, q) in questions.entries()) {
       if (q.sportId == filter.sportId and q.isCasebook == filter.casebook) {
-        let articleMatch = filter.articleIds.size() == 0 or
+        let articleMatch : Bool =
+          filter.articleIds.size() == 0 or
           Array.find<Text>(filter.articleIds, func(a) { a == q.articleId }) != null;
-        let diffMatch = switch filter.difficulty {
+        let diffMatch : Bool = switch filter.difficulty {
           case null true;
-          case (?d) { switch (q.difficulty, d) {
-            case (#Beginner, #Beginner) true;
+          case (?d) switch (q.difficulty, d) {
+            case (#Beginner,     #Beginner)     true;
             case (#Intermediate, #Intermediate) true;
-            case (#Advanced, #Advanced) true;
-            case (#Expert, #Expert) true;
-            case _ false;
-          }};
+            case (#Advanced,     #Advanced)     true;
+            case (#Expert,       #Expert)       true;
+            case _                              false;
+          };
         };
-        if (articleMatch and diffMatch) {
-          pool := Array.append(pool, [q]);
+        if (articleMatch and diffMatch and i < filter.count) {
+          buf[i] := q;
+          i += 1;
         };
       };
     };
-    // Return up to `count` questions (no shuffle on-chain; client shuffles)
-    let cap = if (filter.count < pool.size()) filter.count else pool.size();
-    Array.tabulate<Question>(cap, func(i) { pool[i] })
+    Array.tabulate<Question>(i, func(j) { buf[j] })
   };
 
   public query func metrics() : async { questionCount : Nat } {

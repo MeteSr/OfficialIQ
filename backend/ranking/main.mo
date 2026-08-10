@@ -1,18 +1,17 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Array "mo:base/Array";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Float "mo:base/Float";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Float "mo:core/Float";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
+import Order "mo:core/Order";
 
 persistent actor Ranking {
 
   // ─── Types ────────────────────────────────────────────────────────────────
-
-  public type LeaderboardScope = { #Friends; #State; #National };
 
   public type UserStats = {
     principal   : Principal;
@@ -21,7 +20,7 @@ persistent actor Ranking {
     state       : Text;
     elo         : Float;
     streak      : Nat;
-    accuracy    : Float;   // 0.0–1.0
+    accuracy    : Float;
     examCount   : Nat;
     updatedAt   : Int;
   };
@@ -40,122 +39,116 @@ persistent actor Ranking {
   var stats : HashMap.HashMap<Principal, UserStats> =
     HashMap.HashMap<Principal, UserStats>(256, Principal.equal, Principal.hash);
 
-  // friendship map: principal → [friend principals]
   var friends : HashMap.HashMap<Principal, [Principal]> =
     HashMap.HashMap<Principal, [Principal]>(256, Principal.equal, Principal.hash);
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  func sortByElo(pool : [UserStats]) : [UserStats] {
+    Array.sort<UserStats>(pool, func(a, b) {
+      if (a.elo > b.elo) #less
+      else if (a.elo < b.elo) #greater
+      else #equal
+    })
+  };
+
+  func toEntries(sorted : [UserStats], limit : Nat) : [LeaderboardEntry] {
+    let cap = if (limit < sorted.size()) limit else sorted.size();
+    Array.tabulate<LeaderboardEntry>(cap, func(i) {
+      let s = sorted[i];
+      { rank = i + 1; principal = s.principal; displayName = s.displayName;
+        elo = s.elo; accuracy = s.accuracy; streak = s.streak }
+    })
+  };
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
   public shared ({ caller }) func recordExamResult(
-    score : Nat,          // 0-100
-    questionCount : Nat,
-    displayName : Text,
-    sport : Text,
-    state : Text,
+    score        : Nat,
+    questionCount: Nat,
+    displayName  : Text,
+    sport        : Text,
+    state        : Text,
   ) : async () {
-    let existing = stats.get(caller);
-    let prev = switch existing {
+    let prev : UserStats = switch (stats.get(caller)) {
       case (?s) s;
       case null {
-        {
-          principal   = caller;
-          displayName = displayName;
-          sport       = sport;
-          state       = state;
-          elo         = 1000.0;
-          streak      = 0;
-          accuracy    = 0.0;
-          examCount   = 0;
-          updatedAt   = 0;
-        }
+        { principal = caller; displayName; sport; state;
+          elo = 1000.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0 }
       };
     };
-
-    let acc = Float.fromInt(score) / 100.0;
-    let newExamCount = prev.examCount + 1;
-    let newAccuracy = (prev.accuracy * Float.fromInt(prev.examCount) + acc) / Float.fromInt(newExamCount);
-    let delta : Float = (acc - 0.5) * 32.0; // simplified ELO delta
-    let newElo = if (prev.elo + delta < 0.0) 0.0 else prev.elo + delta;
-    let newStreak = if (score >= 80) prev.streak + 1 else 0;
-
-    let updated : UserStats = {
+    let acc        = Float.fromInt(score) / 100.0;
+    let newCount   = prev.examCount + 1;
+    let newAcc     = (prev.accuracy * Float.fromInt(prev.examCount) + acc) / Float.fromInt(newCount);
+    let delta      = (acc - 0.5) * 32.0;
+    let newElo     = if (prev.elo + delta < 0.0) 0.0 else prev.elo + delta;
+    let newStreak  = if (score >= 80) prev.streak + 1 else 0;
+    stats.put(caller, {
       principal   = caller;
       displayName = displayName;
-      sport       = sport;
-      state       = state;
+      sport;
+      state;
       elo         = newElo;
       streak      = newStreak;
-      accuracy    = newAccuracy;
-      examCount   = newExamCount;
+      accuracy    = newAcc;
+      examCount   = newCount;
       updatedAt   = Time.now();
-    };
-    stats.put(caller, updated);
+    });
   };
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
     if (caller == friend) return #err("Cannot friend yourself");
     let existing = switch (friends.get(caller)) { case (?f) f; case null [] };
-    let alreadyFriend = Array.find<Principal>(existing, func(p) { p == friend }) != null;
-    if (alreadyFriend) return #err("Already friends");
-    friends.put(caller, Array.append(existing, [friend]));
+    let already = Array.find<Principal>(existing, func(p) { p == friend }) != null;
+    if (already) return #err("Already friends");
+    friends.put(caller, Array.append<Principal>(existing, [friend]));
     #ok(())
   };
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public query func getNational(sport : Text, limit : Nat) : async [LeaderboardEntry] {
-    var pool : [UserStats] = [];
-    for ((_, s) in stats.entries()) {
-      if (s.sport == sport) pool := Array.append(pool, [s]);
-    };
-    let sorted = Array.sort<UserStats>(pool, func(a, b) {
-      if (a.elo > b.elo) #less
-      else if (a.elo < b.elo) #greater
-      else #equal
+    let buf = Array.init<UserStats>(stats.size(), {
+      principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
+      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
     });
-    let cap = if (limit < sorted.size()) limit else sorted.size();
-    Array.tabulate<LeaderboardEntry>(cap, func(i) {
-      let s = sorted[i];
-      { rank = i + 1; principal = s.principal; displayName = s.displayName;
-        elo = s.elo; accuracy = s.accuracy; streak = s.streak }
-    })
+    var i = 0;
+    for ((_, s) in stats.entries()) {
+      if (s.sport == sport) { buf[i] := s; i += 1 };
+    };
+    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    toEntries(sortByElo(pool), limit)
   };
 
   public query func getState(sport : Text, state : Text, limit : Nat) : async [LeaderboardEntry] {
-    var pool : [UserStats] = [];
-    for ((_, s) in stats.entries()) {
-      if (s.sport == sport and s.state == state) pool := Array.append(pool, [s]);
-    };
-    let sorted = Array.sort<UserStats>(pool, func(a, b) {
-      if (a.elo > b.elo) #less else if (a.elo < b.elo) #greater else #equal
+    let buf = Array.init<UserStats>(stats.size(), {
+      principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
+      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
     });
-    let cap = if (limit < sorted.size()) limit else sorted.size();
-    Array.tabulate<LeaderboardEntry>(cap, func(i) {
-      let s = sorted[i];
-      { rank = i + 1; principal = s.principal; displayName = s.displayName;
-        elo = s.elo; accuracy = s.accuracy; streak = s.streak }
-    })
+    var i = 0;
+    for ((_, s) in stats.entries()) {
+      if (s.sport == sport and s.state == state) { buf[i] := s; i += 1 };
+    };
+    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    toEntries(sortByElo(pool), limit)
   };
 
   public shared query ({ caller }) func getFriends(sport : Text, limit : Nat) : async [LeaderboardEntry] {
     let myFriends = switch (friends.get(caller)) { case (?f) f; case null [] };
-    let all = Array.append(myFriends, [caller]);
-    var pool : [UserStats] = [];
+    let all = Array.append<Principal>(myFriends, [caller]);
+    let buf = Array.init<UserStats>(all.size(), {
+      principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
+      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
+    });
+    var i = 0;
     for (p in all.vals()) {
       switch (stats.get(p)) {
-        case (?s) { if (s.sport == sport) pool := Array.append(pool, [s]) };
+        case (?s) { if (s.sport == sport) { buf[i] := s; i += 1 } };
         case null {};
       };
     };
-    let sorted = Array.sort<UserStats>(pool, func(a, b) {
-      if (a.elo > b.elo) #less else if (a.elo < b.elo) #greater else #equal
-    });
-    let cap = if (limit < sorted.size()) limit else sorted.size();
-    Array.tabulate<LeaderboardEntry>(cap, func(i) {
-      let s = sorted[i];
-      { rank = i + 1; principal = s.principal; displayName = s.displayName;
-        elo = s.elo; accuracy = s.accuracy; streak = s.streak }
-    })
+    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    toEntries(sortByElo(pool), limit)
   };
 
   public shared query ({ caller }) func getMyStats() : async ?UserStats {

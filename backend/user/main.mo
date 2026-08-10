@@ -1,9 +1,10 @@
-import Principal "mo:base/Principal";
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
+import Principal "mo:core/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending – HashMap still compiles
+import Text "mo:core/Text";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Iter "mo:core/Iter";
 
 persistent actor User {
 
@@ -16,11 +17,11 @@ persistent actor User {
   };
 
   public type Profile = {
-    principal : Principal;
+    principal   : Principal;
     displayName : Text;
     role        : Role;
-    sport       : Text;   // e.g. "ncaa_basketball"
-    level       : Text;   // e.g. "varsity"
+    sport       : Text;
+    level       : Text;
     createdAt   : Int;
   };
 
@@ -80,8 +81,6 @@ persistent actor User {
   public query func getProfile(p : Principal) : async ?Profile {
     profiles.get(p)
   };
-
-  // ─── Admin ────────────────────────────────────────────────────────────────
 
   public query func metrics() : async { userCount : Nat } {
     { userCount = profiles.size() }

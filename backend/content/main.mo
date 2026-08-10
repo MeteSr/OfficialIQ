@@ -1,45 +1,53 @@
-import HashMap "mo:base/HashMap";
-import Text "mo:base/Text";
-import Array "mo:base/Array";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
-import Result "mo:base/Result";
-import Principal "mo:base/Principal";
+import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Text "mo:core/Text";
+import Array "mo:core/Array";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Result "mo:core/Result";
+import Principal "mo:core/Principal";
+import Iter "mo:core/Iter";
 
 persistent actor Content {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type ArticleId = Text;  // e.g. "ncaa_basketball:art4"
+  public type ArticleId = Text;
 
   public type Article = {
-    id         : ArticleId;
-    sportId    : Text;   // "ncaa_basketball"
-    levelId    : Text;   // "varsity"
-    number     : Nat;    // 4
-    title      : Text;   // "Fouls"
-    body       : Text;   // full rule text (Markdown)
-    audioUrl   : ?Text;  // Cloudflare R2 presigned URL (populated by ai_proxy)
-    createdAt  : Int;
-    updatedAt  : Int;
+    id        : ArticleId;
+    sportId   : Text;
+    levelId   : Text;
+    number    : Nat;
+    title     : Text;
+    body      : Text;
+    audioUrl  : ?Text;
+    createdAt : Int;
+    updatedAt : Int;
   };
 
   public type CasebookPlay = {
-    id         : Text;
-    articleId  : ArticleId;
-    citation   : Text;   // "Art. 4-23, pg. 42"
-    scenario   : Text;
-    ruling     : Text;
-    audioUrl   : ?Text;
+    id        : Text;
+    articleId : ArticleId;
+    citation  : Text;
+    scenario  : Text;
+    ruling    : Text;
+    audioUrl  : ?Text;
   };
 
   public type ArticleInput = {
-    sportId  : Text;
-    levelId  : Text;
-    number   : Nat;
-    title    : Text;
-    body     : Text;
+    sportId : Text;
+    levelId : Text;
+    number  : Nat;
+    title   : Text;
+    body    : Text;
+  };
+
+  public type PlayInput = {
+    articleId : ArticleId;
+    citation  : Text;
+    scenario  : Text;
+    ruling    : Text;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -50,10 +58,10 @@ persistent actor Content {
   var plays : HashMap.HashMap<Text, CasebookPlay> =
     HashMap.HashMap<Text, CasebookPlay>(512, Text.equal, Text.hash);
 
-  // admin principal set on first deploy via setAdmin
+  var nextPlayId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
-  // ─── Admin ────────────────────────────────────────────────────────────────
+  // ─── Admin guards ─────────────────────────────────────────────────────────
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
     switch adminPrincipal {
@@ -69,9 +77,11 @@ persistent actor Content {
     switch adminPrincipal { case (?a) a == p; case null false }
   };
 
+  // ─── Mutations ────────────────────────────────────────────────────────────
+
   public shared ({ caller }) func upsertArticle(input : ArticleInput) : async Result.Result<Article, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
-    let id = input.sportId # ":" # "art" # Nat.toText(input.number);
+    let id  = input.sportId # ":art" # Nat.toText(input.number);
     let now = Time.now();
     let existing = articles.get(id);
     let art : Article = {
@@ -89,12 +99,38 @@ persistent actor Content {
     #ok(art)
   };
 
+  public shared ({ caller }) func upsertPlay(input : PlayInput) : async Result.Result<CasebookPlay, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let id  = "p" # Nat.toText(nextPlayId);
+    nextPlayId += 1;
+    let play : CasebookPlay = {
+      id        = id;
+      articleId = input.articleId;
+      citation  = input.citation;
+      scenario  = input.scenario;
+      ruling    = input.ruling;
+      audioUrl  = null;
+    };
+    plays.put(id, play);
+    #ok(play)
+  };
+
   public shared ({ caller }) func setArticleAudio(id : ArticleId, url : Text) : async Result.Result<(), Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     switch (articles.get(id)) {
       case null { #err("Article not found") };
       case (?a) {
-        articles.put(id, { a with audioUrl = ?url; updatedAt = Time.now() });
+        articles.put(id, {
+          id        = a.id;
+          sportId   = a.sportId;
+          levelId   = a.levelId;
+          number    = a.number;
+          title     = a.title;
+          body      = a.body;
+          audioUrl  = ?url;
+          createdAt = a.createdAt;
+          updatedAt = Time.now();
+        });
         #ok(())
       };
     }
@@ -107,29 +143,29 @@ persistent actor Content {
   };
 
   public query func listArticles(sportId : Text, levelId : Text) : async [Article] {
-    let out = Array.init<Article>(articles.size(), {
+    let buf = Array.init<Article>(articles.size(), {
       id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = "";
       audioUrl = null; createdAt = 0; updatedAt = 0;
     });
     var i = 0;
     for ((_, art) in articles.entries()) {
       if (art.sportId == sportId and art.levelId == levelId) {
-        out[i] := art;
+        buf[i] := art;
         i += 1;
       };
     };
-    Array.tabulate<Article>(i, func(j) { out[j] })
+    Array.tabulate<Article>(i, func(j) { buf[j] })
   };
 
   public query func listPlays(articleId : ArticleId) : async [CasebookPlay] {
-    let out = Array.init<CasebookPlay>(plays.size(), {
+    let buf = Array.init<CasebookPlay>(plays.size(), {
       id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null;
     });
     var i = 0;
     for ((_, p) in plays.entries()) {
-      if (p.articleId == articleId) { out[i] := p; i += 1 };
+      if (p.articleId == articleId) { buf[i] := p; i += 1 };
     };
-    Array.tabulate<CasebookPlay>(i, func(j) { out[j] })
+    Array.tabulate<CasebookPlay>(i, func(j) { buf[j] })
   };
 
   public query func metrics() : async { articleCount : Nat; playCount : Nat } {
