@@ -1,0 +1,8 @@
+.dfx/
+node_modules/
+frontend/dist/
+frontend/node_modules/
+.env
+*.env.local
+canister_ids.json
+.vessel/

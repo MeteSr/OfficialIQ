@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "canisters": {
+    "user": {
+      "type": "motoko",
+      "main": "backend/user/main.mo"
+    },
+    "content": {
+      "type": "motoko",
+      "main": "backend/content/main.mo"
+    },
+    "question": {
+      "type": "motoko",
+      "main": "backend/question/main.mo"
+    },
+    "exam": {
+      "type": "motoko",
+      "main": "backend/exam/main.mo"
+    },
+    "ranking": {
+      "type": "motoko",
+      "main": "backend/ranking/main.mo"
+    },
+    "challenge": {
+      "type": "motoko",
+      "main": "backend/challenge/main.mo"
+    },
+    "ai_proxy": {
+      "type": "motoko",
+      "main": "backend/ai_proxy/main.mo"
+    },
+    "assets": {
+      "type": "assets",
+      "source": ["frontend/dist"],
+      "dependencies": ["user", "content", "question", "exam", "ranking", "challenge"],
+      "frontend": {
+        "entrypoint": "frontend/dist/index.html"
+      }
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  }
+}
