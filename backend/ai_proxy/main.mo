@@ -32,7 +32,7 @@ persistent actor AiProxy {
   // Returns raw response body bytes; caller uploads to Cloudflare R2.
   public shared ({ caller }) func httpPost(
     url      : Text,
-    headers  : [IC.HttpHeader],
+    headers  : [IC.http_header],
     bodyJson : Text,
     maxBytes : Nat64,
   ) : async Result.Result<Blob, Text> {
@@ -45,6 +45,7 @@ persistent actor AiProxy {
       body               = ?Text.encodeUtf8(bodyJson);
       method             = #post;
       transform          = ?{ function = transform; context = Blob.fromArray([]) };
+      is_replicated      = null;
     });
 
     if (resp.status == 200) #ok(resp.body) else #err("HTTP " # Nat.toText(resp.status))

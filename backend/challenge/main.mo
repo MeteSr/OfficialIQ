@@ -1,6 +1,7 @@
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
+import VarArray "mo:core/VarArray";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -35,8 +36,7 @@ persistent actor Challenge {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var challenges : HashMap.HashMap<Text, Challenge> =
-    HashMap.HashMap<Text, Challenge>(256, Text.equal, Text.hash);
+  var challenges : Map.Map<Text, Challenge> = Map.empty<Text, Challenge>();
 
   var nextId : Nat = 0;
 
@@ -68,17 +68,17 @@ persistent actor Challenge {
       createdAt   = now;
       expiresAt   = now + TTL_NS;
     };
-    challenges.put(id, ch);
+    Map.add(challenges, Text.compare, id, ch);
     #ok(ch)
   };
 
   public shared ({ caller }) func acceptChallenge(id : Text) : async Result.Result<Challenge, Text> {
-    switch (challenges.get(id)) {
+    switch (Map.get(challenges, Text.compare, id)) {
       case null { #err("Challenge not found") };
       case (?ch) {
         if (ch.challenged != caller) return #err("Not your challenge");
         if (Time.now() > ch.expiresAt) {
-          challenges.put(id, {
+          Map.add(challenges, Text.compare, id, {
             id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
             sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
             count = ch.count; status = #Expired; results = ch.results;
@@ -92,19 +92,19 @@ persistent actor Challenge {
           count = ch.count; status = #Accepted; results = ch.results;
           createdAt = ch.createdAt; expiresAt = ch.expiresAt;
         };
-        challenges.put(id, updated);
+        Map.add(challenges, Text.compare, id, updated);
         #ok(updated)
       };
     }
   };
 
   public shared ({ caller }) func submitResult(id : Text, score : Nat) : async Result.Result<Challenge, Text> {
-    switch (challenges.get(id)) {
+    switch (Map.get(challenges, Text.compare, id)) {
       case null { #err("Challenge not found") };
       case (?ch) {
         if (ch.challenger != caller and ch.challenged != caller) return #err("Not a participant");
         let res : ChallengeResult = { principal = caller; score; finishedAt = Time.now() };
-        let newResults = Array.append<ChallengeResult>(ch.results, [res]);
+        let newResults = Array.concat<ChallengeResult>(ch.results, [res]);
         let done = newResults.size() == 2;
         let updated : Challenge = {
           id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
@@ -114,7 +114,7 @@ persistent actor Challenge {
           results = newResults;
           createdAt = ch.createdAt; expiresAt = ch.expiresAt;
         };
-        challenges.put(id, updated);
+        Map.add(challenges, Text.compare, id, updated);
         #ok(updated)
       };
     }
@@ -123,26 +123,26 @@ persistent actor Challenge {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyChallenges() : async [Challenge] {
-    let buf = Array.init<Challenge>(challenges.size(), {
+    let buf = VarArray.repeat<Challenge>({
       id = ""; challenger = caller; challenged = caller; sport = "";
       articleIds = []; questionIds = []; count = 0; status = #Pending;
       results = []; createdAt = 0; expiresAt = 0;
-    });
+    }, Map.size(challenges));
     var i = 0;
-    for ((_, ch) in challenges.entries()) {
+    for ((_, ch) in Map.entries(challenges)) {
       if (ch.challenger == caller or ch.challenged == caller) {
         buf[i] := ch;
         i += 1;
       };
     };
-    Array.tabulate<Challenge>(i, func(j) { buf[j] })
+    VarArray.sliceToArray<Challenge>(buf, 0, i)
   };
 
   public query func getChallenge(id : Text) : async ?Challenge {
-    challenges.get(id)
+    Map.get(challenges, Text.compare, id)
   };
 
   public query func metrics() : async { challengeCount : Nat } {
-    { challengeCount = challenges.size() }
+    { challengeCount = Map.size(challenges) }
   };
 }

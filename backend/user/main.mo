@@ -1,5 +1,5 @@
 import Principal "mo:core/Principal";
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending – HashMap still compiles
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -33,14 +33,13 @@ persistent actor User {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var profiles : HashMap.HashMap<Principal, Profile> =
-    HashMap.HashMap<Principal, Profile>(64, Principal.equal, Principal.hash);
+  var profiles : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
   public shared ({ caller }) func createProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
-    if (profiles.get(caller) != null) return #err("Profile already exists");
+    if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
 
     let p : Profile = {
       principal   = caller;
@@ -50,12 +49,12 @@ persistent actor User {
       level       = req.level;
       createdAt   = Time.now();
     };
-    profiles.put(caller, p);
+    Map.add(profiles, Principal.compare, caller, p);
     #ok(p)
   };
 
   public shared ({ caller }) func updateProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
-    switch (profiles.get(caller)) {
+    switch (Map.get(profiles, Principal.compare, caller)) {
       case null { #err("Profile not found") };
       case (?existing) {
         let updated : Profile = {
@@ -66,7 +65,7 @@ persistent actor User {
           level       = req.level;
           createdAt   = existing.createdAt;
         };
-        profiles.put(caller, updated);
+        Map.add(profiles, Principal.compare, caller, updated);
         #ok(updated)
       };
     }
@@ -75,14 +74,14 @@ persistent actor User {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
-    profiles.get(caller)
+    Map.get(profiles, Principal.compare, caller)
   };
 
   public query func getProfile(p : Principal) : async ?Profile {
-    profiles.get(p)
+    Map.get(profiles, Principal.compare, p)
   };
 
   public query func metrics() : async { userCount : Nat } {
-    { userCount = profiles.size() }
+    { userCount = Map.size(profiles) }
   };
 }

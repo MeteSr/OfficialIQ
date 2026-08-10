@@ -1,6 +1,7 @@
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
+import VarArray "mo:core/VarArray";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Float "mo:core/Float";
@@ -36,11 +37,9 @@ persistent actor Ranking {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var stats : HashMap.HashMap<Principal, UserStats> =
-    HashMap.HashMap<Principal, UserStats>(256, Principal.equal, Principal.hash);
+  var stats : Map.Map<Principal, UserStats> = Map.empty<Principal, UserStats>();
 
-  var friends : HashMap.HashMap<Principal, [Principal]> =
-    HashMap.HashMap<Principal, [Principal]>(256, Principal.equal, Principal.hash);
+  var friends : Map.Map<Principal, [Principal]> = Map.empty<Principal, [Principal]>();
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -54,11 +53,18 @@ persistent actor Ranking {
 
   func toEntries(sorted : [UserStats], limit : Nat) : [LeaderboardEntry] {
     let cap = if (limit < sorted.size()) limit else sorted.size();
-    Array.tabulate<LeaderboardEntry>(cap, func(i) {
+    let buf = VarArray.repeat<LeaderboardEntry>({
+      rank = 0; principal = Principal.fromText("2vxsx-fae"); displayName = "";
+      elo = 0.0; accuracy = 0.0; streak = 0;
+    }, cap);
+    var i = 0;
+    while (i < cap) {
       let s = sorted[i];
-      { rank = i + 1; principal = s.principal; displayName = s.displayName;
-        elo = s.elo; accuracy = s.accuracy; streak = s.streak }
-    })
+      buf[i] := { rank = i + 1; principal = s.principal; displayName = s.displayName;
+        elo = s.elo; accuracy = s.accuracy; streak = s.streak };
+      i += 1;
+    };
+    VarArray.toArray<LeaderboardEntry>(buf)
   };
 
   // ─── Mutations ────────────────────────────────────────────────────────────
@@ -70,20 +76,20 @@ persistent actor Ranking {
     sport        : Text,
     state        : Text,
   ) : async () {
-    let prev : UserStats = switch (stats.get(caller)) {
+    let prev : UserStats = switch (Map.get(stats, Principal.compare, caller)) {
       case (?s) s;
       case null {
         { principal = caller; displayName; sport; state;
           elo = 1000.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0 }
       };
     };
-    let acc        = Float.fromInt(score) / 100.0;
+    let acc        = Int.toFloat(score) / 100.0;
     let newCount   = prev.examCount + 1;
-    let newAcc     = (prev.accuracy * Float.fromInt(prev.examCount) + acc) / Float.fromInt(newCount);
+    let newAcc     = (prev.accuracy * Int.toFloat(prev.examCount) + acc) / Int.toFloat(newCount);
     let delta      = (acc - 0.5) * 32.0;
     let newElo     = if (prev.elo + delta < 0.0) 0.0 else prev.elo + delta;
     let newStreak  = if (score >= 80) prev.streak + 1 else 0;
-    stats.put(caller, {
+    Map.add(stats, Principal.compare, caller, {
       principal   = caller;
       displayName = displayName;
       sport;
@@ -98,64 +104,64 @@ persistent actor Ranking {
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
     if (caller == friend) return #err("Cannot friend yourself");
-    let existing = switch (friends.get(caller)) { case (?f) f; case null [] };
+    let existing = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
     let already = Array.find<Principal>(existing, func(p) { p == friend }) != null;
     if (already) return #err("Already friends");
-    friends.put(caller, Array.append<Principal>(existing, [friend]));
+    Map.add(friends, Principal.compare, caller, Array.concat<Principal>(existing, [friend]));
     #ok(())
   };
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public query func getNational(sport : Text, limit : Nat) : async [LeaderboardEntry] {
-    let buf = Array.init<UserStats>(stats.size(), {
+    let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
-    });
+    }, Map.size(stats));
     var i = 0;
-    for ((_, s) in stats.entries()) {
+    for ((_, s) in Map.entries(stats)) {
       if (s.sport == sport) { buf[i] := s; i += 1 };
     };
-    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
     toEntries(sortByElo(pool), limit)
   };
 
   public query func getState(sport : Text, state : Text, limit : Nat) : async [LeaderboardEntry] {
-    let buf = Array.init<UserStats>(stats.size(), {
+    let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
-    });
+    }, Map.size(stats));
     var i = 0;
-    for ((_, s) in stats.entries()) {
+    for ((_, s) in Map.entries(stats)) {
       if (s.sport == sport and s.state == state) { buf[i] := s; i += 1 };
     };
-    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
     toEntries(sortByElo(pool), limit)
   };
 
   public shared query ({ caller }) func getFriends(sport : Text, limit : Nat) : async [LeaderboardEntry] {
-    let myFriends = switch (friends.get(caller)) { case (?f) f; case null [] };
-    let all = Array.append<Principal>(myFriends, [caller]);
-    let buf = Array.init<UserStats>(all.size(), {
+    let myFriends = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
+    let all = Array.concat<Principal>(myFriends, [caller]);
+    let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; accuracy = 0.0; examCount = 0; updatedAt = 0;
-    });
+    }, all.size());
     var i = 0;
     for (p in all.vals()) {
-      switch (stats.get(p)) {
+      switch (Map.get(stats, Principal.compare, p)) {
         case (?s) { if (s.sport == sport) { buf[i] := s; i += 1 } };
         case null {};
       };
     };
-    let pool = Array.tabulate<UserStats>(i, func(j) { buf[j] });
+    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
     toEntries(sortByElo(pool), limit)
   };
 
   public shared query ({ caller }) func getMyStats() : async ?UserStats {
-    stats.get(caller)
+    Map.get(stats, Principal.compare, caller)
   };
 
   public query func metrics() : async { userCount : Nat } {
-    { userCount = stats.size() }
+    { userCount = Map.size(stats) }
   };
 }

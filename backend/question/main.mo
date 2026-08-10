@@ -1,6 +1,7 @@
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
+import VarArray "mo:core/VarArray";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -51,8 +52,7 @@ persistent actor Question {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var questions : HashMap.HashMap<Text, Question> =
-    HashMap.HashMap<Text, Question>(1024, Text.equal, Text.hash);
+  var questions : Map.Map<Text, Question> = Map.empty<Text, Question>();
 
   var nextId : Nat = 0;
   var adminPrincipal : ?Principal = null;
@@ -87,29 +87,29 @@ persistent actor Question {
       isCasebook  = input.isCasebook;
       createdAt   = Time.now();
     };
-    questions.put(id, q);
+    Map.add(questions, Text.compare, id, q);
     #ok(q)
   };
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public query func getQuestion(id : Text) : async ?Question {
-    questions.get(id)
+    Map.get(questions, Text.compare, id)
   };
 
   public query func sampleQuiz(filter : QuizFilter) : async [Question] {
-    let buf = Array.init<Question>(questions.size(), {
+    let buf = VarArray.repeat<Question>({
       id = ""; sportId = ""; articleId = ""; citation = ""; stem = "";
       choices = []; correctId = ""; explanation = "";
       difficulty = #Beginner; isCasebook = false; createdAt = 0;
-    });
+    }, Map.size(questions));
     var i = 0;
-    for ((_, q) in questions.entries()) {
+    for ((_, q) in Map.entries(questions)) {
       if (q.sportId == filter.sportId and q.isCasebook == filter.casebook) {
         let articleMatch : Bool =
           filter.articleIds.size() == 0 or
           Array.find<Text>(filter.articleIds, func(a) { a == q.articleId }) != null;
-        let diffMatch : Bool = switch filter.difficulty {
+        let diffMatch : Bool = switch (filter.difficulty) {
           case null true;
           case (?d) switch (q.difficulty, d) {
             case (#Beginner,     #Beginner)     true;
@@ -125,10 +125,10 @@ persistent actor Question {
         };
       };
     };
-    Array.tabulate<Question>(i, func(j) { buf[j] })
+    VarArray.sliceToArray<Question>(buf, 0, i)
   };
 
   public query func metrics() : async { questionCount : Nat } {
-    { questionCount = questions.size() }
+    { questionCount = Map.size(questions) }
   };
 }

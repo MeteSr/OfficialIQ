@@ -1,6 +1,7 @@
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
+import VarArray "mo:core/VarArray";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -52,11 +53,9 @@ persistent actor Content {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var articles : HashMap.HashMap<ArticleId, Article> =
-    HashMap.HashMap<ArticleId, Article>(256, Text.equal, Text.hash);
+  var articles : Map.Map<ArticleId, Article> = Map.empty<ArticleId, Article>();
 
-  var plays : HashMap.HashMap<Text, CasebookPlay> =
-    HashMap.HashMap<Text, CasebookPlay>(512, Text.equal, Text.hash);
+  var plays : Map.Map<Text, CasebookPlay> = Map.empty<Text, CasebookPlay>();
 
   var nextPlayId : Nat = 0;
   var adminPrincipal : ?Principal = null;
@@ -83,7 +82,7 @@ persistent actor Content {
     if (not isAdmin(caller)) return #err("Admin only");
     let id  = input.sportId # ":art" # Nat.toText(input.number);
     let now = Time.now();
-    let existing = articles.get(id);
+    let existing = Map.get(articles, Text.compare, id);
     let art : Article = {
       id        = id;
       sportId   = input.sportId;
@@ -95,7 +94,7 @@ persistent actor Content {
       createdAt = switch existing { case (?e) e.createdAt; case null now };
       updatedAt = now;
     };
-    articles.put(id, art);
+    Map.add(articles, Text.compare, id, art);
     #ok(art)
   };
 
@@ -111,16 +110,16 @@ persistent actor Content {
       ruling    = input.ruling;
       audioUrl  = null;
     };
-    plays.put(id, play);
+    Map.add(plays, Text.compare, id, play);
     #ok(play)
   };
 
   public shared ({ caller }) func setArticleAudio(id : ArticleId, url : Text) : async Result.Result<(), Text> {
     if (not isAdmin(caller)) return #err("Admin only");
-    switch (articles.get(id)) {
+    switch (Map.get(articles, Text.compare, id)) {
       case null { #err("Article not found") };
       case (?a) {
-        articles.put(id, {
+        Map.add(articles, Text.compare, id, {
           id        = a.id;
           sportId   = a.sportId;
           levelId   = a.levelId;
@@ -139,36 +138,36 @@ persistent actor Content {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public query func getArticle(id : ArticleId) : async ?Article {
-    articles.get(id)
+    Map.get(articles, Text.compare, id)
   };
 
   public query func listArticles(sportId : Text, levelId : Text) : async [Article] {
-    let buf = Array.init<Article>(articles.size(), {
+    let buf = VarArray.repeat<Article>({
       id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = "";
       audioUrl = null; createdAt = 0; updatedAt = 0;
-    });
+    }, Map.size(articles));
     var i = 0;
-    for ((_, art) in articles.entries()) {
+    for ((_, art) in Map.entries(articles)) {
       if (art.sportId == sportId and art.levelId == levelId) {
         buf[i] := art;
         i += 1;
       };
     };
-    Array.tabulate<Article>(i, func(j) { buf[j] })
+    VarArray.sliceToArray<Article>(buf, 0, i)
   };
 
   public query func listPlays(articleId : ArticleId) : async [CasebookPlay] {
-    let buf = Array.init<CasebookPlay>(plays.size(), {
+    let buf = VarArray.repeat<CasebookPlay>({
       id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null;
-    });
+    }, Map.size(plays));
     var i = 0;
-    for ((_, p) in plays.entries()) {
+    for ((_, p) in Map.entries(plays)) {
       if (p.articleId == articleId) { buf[i] := p; i += 1 };
     };
-    Array.tabulate<CasebookPlay>(i, func(j) { buf[j] })
+    VarArray.sliceToArray<CasebookPlay>(buf, 0, i)
   };
 
   public query func metrics() : async { articleCount : Nat; playCount : Nat } {
-    { articleCount = articles.size(); playCount = plays.size() }
+    { articleCount = Map.size(articles); playCount = Map.size(plays) }
   };
 }

@@ -1,6 +1,7 @@
-import HashMap "mo:base/HashMap";  // mo:core/Map migration pending
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
+import VarArray "mo:core/VarArray";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
@@ -43,11 +44,9 @@ persistent actor Exam {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var sessions : HashMap.HashMap<Text, ExamSession> =
-    HashMap.HashMap<Text, ExamSession>(256, Text.equal, Text.hash);
+  var sessions : Map.Map<Text, ExamSession> = Map.empty<Text, ExamSession>();
 
-  var shareIndex : HashMap.HashMap<Text, Text> =
-    HashMap.HashMap<Text, Text>(256, Text.equal, Text.hash);
+  var shareIndex : Map.Map<Text, Text> = Map.empty<Text, Text>();
 
   var nextId : Nat = 0;
 
@@ -58,10 +57,10 @@ persistent actor Exam {
     let id  = "ex" # Nat.toText(nextId);
     nextId += 1;
     let now = Time.now();
-    let shareToken : ?Text = switch config.mode {
+    let shareToken : ?Text = switch (config.mode) {
       case (#ShareLink) {
         let t = "eq" # id;
-        shareIndex.put(t, id);
+        Map.add(shareIndex, Text.compare, t, id);
         ?t
       };
       case _ null;
@@ -77,12 +76,12 @@ persistent actor Exam {
       startedAt   = now;
       finishedAt  = null;
     };
-    sessions.put(id, session);
+    Map.add(sessions, Text.compare, id, session);
     #ok(session)
   };
 
   public shared ({ caller }) func submitExam(id : Text, answers : [AnswerRecord]) : async Result.Result<ExamSession, Text> {
-    switch (sessions.get(id)) {
+    switch (Map.get(sessions, Text.compare, id)) {
       case null { #err("Session not found") };
       case (?s) {
         if (s.owner != caller) return #err("Not your session");
@@ -101,7 +100,7 @@ persistent actor Exam {
           startedAt   = s.startedAt;
           finishedAt  = ?Time.now();
         };
-        sessions.put(id, updated);
+        Map.add(sessions, Text.compare, id, updated);
         #ok(updated)
       };
     }
@@ -110,25 +109,25 @@ persistent actor Exam {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
-    let buf = Array.init<ExamSession>(sessions.size(), {
+    let buf = VarArray.repeat<ExamSession>({
       id = ""; owner = caller; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
       questionIds = []; answers = []; score = null; shareToken = null; startedAt = 0; finishedAt = null;
-    });
+    }, Map.size(sessions));
     var i = 0;
-    for ((_, s) in sessions.entries()) {
+    for ((_, s) in Map.entries(sessions)) {
       if (s.owner == caller) { buf[i] := s; i += 1 };
     };
-    Array.tabulate<ExamSession>(i, func(j) { buf[j] })
+    VarArray.sliceToArray<ExamSession>(buf, 0, i)
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {
-    switch (shareIndex.get(token)) {
+    switch (Map.get(shareIndex, Text.compare, token)) {
       case null null;
-      case (?id) sessions.get(id);
+      case (?id) Map.get(sessions, Text.compare, id);
     }
   };
 
   public query func metrics() : async { sessionCount : Nat } {
-    { sessionCount = sessions.size() }
+    { sessionCount = Map.size(sessions) }
   };
 }
