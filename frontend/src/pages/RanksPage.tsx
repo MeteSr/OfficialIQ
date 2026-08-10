@@ -17,16 +17,17 @@ export default function RanksPage() {
   const [sortBy,  setSortBy]  = useState<SortKey>("Elo");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const { principal } = useAuthStore();
+  const { principal, profile } = useAuthStore();
+  const myState = profile?.state || "TX";
 
   useEffect(() => {
     setLoading(true);
     const fetch =
       tab === "Friends"  ? rankingService.getFriends("ncaa_basketball", 25, sortBy) :
-      tab === "State"    ? rankingService.getState("ncaa_basketball", "TX", 25, sortBy) :
+      tab === "State"    ? rankingService.getState("ncaa_basketball", myState, 25, sortBy) :
                            rankingService.getNational("ncaa_basketball", 25, sortBy);
     fetch.then(setEntries).catch(() => {}).finally(() => setLoading(false));
-  }, [tab, sortBy]);
+  }, [tab, sortBy, myState]);
 
   const top = entries[0];
 

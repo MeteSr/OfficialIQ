@@ -5,8 +5,8 @@ import { createActor } from "./actor";
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null });
-  const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, createdAt: I.Int });
-  const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text });
+  const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, createdAt: I.Int });
+  const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });
   const ResultP     = I.Variant({ ok: Profile, err: I.Text });
   return I.Service({
     createProfile: I.Func([ProfileUpd],       [ResultP],        []),
@@ -26,9 +26,10 @@ export type UserProfile = {
   role:        UserRole;
   sport:       string;
   level:       string;
+  state:       string;
   createdAt:   bigint;
 };
-export type ProfileUpdate = { displayName: string; sport: string; level: string };
+export type ProfileUpdate = { displayName: string; sport: string; level: string; state: string };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ const MOCK_PROFILE: UserProfile = {
   role:        { Official: null },
   sport:       "ncaa_basketball",
   level:       "varsity",
+  state:       "TX",
   createdAt:   BigInt(Date.now()) * BigInt(1_000_000),
 };
 
@@ -58,6 +60,12 @@ export const userService = {
   async getMyProfile(): Promise<UserProfile | null> {
     if (!CANISTER_ID) return MOCK_PROFILE;
     const res = await actor().getMyProfile();
+    return res.length ? res[0] : null;
+  },
+
+  async getProfile(p: any): Promise<UserProfile | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getProfile(p);
     return res.length ? res[0] : null;
   },
 

@@ -7,6 +7,7 @@ import ExamPage from "./pages/ExamPage";
 import RanksPage from "./pages/RanksPage";
 import MePage from "./pages/MePage";
 import QuizPage from "./pages/QuizPage";
+import AddFriendPage from "./pages/AddFriendPage";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/exam"  element={<ExamPage />} />
             <Route path="/ranks" element={<RanksPage />} />
             <Route path="/me"    element={<MePage />} />
+            <Route path="/u/:principal" element={<AddFriendPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

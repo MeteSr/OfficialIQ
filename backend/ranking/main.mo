@@ -138,7 +138,23 @@ persistent actor Ranking {
     #ok(())
   };
 
+  public shared ({ caller }) func removeFriend(friend : Principal) : async Result.Result<(), Text> {
+    let existing = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
+    let filtered = Array.filter<Principal>(existing, func(p) { p != friend });
+    if (filtered.size() == existing.size()) return #err("Not friends");
+    Map.add(friends, Principal.compare, caller, filtered);
+    #ok(())
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
+
+  public shared query ({ caller }) func getFriendPrincipals() : async [Principal] {
+    switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] }
+  };
+
+  public query func getStats(p : Principal) : async ?UserStats {
+    Map.get(stats, Principal.compare, p)
+  };
 
   public query func getNational(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
     let buf = VarArray.repeat<UserStats>({

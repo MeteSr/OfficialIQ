@@ -4,19 +4,47 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { challengeService, type Challenge } from "../services/challenge";
 import { rankingService, type UserStats } from "../services/ranking";
+import { userService } from "../services/user";
 
 export default function HomePage() {
   const navigate   = useNavigate();
-  const { profile, isAuthenticated } = useAuthStore();
+  const { profile, principal, isAuthenticated } = useAuthStore();
   const [stats,      setStats]      = useState<UserStats | null>(null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [names,       setNames]     = useState<Record<string, string>>({});
+  const [accepting,   setAccepting] = useState<string | null>(null);
+
+  function refreshChallenges() {
+    challengeService.getMyChallenges().then(async (cs) => {
+      setChallenges(cs);
+      const incoming = cs.filter(c => "Pending" in c.status && c.challenged.toString() === principal);
+      const resolved = await Promise.all(incoming.map(async (c) => {
+        const key = c.challenger.toString();
+        const prof = await userService.getProfile(c.challenger).catch(() => null);
+        return [key, prof?.displayName ?? "an official"] as const;
+      }));
+      setNames(Object.fromEntries(resolved));
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     rankingService.getMyStats().then(setStats).catch(() => {});
-    challengeService.getMyChallenges().then(setChallenges).catch(() => {});
-  }, [isAuthenticated]);
+    if (principal) refreshChallenges();
+  }, [isAuthenticated, principal]);
 
-  const pending = challenges.filter(c => "Pending" in c.status);
+  async function handleAccept(id: string) {
+    setAccepting(id);
+    try {
+      await challengeService.acceptChallenge(id);
+      refreshChallenges();
+    } catch {
+      // leave it in the inbox; user can retry
+    } finally {
+      setAccepting(null);
+    }
+  }
+
+  const pending = challenges.filter(c => "Pending" in c.status && c.challenged.toString() === principal);
   const streak  = stats?.streak ?? 14n;
   const accuracy = stats ? Math.round(stats.accuracy * 100) : 84;
 
@@ -119,20 +147,28 @@ export default function HomePage() {
 
         {/* Challenge inbox */}
         {pending.length > 0 && (
-          <div style={{
-            background: T.surface, border: `1px solid ${T.border}`,
-            borderRadius: 10, padding: "12px 16px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
-            <span style={{ fontSize: 14 }}>
-              Challenge from <strong>Marcus R.</strong>
-            </span>
-            <button
-              onClick={() => navigate("/ranks")}
-              style={{ background: "transparent", color: T.red, fontWeight: 700, fontSize: 14 }}
-            >
-              Accept &rsaquo;
-            </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pending.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  background: T.surface, border: `1px solid ${T.border}`,
+                  borderRadius: 10, padding: "12px 16px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}
+              >
+                <span style={{ fontSize: 14 }}>
+                  Challenge from <strong>{names[c.challenger.toString()] ?? "an official"}</strong>
+                </span>
+                <button
+                  onClick={() => handleAccept(c.id)}
+                  disabled={accepting === c.id}
+                  style={{ background: "transparent", color: T.red, fontWeight: 700, fontSize: 14 }}
+                >
+                  {accepting === c.id ? "Accepting…" : "Accept ›"}
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -140,7 +140,7 @@ export default function QuizPage() {
       if (profile) {
         await rankingService.recordExamResult(
           finalScore, questions.length,
-          profile.displayName, profile.sport, "TX",
+          profile.displayName, profile.sport, profile.state || "TX",
           avgElapsedSec,
         ).catch(() => {});
       }

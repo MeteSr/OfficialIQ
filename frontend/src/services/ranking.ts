@@ -38,13 +38,16 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const SortKeyVariant = I.Variant({ Elo: I.Null, Accuracy: I.Null, Speed: I.Null });
   const ResultU = I.Variant({ ok: I.Null, err: I.Text });
   return I.Service({
-    recordExamResult: I.Func([I.Nat, I.Nat, I.Text, I.Text, I.Text, I.Nat], [I.Null], []),
-    addFriend:        I.Func([I.Principal], [ResultU], []),
-    getNational:      I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getState:         I.Func([I.Text, I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getFriends:       I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getMyStats:       I.Func([], [I.Opt(Stats)], ["query"]),
-    metrics:          I.Func([], [I.Record({ userCount: I.Nat })], ["query"]),
+    recordExamResult:   I.Func([I.Nat, I.Nat, I.Text, I.Text, I.Text, I.Nat], [I.Null], []),
+    addFriend:          I.Func([I.Principal], [ResultU], []),
+    removeFriend:       I.Func([I.Principal], [ResultU], []),
+    getFriendPrincipals: I.Func([], [I.Vec(I.Principal)], ["query"]),
+    getStats:           I.Func([I.Principal], [I.Opt(Stats)], ["query"]),
+    getNational:        I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
+    getState:           I.Func([I.Text, I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
+    getFriends:         I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
+    getMyStats:         I.Func([], [I.Opt(Stats)], ["query"]),
+    metrics:            I.Func([], [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
 
@@ -74,12 +77,15 @@ const CANISTER_ID = typeof CANISTER_ID_RANKING !== "undefined" ? CANISTER_ID_RAN
 
 function actor() {
   return createActor<{
-    recordExamResult: (score: bigint, qCount: bigint, name: string, sport: string, state: string, avgElapsedSec: bigint) => Promise<null>;
-    addFriend:        (p: any) => Promise<{ ok: null } | { err: string }>;
-    getNational:      (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getState:         (sport: string, state: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getFriends:       (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getMyStats:       () => Promise<[] | [UserStats]>;
+    recordExamResult:    (score: bigint, qCount: bigint, name: string, sport: string, state: string, avgElapsedSec: bigint) => Promise<null>;
+    addFriend:           (p: any) => Promise<{ ok: null } | { err: string }>;
+    removeFriend:        (p: any) => Promise<{ ok: null } | { err: string }>;
+    getFriendPrincipals: () => Promise<any[]>;
+    getStats:            (p: any) => Promise<[] | [UserStats]>;
+    getNational:         (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
+    getState:            (sport: string, state: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
+    getFriends:          (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
+    getMyStats:          () => Promise<[] | [UserStats]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -103,6 +109,29 @@ export const rankingService = {
     if (!CANISTER_ID) return null;
     const res = await actor().getMyStats();
     return res.length ? res[0] : null;
+  },
+
+  async getStats(p: any): Promise<UserStats | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getStats(p);
+    return res.length ? res[0] : null;
+  },
+
+  async addFriend(p: any): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().addFriend(p);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async removeFriend(p: any): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().removeFriend(p);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async getFriendPrincipals(): Promise<any[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getFriendPrincipals();
   },
 
   async recordExamResult(score: number, questionCount: number, displayName: string, sport: string, state: string, avgElapsedSec: number): Promise<void> {

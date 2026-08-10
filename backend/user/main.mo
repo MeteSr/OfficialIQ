@@ -22,6 +22,7 @@ persistent actor User {
     role        : Role;
     sport       : Text;
     level       : Text;
+    state       : Text;
     createdAt   : Int;
   };
 
@@ -29,6 +30,7 @@ persistent actor User {
     displayName : Text;
     sport       : Text;
     level       : Text;
+    state       : Text;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -47,6 +49,7 @@ persistent actor User {
       role        = #Official;
       sport       = req.sport;
       level       = req.level;
+      state       = req.state;
       createdAt   = Time.now();
     };
     Map.add(profiles, Principal.compare, caller, p);
@@ -63,6 +66,7 @@ persistent actor User {
           role        = existing.role;
           sport       = req.sport;
           level       = req.level;
+          state       = req.state;
           createdAt   = existing.createdAt;
         };
         Map.add(profiles, Principal.compare, caller, updated);

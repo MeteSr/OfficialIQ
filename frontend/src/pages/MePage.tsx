@@ -1,19 +1,159 @@
+import { useEffect, useState } from "react";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
-import { useEffect, useState } from "react";
+import { userService } from "../services/user";
+import { Principal } from "@icp-sdk/core/principal";
+
+type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
+
+const LEVELS = ["varsity", "collegiate"] as const;
+
+function ProfileForm({
+  initial, onSubmit, submitting, submitLabel,
+}: {
+  initial: { displayName: string; level: string; state: string };
+  onSubmit: (v: { displayName: string; level: string; state: string }) => void;
+  submitting: boolean;
+  submitLabel: string;
+}) {
+  const [displayName, setDisplayName] = useState(initial.displayName);
+  const [level, setLevel] = useState(initial.level || LEVELS[0]);
+  const [state, setState] = useState(initial.state);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Display name</div>
+        <input
+          value={displayName}
+          onChange={e => setDisplayName(e.target.value)}
+          placeholder="e.g. J. Rodriguez"
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 14,
+            border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+          }}
+        />
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Level</div>
+        <select
+          value={level}
+          onChange={e => setLevel(e.target.value)}
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 14,
+            border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+          }}
+        >
+          {LEVELS.map(l => <option key={l} value={l}>{l[0].toUpperCase() + l.slice(1)}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>State</div>
+        <input
+          value={state}
+          onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
+          placeholder="TX"
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 14,
+            border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+          }}
+        />
+      </div>
+      <button
+        disabled={submitting || !displayName.trim() || state.length !== 2}
+        onClick={() => onSubmit({ displayName: displayName.trim(), level, state })}
+        style={{
+          padding: "13px 0", background: submitting ? T.border : T.navy, color: T.white,
+          borderRadius: 8, fontSize: 15, fontWeight: 700,
+        }}
+      >
+        {submitting ? "Saving…" : submitLabel}
+      </button>
+    </div>
+  );
+}
 
 export default function MePage() {
-  const { isAuthenticated, profile, principal } = useAuthStore();
+  const { isAuthenticated, profile, principal, setProfile } = useAuthStore();
   const { login, logout } = useAuth();
-  const [stats,   setStats]   = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [stats,      setStats]      = useState<UserStats | null>(null);
+  const [loading,    setLoading]    = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [editing,    setEditing]    = useState(false);
+  const [formError,  setFormError]  = useState<string | null>(null);
+
+  const [friends,        setFriends]        = useState<FriendRow[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [addFriendInput, setAddFriendInput] = useState("");
+  const [addFriendError, setAddFriendError] = useState<string | null>(null);
+  const [copied,         setCopied]         = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
   }, [isAuthenticated]);
+
+  async function loadFriends() {
+    setFriendsLoading(true);
+    try {
+      const principals = await rankingService.getFriendPrincipals();
+      const rows = await Promise.all(principals.map(async (p): Promise<FriendRow> => {
+        const [prof, s] = await Promise.all([
+          userService.getProfile(p).catch(() => null),
+          rankingService.getStats(p).catch(() => null),
+        ]);
+        return {
+          principal:   p.toString(),
+          displayName: prof?.displayName ?? "(unknown official)",
+          accuracy:    s?.accuracy ?? 0,
+          streak:      s?.streak ?? 0n,
+        };
+      }));
+      setFriends(rows);
+    } catch {
+      // leave friends list as-is on failure
+    } finally {
+      setFriendsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (isAuthenticated && profile) loadFriends();
+  }, [isAuthenticated, !!profile]);
+
+  async function handleAddFriend() {
+    setAddFriendError(null);
+    const raw = addFriendInput.trim();
+    if (!raw) return;
+    // Accept either a bare principal or a pasted share link (…/u/<principal>)
+    const text = raw.includes("/u/") ? raw.split("/u/").pop()!.trim() : raw;
+    try {
+      const p = Principal.fromText(text);
+      await rankingService.addFriend(p);
+      setAddFriendInput("");
+      await loadFriends();
+    } catch (e: any) {
+      setAddFriendError(e.message ?? "Couldn't add that friend — check the ID or link.");
+    }
+  }
+
+  async function handleRemoveFriend(p: string) {
+    try {
+      await rankingService.removeFriend(Principal.fromText(p));
+      setFriends(fs => fs.filter(f => f.principal !== p));
+    } catch {
+      // ignore — list will self-correct on next load
+    }
+  }
+
+  async function handleCopyShareLink() {
+    if (!principal) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/u/${principal}`).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   if (!isAuthenticated) {
     return (
@@ -45,6 +185,84 @@ export default function MePage() {
     );
   }
 
+  // Signed in but no on-chain profile yet — onboarding.
+  if (!profile) {
+    return (
+      <div>
+        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>👋 Welcome</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+            Set up your profile to start tracking progress
+          </div>
+        </div>
+        <div style={{ padding: 20 }}>
+          {formError && (
+            <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
+          )}
+          <ProfileForm
+            initial={{ displayName: "", level: LEVELS[0], state: "" }}
+            submitting={saving}
+            submitLabel="Create Profile"
+            onSubmit={async (v) => {
+              setSaving(true);
+              setFormError(null);
+              try {
+                const created = await userService.createProfile({ ...v, sport: "ncaa_basketball" });
+                setProfile(created);
+              } catch (e: any) {
+                setFormError(e.message ?? "Failed to create profile");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div>
+        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Edit Profile</div>
+        </div>
+        <div style={{ padding: 20 }}>
+          {formError && (
+            <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
+          )}
+          <ProfileForm
+            initial={{ displayName: profile.displayName, level: profile.level, state: profile.state }}
+            submitting={saving}
+            submitLabel="Save Changes"
+            onSubmit={async (v) => {
+              setSaving(true);
+              setFormError(null);
+              try {
+                const updated = await userService.updateProfile({ ...v, sport: profile.sport });
+                setProfile(updated);
+                setEditing(false);
+              } catch (e: any) {
+                setFormError(e.message ?? "Failed to save profile");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          />
+          <button
+            onClick={() => setEditing(false)}
+            style={{
+              width: "100%", padding: "12px 0", marginTop: 10,
+              background: "transparent", color: T.muted, fontSize: 14, fontWeight: 600,
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{ background: T.navy, padding: "52px 20px 24px", color: T.white }}>
@@ -55,16 +273,25 @@ export default function MePage() {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 22, fontWeight: 700,
           }}>
-            {profile?.displayName?.[0]?.toUpperCase() ?? "?"}
+            {profile.displayName?.[0]?.toUpperCase() ?? "?"}
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {profile?.displayName ?? "Official"}
+              {profile.displayName}
             </div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
-              {profile?.sport ?? "ncaa_basketball"}
+              {profile.level} · {profile.state || "—"}
             </div>
           </div>
+          <button
+            onClick={() => setEditing(true)}
+            style={{
+              padding: "6px 12px", background: "rgba(255,255,255,0.12)",
+              color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 600,
+            }}
+          >
+            Edit
+          </button>
         </div>
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 8, wordBreak: "break-all" }}>
           {principal}
@@ -89,7 +316,80 @@ export default function MePage() {
         </div>
       )}
 
-      <div style={{ padding: 16 }}>
+      {/* Friends */}
+      <div style={{ padding: "16px 16px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Friends</div>
+          <button
+            onClick={handleCopyShareLink}
+            style={{ fontSize: 12, color: T.navy, fontWeight: 600, background: "transparent" }}
+          >
+            {copied ? "Copied!" : "🔗 Copy my share link"}
+          </button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input
+            value={addFriendInput}
+            onChange={e => setAddFriendInput(e.target.value)}
+            placeholder="Paste a share link or principal ID"
+            style={{
+              flex: 1, padding: "9px 10px", fontSize: 13,
+              border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+            }}
+          />
+          <button
+            onClick={handleAddFriend}
+            style={{ padding: "9px 14px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
+          >
+            Add
+          </button>
+        </div>
+        {addFriendError && (
+          <div style={{ color: T.wrong, fontSize: 12, marginBottom: 8 }}>{addFriendError}</div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+          {friendsLoading ? (
+            <div style={{ fontSize: 13, color: T.muted }}>Loading friends…</div>
+          ) : friends.length === 0 ? (
+            <div style={{ fontSize: 13, color: T.muted }}>
+              No friends yet — share your link to connect with other officials.
+            </div>
+          ) : friends.map((f) => (
+            <div
+              key={f.principal}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", background: T.surface,
+                border: `1px solid ${T.border}`, borderRadius: 8,
+              }}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%", background: T.border,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 700, fontSize: 13, flexShrink: 0,
+              }}>
+                {f.displayName[0]?.toUpperCase() ?? "?"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{f.displayName}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>
+                  {Math.round(f.accuracy * 100)}% acc. {Number(f.streak) > 0 && `· 🔥 ${Number(f.streak)}`}
+                </div>
+              </div>
+              <button
+                onClick={() => handleRemoveFriend(f.principal)}
+                style={{ fontSize: 12, color: T.wrong, background: "transparent" }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 16px 16px" }}>
         <button
           onClick={() => logout()}
           style={{
