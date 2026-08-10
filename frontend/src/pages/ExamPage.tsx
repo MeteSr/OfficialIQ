@@ -1,16 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { examService } from "../services/exam";
 import { questionService } from "../services/question";
-
-const ARTICLES = [
-  { label: "Art. 1", id: "ncaa_basketball:art1" },
-  { label: "Art. 2", id: "ncaa_basketball:art2" },
-  { label: "Art. 3", id: "ncaa_basketball:art3" },
-  { label: "Art. 4", id: "ncaa_basketball:art4" },
-  { label: "Art. 5", id: "ncaa_basketball:art5" },
-];
+import { contentService, type Article } from "../services/content";
 
 const MODES = ["Solo", "Share Link", "Timed"] as const;
 type Mode = typeof MODES[number];
@@ -18,13 +11,37 @@ type Mode = typeof MODES[number];
 export default function ExamPage() {
   const navigate = useNavigate();
 
-  const [selected, setSelected] = useState<string[]>(["ncaa_basketball:art1", "ncaa_basketball:art4", "ncaa_basketball:art5"]);
+  const [articles,  setArticles]  = useState<Article[]>([]);
+  const [selected,  setSelected]  = useState<string[]>([]);
   const [casebook,  setCasebook]  = useState(true);
   const [count,     setCount]     = useState(25);
+  const [maxCount,  setMaxCount]  = useState(25);
   const [secPerQ,   setSecPerQ]   = useState(45);
   const [mode,      setMode]      = useState<Mode>("Share Link");
   const [loading,   setLoading]   = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
+
+  // Load real articles for this sport/level once on mount.
+  useEffect(() => {
+    contentService.listArticles("ncaa_basketball", "varsity")
+      .then((arts) => {
+        setArticles(arts);
+        setSelected(arts.slice(0, 3).map(a => a.id));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Cap the question count to what's actually available for the current
+  // article selection + casebook toggle.
+  useEffect(() => {
+    if (selected.length === 0) { setMaxCount(0); return; }
+    questionService.sampleQuiz({
+      sportId: "ncaa_basketball", articleIds: selected, casebook, difficulty: [], count: 500n,
+    }).then((qs) => {
+      setMaxCount(qs.length);
+      setCount(c => Math.max(5, Math.min(c, qs.length)));
+    }).catch(() => {});
+  }, [selected, casebook]);
 
   const toggle = (id: string) =>
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -62,9 +79,13 @@ export default function ExamPage() {
       const token = session.shareToken.length ? session.shareToken[0] : null;
       if (token) {
         setShareToken(token);
-        await navigator.clipboard.writeText(`${window.location.origin}/quiz/${token}`).catch(() => {});
+        await navigator.clipboard.writeText(`${window.location.origin}/quiz/share/${token}`).catch(() => {});
       } else {
-        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}?sec=${secPerQ}`);
+        // Solo / Timed: hand the already-generated session + questions straight
+        // to QuizPage instead of letting it sample a brand new, unrelated set.
+        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`, {
+          state: { sessionId: session.id, questionIds: qs.map(q => q.id), secPerQ },
+        });
       }
     } catch (e) {
       console.error(e);
@@ -91,7 +112,7 @@ export default function ExamPage() {
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>Rule Articles</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {ARTICLES.map((a) => {
+            {articles.map((a) => {
               const on = selected.includes(a.id);
               return (
                 <button
@@ -104,7 +125,7 @@ export default function ExamPage() {
                     border: `1px solid ${on ? T.navy : T.border}`,
                     fontSize: 13, fontWeight: on ? 700 : 400,
                   }}
-                >{a.label}</button>
+                >Art. {Number(a.number)}</button>
               );
             })}
           </div>
@@ -133,7 +154,7 @@ export default function ExamPage() {
 
         {/* Count + time steppers */}
         {([
-          { label: "Questions",          value: count,  set: setCount,  min: 5,  max: 100, step: 5 },
+          { label: "Questions",          value: count,  set: setCount,  min: 5,  max: Math.max(maxCount, 5), step: 5 },
           { label: "Time per question",  value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: " sec" },
         ] as const).map((row) => (
           <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -153,6 +174,11 @@ export default function ExamPage() {
             </div>
           </div>
         ))}
+        {maxCount < count && (
+          <div style={{ fontSize: 12, color: T.muted, marginTop: -12 }}>
+            Only {maxCount} question{maxCount === 1 ? "" : "s"} available for this selection.
+          </div>
+        )}
 
         {/* Mode selector */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -181,10 +207,10 @@ export default function ExamPage() {
         {!shareToken ? (
           <button
             onClick={generate}
-            disabled={loading || selected.length === 0}
+            disabled={loading || selected.length === 0 || maxCount === 0}
             style={{
               width: "100%", padding: "14px 0",
-              background: loading || selected.length === 0 ? T.border : T.navy,
+              background: loading || selected.length === 0 || maxCount === 0 ? T.border : T.navy,
               color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
             }}
           >
@@ -201,7 +227,7 @@ export default function ExamPage() {
               Link copied to clipboard — share it with your opponent.
             </div>
             <button
-              onClick={() => navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}?sec=${secPerQ}`)}
+              onClick={() => navigate(`/quiz/share/${shareToken}`)}
               style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
             >
               Start My Attempt

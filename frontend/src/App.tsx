@@ -20,6 +20,7 @@ export default function App() {
             <Route path="/exam"  element={<ExamPage />} />
             <Route path="/ranks" element={<RanksPage />} />
             <Route path="/me"    element={<MePage />} />
+            <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>
         </div>

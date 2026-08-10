@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { T } from "../tokens";
-import { questionService } from "../services/question";
+import { questionService, type Question } from "../services/question";
 import { examService } from "../services/exam";
 import { rankingService } from "../services/ranking";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
@@ -10,12 +10,15 @@ import type { AnswerRecord } from "../services/exam";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
+type NavState = { sessionId?: string; questionIds?: string[]; secPerQ?: number } | null;
+
 export default function QuizPage() {
-  const { articleId } = useParams<{ articleId: string }>();
+  const { articleId, token } = useParams<{ articleId?: string; token?: string }>();
   const [searchParams] = useSearchParams();
-  const SECONDS_PER_Q = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
+  const location = useLocation();
+  const navState = location.state as NavState;
   const navigate = useNavigate();
-  const { profile } = useAuthStore();
+  const { profile, principal } = useAuthStore();
 
   const {
     questions, currentIdx, isComplete, answers,
@@ -24,37 +27,79 @@ export default function QuizPage() {
   const currentQ  = useQuizStore(selectCurrentQuestion);
   const finalScore = useQuizStore(selectScore);
 
-  const [loading,   setLoading]   = useState(true);
-  const [chosen,    setChosen]    = useState<string | null>(null);
-  const [timeLeft,  setTimeLeft]  = useState(SECONDS_PER_Q);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [chosen,       setChosen]       = useState<string | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(DEFAULT_SECONDS_PER_Q);
+  const [timeLeft,     setTimeLeft]     = useState(DEFAULT_SECONDS_PER_Q);
+  const [sessionId,    setSessionId]    = useState<string | null>(null);
+  const [canSubmit,    setCanSubmit]    = useState(true);
 
-  // Load questions for this article
+  // Load questions for this quiz — three possible entry paths:
+  //  1. /quiz/share/:token   — resolve the shared ExamSession and its exact questions
+  //  2. /quiz/:articleId with router state — pre-built session from ExamPage (Solo/Timed)
+  //  3. /quiz/:articleId with no state — self-generate (e.g. from StudyPage)
   useEffect(() => {
     reset();
     setLoading(true);
-    questionService.sampleQuiz({
-      sportId:    "ncaa_basketball",
-      articleIds: articleId ? [articleId] : [],
-      casebook:   true,
-      difficulty: [],
-      count:      BigInt(25),
-    }).then(async (qs) => {
+    setError(null);
+
+    async function fetchQuestions(ids: string[]): Promise<Question[]> {
+      const qs = await Promise.all(ids.map(id => questionService.getQuestion(id)));
+      return qs.filter((q): q is Question => q !== null);
+    }
+
+    async function load() {
+      if (token) {
+        const session = await examService.getByShareToken(token);
+        if (!session) { setError("This exam link is invalid or has expired."); return; }
+        const qs = await fetchQuestions(session.questionIds);
+        loadQuestions(qs, session.id);
+        setSessionId(session.id);
+        setTimerSeconds(Number(session.config.secPerQ) || DEFAULT_SECONDS_PER_Q);
+        setCanSubmit(!!principal && session.owner.toString() === principal);
+        return;
+      }
+
+      if (navState?.sessionId && navState.questionIds) {
+        const qs = await fetchQuestions(navState.questionIds);
+        loadQuestions(qs, navState.sessionId);
+        setSessionId(navState.sessionId);
+        setTimerSeconds(navState.secPerQ ?? DEFAULT_SECONDS_PER_Q);
+        setCanSubmit(true);
+        return;
+      }
+
+      const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
+      const qs = await questionService.sampleQuiz({
+        sportId:    "ncaa_basketball",
+        articleIds: articleId ? [articleId] : [],
+        casebook:   true,
+        difficulty: [],
+        count:      BigInt(25),
+      });
       const session = await examService.createSession(
         { sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
-          count: BigInt(qs.length), secPerQ: BigInt(SECONDS_PER_Q), mode: { Solo: null } },
+          count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null } },
         qs.map(q => q.id),
       );
       loadQuestions(qs, session.id);
       setSessionId(session.id);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [articleId, SECONDS_PER_Q]);
+      setTimerSeconds(secFromQuery);
+      setCanSubmit(true);
+    }
 
-  // Reset chosen + timer on question change
+    load()
+      .catch(() => setError("Failed to load this quiz."))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articleId, token]);
+
+  // Reset chosen + timer on question change (or once the real timerSeconds is known)
   useEffect(() => {
     setChosen(null);
-    setTimeLeft(SECONDS_PER_Q);
-  }, [currentIdx, SECONDS_PER_Q]);
+    setTimeLeft(timerSeconds);
+  }, [currentIdx, timerSeconds]);
 
   // Countdown timer
   useEffect(() => {
@@ -71,23 +116,27 @@ export default function QuizPage() {
       questionId: currentQ.id,
       chosenId:   choiceId,
       isCorrect:  choiceId === currentQ.correctId,
-      elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
+      elapsedSec: BigInt(timerSeconds - timeLeft),
     };
     recordAnswer(ans);
-  }, [chosen, currentQ, timeLeft, SECONDS_PER_Q]);
+  }, [chosen, currentQ, timeLeft, timerSeconds]);
 
   const handleNext = useCallback(async () => {
     advance();
     if (currentIdx + 1 >= questions.length && sessionId) {
       const finalAnswers = [...answers, ...(chosen && currentQ ? [{
         questionId: currentQ.id, chosenId: chosen,
-        isCorrect: chosen === currentQ.correctId, elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
+        isCorrect: chosen === currentQ.correctId, elapsedSec: BigInt(timerSeconds - timeLeft),
       }] : [])];
       const avgElapsedSec = finalAnswers.length
         ? Number(finalAnswers.reduce((sum, a) => sum + a.elapsedSec, 0n)) / finalAnswers.length
         : 0;
-      // Submit exam + record ranking
-      await examService.submitExam(sessionId, finalAnswers).catch(() => {});
+      // Only the session owner can record answers against the shared ExamSession
+      // (a non-owner opening a share link still gets ranked, just not written
+      // into the owner's session record).
+      if (canSubmit) {
+        await examService.submitExam(sessionId, finalAnswers).catch(() => {});
+      }
       if (profile) {
         await rankingService.recordExamResult(
           finalScore, questions.length,
@@ -96,12 +145,28 @@ export default function QuizPage() {
         ).catch(() => {});
       }
     }
-  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, finalScore, profile, SECONDS_PER_Q]);
+  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit]);
 
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>
         Loading questions…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error}</div>
+        <button
+          onClick={() => navigate("/home")}
+          style={{
+            padding: "13px 32px", background: T.navy, color: T.white,
+            borderRadius: 8, fontSize: 15, fontWeight: 700,
+          }}
+        >Back to Home</button>
       </div>
     );
   }
@@ -167,7 +232,7 @@ export default function QuizPage() {
   if (!currentQ) return null;
 
   const revealed   = chosen !== null;
-  const timerPct   = (timeLeft / SECONDS_PER_Q) * 100;
+  const timerPct   = (timeLeft / timerSeconds) * 100;
   const total      = questions.length;
 
   return (

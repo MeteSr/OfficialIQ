@@ -105,4 +105,10 @@ export const examService = {
     if (!CANISTER_ID) return [];
     return actor().getMyExams();
   },
+
+  async getByShareToken(token: string): Promise<ExamSession | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getByShareToken(token);
+    return res.length ? res[0] : null;
+  },
 };
