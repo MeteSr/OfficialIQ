@@ -1,11 +1,11 @@
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type LeaderboardEntry = {
   rank:        bigint;
-  principal:   import("@dfinity/principal").Principal;
+  principal:   import("@icp-sdk/core/principal").Principal;
   displayName: string;
   elo:         number;
   accuracy:    number;
@@ -13,7 +13,7 @@ export type LeaderboardEntry = {
 };
 
 export type UserStats = {
-  principal:   import("@dfinity/principal").Principal;
+  principal:   import("@icp-sdk/core/principal").Principal;
   displayName: string;
   sport:       string;
   state:       string;
@@ -26,7 +26,7 @@ export type UserStats = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Entry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, streak: I.Nat });
   const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, accuracy: I.Float64, examCount: I.Nat, updatedAt: I.Int });
   const ResultU = I.Variant({ ok: I.Null, err: I.Text });

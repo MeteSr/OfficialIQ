@@ -1,4 +1,4 @@
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ export type AnswerRecord = {
 
 export type ExamSession = {
   id:          string;
-  owner:       import("@dfinity/principal").Principal;
+  owner:       import("@icp-sdk/core/principal").Principal;
   config:      ExamConfig;
   questionIds: string[];
   answers:     AnswerRecord[];
@@ -35,7 +35,7 @@ export type ExamSession = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Mode    = I.Variant({ Solo: I.Null, ShareLink: I.Null, Timed: I.Null });
   const Config  = I.Record({ sportId: I.Text, articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, secPerQ: I.Nat, mode: Mode });
   const Answer  = I.Record({ questionId: I.Text, chosenId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat });

@@ -1,4 +1,4 @@
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ export type QuizFilter = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Diff   = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
   const Choice = I.Record({ id: I.Text, text: I.Text });
   const Q      = I.Record({

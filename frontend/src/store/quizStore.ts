@@ -15,7 +15,7 @@ type QuizState = {
   reset:         () => void;
 };
 
-export const useQuizStore = create<QuizState>((set, get) => ({
+export const useQuizStore = create<QuizState>((set) => ({
   questions:  [],
   sessionId:  null,
   answers:    [],

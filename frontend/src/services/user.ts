@@ -1,28 +1,9 @@
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
-const RoleIDL = IDL.Variant({ Official: IDL.Null, Assessor: IDL.Null, Admin: IDL.Null });
-
-const ProfileIDL = IDL.Record({
-  principal:   IDL.Principal,
-  displayName: IDL.Text,
-  role:        RoleIDL,
-  sport:       IDL.Text,
-  level:       IDL.Text,
-  createdAt:   IDL.Int,
-});
-
-const ProfileUpdateIDL = IDL.Record({
-  displayName: IDL.Text,
-  sport:       IDL.Text,
-  level:       IDL.Text,
-});
-
-const ResultProfileIDL = IDL.Variant({ ok: ProfileIDL, err: IDL.Text });
-
-const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null });
   const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, createdAt: I.Int });
   const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text });
@@ -40,7 +21,7 @@ const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
 
 export type UserRole = { Official: null } | { Assessor: null } | { Admin: null };
 export type UserProfile = {
-  principal:   import("@dfinity/principal").Principal;
+  principal:   import("@icp-sdk/core/principal").Principal;
   displayName: string;
   role:        UserRole;
   sport:       string;

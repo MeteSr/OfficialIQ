@@ -140,14 +140,14 @@ export default function ExamPage() {
             <span style={{ fontSize: 14 }}>{row.label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
-                onClick={() => (row.set as any)(v => Math.max(row.min, v - row.step))}
+                onClick={() => (row.set as any)((v: number) => Math.max(row.min, v - row.step))}
                 style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
               >−</button>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 40, textAlign: "center" }}>
                 {row.value}{"suffix" in row ? row.suffix : ""}
               </span>
               <button
-                onClick={() => (row.set as any)(v => Math.min(row.max, v + row.step))}
+                onClick={() => (row.set as any)((v: number) => Math.min(row.max, v + row.step))}
                 style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
               >+</button>
             </div>

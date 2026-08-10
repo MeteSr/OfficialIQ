@@ -1,5 +1,5 @@
-import { Actor, HttpAgent, type Identity } from "@dfinity/agent";
-import { Ed25519KeyIdentity } from "@dfinity/identity";
+import { Actor, HttpAgent, type Identity } from "@icp-sdk/core/agent";
+import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 
 const IS_DEV  = import.meta.env.DEV;
 const IC_HOST = IS_DEV ? "http://127.0.0.1:4943" : "https://ic0.app";

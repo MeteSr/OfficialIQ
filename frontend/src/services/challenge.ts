@@ -1,4 +1,4 @@
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -8,15 +8,15 @@ export type ChallengeStatus =
   | { Declined: null } | { Expired: null };
 
 export type ChallengeResult = {
-  principal:  import("@dfinity/principal").Principal;
+  principal:  import("@icp-sdk/core/principal").Principal;
   score:      bigint;
   finishedAt: bigint;
 };
 
 export type Challenge = {
   id:          string;
-  challenger:  import("@dfinity/principal").Principal;
-  challenged:  import("@dfinity/principal").Principal;
+  challenger:  import("@icp-sdk/core/principal").Principal;
+  challenged:  import("@icp-sdk/core/principal").Principal;
   sport:       string;
   articleIds:  string[];
   questionIds: string[];
@@ -29,7 +29,7 @@ export type Challenge = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory = ({ IDL: I }: { IDL: typeof IDL }) => {
+const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Status  = I.Variant({ Pending: I.Null, Accepted: I.Null, Completed: I.Null, Declined: I.Null, Expired: I.Null });
   const CRes    = I.Record({ principal: I.Principal, score: I.Nat, finishedAt: I.Int });
   const Ch      = I.Record({

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import { AuthClient } from "@icp-sdk/auth";
-import { Ed25519KeyIdentity } from "@dfinity/identity";
+import { AuthClient } from "@icp-sdk/auth/client";
+import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { initAgent, resetAgent } from "../services/actor";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
