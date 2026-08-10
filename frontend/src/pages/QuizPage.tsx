@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { T } from "../tokens";
 import { questionService } from "../services/question";
 import { examService } from "../services/exam";
@@ -8,10 +8,12 @@ import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizS
 import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord } from "../services/exam";
 
-const SECONDS_PER_Q = 45;
+const DEFAULT_SECONDS_PER_Q = 45;
 
 export default function QuizPage() {
   const { articleId } = useParams<{ articleId: string }>();
+  const [searchParams] = useSearchParams();
+  const SECONDS_PER_Q = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
   const navigate = useNavigate();
   const { profile } = useAuthStore();
 
@@ -46,13 +48,13 @@ export default function QuizPage() {
       loadQuestions(qs, session.id);
       setSessionId(session.id);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [articleId]);
+  }, [articleId, SECONDS_PER_Q]);
 
   // Reset chosen + timer on question change
   useEffect(() => {
     setChosen(null);
     setTimeLeft(SECONDS_PER_Q);
-  }, [currentIdx]);
+  }, [currentIdx, SECONDS_PER_Q]);
 
   // Countdown timer
   useEffect(() => {
@@ -72,24 +74,29 @@ export default function QuizPage() {
       elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
     };
     recordAnswer(ans);
-  }, [chosen, currentQ, timeLeft]);
+  }, [chosen, currentQ, timeLeft, SECONDS_PER_Q]);
 
   const handleNext = useCallback(async () => {
     advance();
     if (currentIdx + 1 >= questions.length && sessionId) {
-      // Submit exam + record ranking
-      await examService.submitExam(sessionId, [...answers, ...(chosen && currentQ ? [{
+      const finalAnswers = [...answers, ...(chosen && currentQ ? [{
         questionId: currentQ.id, chosenId: chosen,
         isCorrect: chosen === currentQ.correctId, elapsedSec: BigInt(SECONDS_PER_Q - timeLeft),
-      }] : [])]).catch(() => {});
+      }] : [])];
+      const avgElapsedSec = finalAnswers.length
+        ? Number(finalAnswers.reduce((sum, a) => sum + a.elapsedSec, 0n)) / finalAnswers.length
+        : 0;
+      // Submit exam + record ranking
+      await examService.submitExam(sessionId, finalAnswers).catch(() => {});
       if (profile) {
         await rankingService.recordExamResult(
           finalScore, questions.length,
           profile.displayName, profile.sport, "TX",
+          avgElapsedSec,
         ).catch(() => {});
       }
     }
-  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, finalScore, profile]);
+  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, finalScore, profile, SECONDS_PER_Q]);
 
   if (loading) {
     return (
@@ -100,16 +107,52 @@ export default function QuizPage() {
   }
 
   if (isComplete) {
+    const avgElapsed = answers.length
+      ? Math.round(Number(answers.reduce((sum, a) => sum + a.elapsedSec, 0n)) / answers.length)
+      : 0;
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
+      <div style={{ padding: "24px 16px", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quiz Complete!</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: T.navy, marginBottom: 4 }}>
           {finalScore}%
         </div>
-        <div style={{ fontSize: 14, color: T.muted, marginBottom: 24 }}>
+        <div style={{ fontSize: 14, color: T.muted, marginBottom: 4 }}>
           {answers.filter(a => a.isCorrect).length} / {questions.length} correct
         </div>
+        <div style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>
+          Avg. {avgElapsed}s per question
+        </div>
+
+        <div style={{ textAlign: "left", marginBottom: 24 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 8 }}>
+            Per-question breakdown
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {answers.map((a, i) => (
+              <div
+                key={a.questionId + i}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", background: T.surface,
+                  border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13,
+                }}
+              >
+                <span style={{ color: T.muted, minWidth: 20 }}>{i + 1}.</span>
+                <span style={{
+                  color: a.isCorrect ? T.correct : T.wrong, fontWeight: 700, minWidth: 18,
+                }}>
+                  {a.isCorrect ? "✓" : "✗"}
+                </span>
+                <span style={{ flex: 1, color: T.muted, textAlign: "left" }}>
+                  {questions[i]?.stem.slice(0, 48) ?? a.questionId}{(questions[i]?.stem.length ?? 0) > 48 ? "…" : ""}
+                </span>
+                <span style={{ color: T.text, fontWeight: 600 }}>{Number(a.elapsedSec)}s</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={() => navigate("/home")}
           style={{

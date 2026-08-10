@@ -31,15 +31,16 @@ persistent actor Exam {
   };
 
   public type ExamSession = {
-    id          : Text;
-    owner       : Principal;
-    config      : ExamConfig;
-    questionIds : [Text];
-    answers     : [AnswerRecord];
-    score       : ?Nat;
-    shareToken  : ?Text;
-    startedAt   : Int;
-    finishedAt  : ?Int;
+    id            : Text;
+    owner         : Principal;
+    config        : ExamConfig;
+    questionIds   : [Text];
+    answers       : [AnswerRecord];
+    score         : ?Nat;
+    avgElapsedSec : ?Nat;
+    shareToken    : ?Text;
+    startedAt     : Int;
+    finishedAt    : ?Int;
   };
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -66,15 +67,16 @@ persistent actor Exam {
       case _ null;
     };
     let session : ExamSession = {
-      id          = id;
-      owner       = caller;
-      config      = config;
-      questionIds = questionIds;
-      answers     = [];
-      score       = null;
-      shareToken  = shareToken;
-      startedAt   = now;
-      finishedAt  = null;
+      id            = id;
+      owner         = caller;
+      config        = config;
+      questionIds   = questionIds;
+      answers       = [];
+      score         = null;
+      avgElapsedSec = null;
+      shareToken    = shareToken;
+      startedAt     = now;
+      finishedAt    = null;
     };
     Map.add(sessions, Text.compare, id, session);
     #ok(session)
@@ -86,19 +88,26 @@ persistent actor Exam {
       case (?s) {
         if (s.owner != caller) return #err("Not your session");
         var correct : Nat = 0;
-        for (a in answers.vals()) { if (a.isCorrect) correct += 1 };
+        var elapsedTotal : Nat = 0;
+        for (a in answers.vals()) {
+          if (a.isCorrect) correct += 1;
+          elapsedTotal += a.elapsedSec;
+        };
         let pct : Nat = if (answers.size() == 0) 0
           else (correct * 100) / answers.size();
+        let avgElapsedSec : ?Nat = if (answers.size() == 0) null
+          else ?(elapsedTotal / answers.size());
         let updated : ExamSession = {
-          id          = s.id;
-          owner       = s.owner;
-          config      = s.config;
-          questionIds = s.questionIds;
-          answers     = answers;
-          score       = ?pct;
-          shareToken  = s.shareToken;
-          startedAt   = s.startedAt;
-          finishedAt  = ?Time.now();
+          id            = s.id;
+          owner         = s.owner;
+          config        = s.config;
+          questionIds   = s.questionIds;
+          answers       = answers;
+          score         = ?pct;
+          avgElapsedSec = avgElapsedSec;
+          shareToken    = s.shareToken;
+          startedAt     = s.startedAt;
+          finishedAt    = ?Time.now();
         };
         Map.add(sessions, Text.compare, id, updated);
         #ok(updated)
@@ -111,7 +120,7 @@ persistent actor Exam {
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
     let buf = VarArray.repeat<ExamSession>({
       id = ""; owner = caller; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
-      questionIds = []; answers = []; score = null; shareToken = null; startedAt = 0; finishedAt = null;
+      questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;
     }, Map.size(sessions));
     var i = 0;
     for ((_, s) in Map.entries(sessions)) {

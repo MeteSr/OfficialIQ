@@ -22,15 +22,16 @@ export type AnswerRecord = {
 };
 
 export type ExamSession = {
-  id:          string;
-  owner:       import("@icp-sdk/core/principal").Principal;
-  config:      ExamConfig;
-  questionIds: string[];
-  answers:     AnswerRecord[];
-  score:       [] | [bigint];
-  shareToken:  [] | [string];
-  startedAt:   bigint;
-  finishedAt:  [] | [bigint];
+  id:            string;
+  owner:         import("@icp-sdk/core/principal").Principal;
+  config:        ExamConfig;
+  questionIds:   string[];
+  answers:       AnswerRecord[];
+  score:         [] | [bigint];
+  avgElapsedSec: [] | [bigint];
+  shareToken:    [] | [string];
+  startedAt:     bigint;
+  finishedAt:    [] | [bigint];
 };
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Answer  = I.Record({ questionId: I.Text, chosenId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat });
   const Session = I.Record({
     id: I.Text, owner: I.Principal, config: Config, questionIds: I.Vec(I.Text),
-    answers: I.Vec(Answer), score: I.Opt(I.Nat), shareToken: I.Opt(I.Text),
+    answers: I.Vec(Answer), score: I.Opt(I.Nat), avgElapsedSec: I.Opt(I.Nat), shareToken: I.Opt(I.Text),
     startedAt: I.Int, finishedAt: I.Opt(I.Int),
   });
   const ResultS = I.Variant({ ok: Session, err: I.Text });
@@ -72,7 +73,7 @@ export const examService = {
     if (!CANISTER_ID) {
       return {
         id: "ex_mock_" + Date.now(), owner: { toString: () => "2vxsx-fae" } as any,
-        config, questionIds, answers: [], score: [], shareToken: [],
+        config, questionIds, answers: [], score: [], avgElapsedSec: [], shareToken: [],
         startedAt: BigInt(Date.now()) * 1_000_000n, finishedAt: [],
       };
     }
@@ -85,10 +86,13 @@ export const examService = {
     if (!CANISTER_ID) {
       const correct = answers.filter(a => a.isCorrect).length;
       const pct = answers.length ? BigInt(Math.round((correct / answers.length) * 100)) : 0n;
+      const avgElapsed = answers.length
+        ? [answers.reduce((sum, a) => sum + a.elapsedSec, 0n) / BigInt(answers.length)] as [bigint]
+        : [] as [] | [bigint];
       return {
         id, owner: { toString: () => "2vxsx-fae" } as any,
         config: { sportId: "ncaa_basketball", articleIds: [], casebook: true, count: BigInt(answers.length), secPerQ: 45n, mode: { Solo: null } },
-        questionIds: answers.map(a => a.questionId), answers, score: [pct],
+        questionIds: answers.map(a => a.questionId), answers, score: [pct], avgElapsedSec: avgElapsed,
         shareToken: [], startedAt: 0n, finishedAt: [BigInt(Date.now()) * 1_000_000n],
       };
     }

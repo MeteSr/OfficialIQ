@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { T } from "../tokens";
-import { rankingService, type LeaderboardEntry } from "../services/ranking";
+import { rankingService, type LeaderboardEntry, type SortKey } from "../services/ranking";
 import { challengeService } from "../services/challenge";
 import { useAuthStore } from "../store/authStore";
 
 type Tab = "Friends" | "State" | "National";
 
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "Elo",      label: "ELO" },
+  { key: "Accuracy", label: "Accuracy" },
+  { key: "Speed",    label: "Speed" },
+];
+
 export default function RanksPage() {
   const [tab,     setTab]     = useState<Tab>("Friends");
+  const [sortBy,  setSortBy]  = useState<SortKey>("Elo");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const { principal } = useAuthStore();
@@ -15,11 +22,11 @@ export default function RanksPage() {
   useEffect(() => {
     setLoading(true);
     const fetch =
-      tab === "Friends"  ? rankingService.getFriends("ncaa_basketball", 25) :
-      tab === "State"    ? rankingService.getState("ncaa_basketball", "TX", 25) :
-                           rankingService.getNational("ncaa_basketball", 25);
+      tab === "Friends"  ? rankingService.getFriends("ncaa_basketball", 25, sortBy) :
+      tab === "State"    ? rankingService.getState("ncaa_basketball", "TX", 25, sortBy) :
+                           rankingService.getNational("ncaa_basketball", 25, sortBy);
     fetch.then(setEntries).catch(() => {}).finally(() => setLoading(false));
-  }, [tab]);
+  }, [tab, sortBy]);
 
   const top = entries[0];
 
@@ -65,6 +72,25 @@ export default function RanksPage() {
         </div>
       </div>
 
+      <div style={{ padding: "12px 16px 0", display: "flex", gap: 6, alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Sort by</span>
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            onClick={() => setSortBy(opt.key)}
+            style={{
+              padding: "5px 12px", borderRadius: 12,
+              background: sortBy === opt.key ? T.navy : T.surface,
+              color: sortBy === opt.key ? T.white : T.text,
+              border: `1px solid ${sortBy === opt.key ? T.navy : T.border}`,
+              fontSize: 12, fontWeight: sortBy === opt.key ? 700 : 400,
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ padding: "8px 16px" }}>
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
@@ -105,7 +131,9 @@ export default function RanksPage() {
                 </div>
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: isYou ? T.red : T.text }}>
-                {Math.round(e.accuracy * 100)}%
+                {sortBy === "Elo" ? Math.round(e.elo)
+                  : sortBy === "Speed" ? `${Math.round(e.avgElapsedSec)}s`
+                  : `${Math.round(e.accuracy * 100)}%`}
               </span>
             </div>
           );

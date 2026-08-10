@@ -64,7 +64,7 @@ export default function ExamPage() {
         setShareToken(token);
         await navigator.clipboard.writeText(`${window.location.origin}/quiz/${token}`).catch(() => {});
       } else {
-        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`);
+        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}?sec=${secPerQ}`);
       }
     } catch (e) {
       console.error(e);
@@ -201,7 +201,7 @@ export default function ExamPage() {
               Link copied to clipboard — share it with your opponent.
             </div>
             <button
-              onClick={() => navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`)}
+              onClick={() => navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}?sec=${secPerQ}`)}
               style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
             >
               Start My Attempt
