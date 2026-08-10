@@ -4,7 +4,8 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { challengeService, type Challenge } from "../services/challenge";
 import { rankingService, type UserStats } from "../services/ranking";
-import { userService } from "../services/user";
+import { userService, type StudyPace, type WeeklySchedule } from "../services/user";
+import { contentService, type Article } from "../services/content";
 
 export default function HomePage() {
   const navigate   = useNavigate();
@@ -13,6 +14,10 @@ export default function HomePage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [names,       setNames]     = useState<Record<string, string>>({});
   const [accepting,   setAccepting] = useState<string | null>(null);
+
+  const [articles,  setArticles]  = useState<Article[]>([]);
+  const [pace,       setPace]       = useState<StudyPace | null>(null);
+  const [schedule,   setSchedule]   = useState<WeeklySchedule | null>(null);
 
   function refreshChallenges() {
     challengeService.getMyChallenges().then(async (cs) => {
@@ -27,10 +32,27 @@ export default function HomePage() {
     }).catch(() => {});
   }
 
+  async function refreshSchedule() {
+    try {
+      const arts = await contentService.listArticles("ncaa_basketball", "varsity");
+      const sorted = [...arts].sort((a, b) => Number(a.number) - Number(b.number));
+      setArticles(sorted);
+      const myPace = await userService.getMyStudyPace();
+      setPace(myPace);
+      if (myPace) {
+        const sched = await userService.getWeeklySchedule(sorted.map(a => a.id));
+        setSchedule(sched);
+      }
+    } catch {
+      // leave the weekly module hidden on failure
+    }
+  }
+
   useEffect(() => {
     rankingService.getMyStats().then(setStats).catch(() => {});
     if (principal) refreshChallenges();
-  }, [isAuthenticated, principal]);
+    if (isAuthenticated && profile) refreshSchedule();
+  }, [isAuthenticated, principal, !!profile]);
 
   async function handleAccept(id: string) {
     setAccepting(id);
@@ -47,6 +69,24 @@ export default function HomePage() {
   const pending = challenges.filter(c => "Pending" in c.status && c.challenged.toString() === principal);
   const streak  = stats?.streak ?? 14n;
   const accuracy = stats ? Math.round(stats.accuracy * 100) : 84;
+
+  const articleTitle = (id: string) => {
+    const a = articles.find(x => x.id === id);
+    return a ? `Art. ${Number(a.number)}` : id;
+  };
+
+  const dueCount = schedule?.dueThisWeek.length ?? 0;
+  const overdueCount = schedule?.overdue.length ?? 0;
+  const weekTotal = pace ? Number(pace.articlesPerWeek) : 0;
+  const doneThisWeek = Math.max(0, weekTotal - dueCount);
+  const weekProgressPct = weekTotal > 0 ? Math.round((doneThisWeek / weekTotal) * 100) : 0;
+  const isCatchingUp = overdueCount > 0;
+  const nextArticleId = (isCatchingUp ? schedule?.overdue[0] : schedule?.dueThisWeek[0]) ?? null;
+  const continueLabel = !nextArticleId
+    ? "All caught up this week!"
+    : isCatchingUp
+      ? `▶ Catch Up: ${articleTitle(nextArticleId)}`
+      : `▶ Continue Week ${schedule?.weekNumber ?? 1} Study`;
 
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -99,29 +139,59 @@ export default function HomePage() {
 
       <div style={{ padding: "16px 16px 0" }}>
         {/* Weekly module */}
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`,
-          borderRadius: 12, padding: "14px 16px", marginBottom: 12,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>This Week — Art. 4–5</span>
-            <span style={{ fontSize: 12, color: T.muted }}>3/5 done</span>
+        {!pace ? (
+          <div style={{
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: 12, padding: "14px 16px", marginBottom: 12, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 10 }}>
+              Set a study pace to get a personalized weekly schedule.
+            </div>
+            <button
+              onClick={() => navigate("/me")}
+              style={{ padding: "10px 20px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
+            >
+              Set Study Pace
+            </button>
           </div>
-          <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden", marginBottom: 14 }}>
-            <div style={{ height: "100%", width: "60%", background: T.red, borderRadius: 2 }} />
+        ) : (
+          <div style={{
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: 12, padding: "14px 16px", marginBottom: 12,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>
+                This Week — {schedule && schedule.dueThisWeek.length > 0
+                  ? schedule.dueThisWeek.map(articleTitle).join(", ")
+                  : "All caught up"}
+              </span>
+              <span style={{ fontSize: 12, color: T.muted }}>{doneThisWeek}/{weekTotal} done</span>
+            </div>
+            <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden", marginBottom: 14 }}>
+              <div style={{ height: "100%", width: `${weekProgressPct}%`, background: T.red, borderRadius: 2 }} />
+            </div>
+            {overdueCount > 0 && (
+              <div style={{
+                fontSize: 12, color: T.wrong, marginBottom: 10,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                ⚠️ {overdueCount} article{overdueCount === 1 ? "" : "s"} overdue — {schedule!.overdue.map(articleTitle).join(", ")}
+              </div>
+            )}
+            <button
+              onClick={() => navigate(nextArticleId ? `/quiz/${nextArticleId}` : "/study")}
+              disabled={!nextArticleId}
+              style={{
+                width: "100%", padding: "13px 0",
+                background: nextArticleId ? T.red : T.border, color: T.white,
+                borderRadius: 8, fontSize: 15, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              {continueLabel}
+            </button>
           </div>
-          <button
-            onClick={() => navigate("/quiz/ncaa_basketball:art4")}
-            style={{
-              width: "100%", padding: "13px 0",
-              background: T.red, color: T.white,
-              borderRadius: 8, fontSize: 15, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}
-          >
-            ▶ Continue Week 4 Study
-          </button>
-        </div>
+        )}
 
         {/* Quick actions */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>

@@ -4,6 +4,7 @@ import { T } from "../tokens";
 import { questionService, type Question } from "../services/question";
 import { examService } from "../services/exam";
 import { rankingService } from "../services/ranking";
+import { userService } from "../services/user";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
 import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord } from "../services/exam";
@@ -143,9 +144,24 @@ export default function QuizPage() {
           profile.displayName, profile.sport, profile.state || "TX",
           avgElapsedSec,
         ).catch(() => {});
+
+        // Attribute progress per-article (a session can span several
+        // articles), scored by that article's own accuracy within this quiz.
+        const byArticle = new Map<string, { correct: number; total: number }>();
+        finalAnswers.forEach((a, i) => {
+          const articleId = questions[i]?.articleId;
+          if (!articleId) return;
+          const bucket = byArticle.get(articleId) ?? { correct: 0, total: 0 };
+          bucket.total += 1;
+          if (a.isCorrect) bucket.correct += 1;
+          byArticle.set(articleId, bucket);
+        });
+        await Promise.all([...byArticle.entries()].map(([articleId, b]) =>
+          userService.recordArticleStudied(articleId, Math.round((b.correct / b.total) * 100)).catch(() => {})
+        ));
       }
     }
-  }, [advance, currentIdx, questions.length, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit]);
+  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit]);
 
   if (loading) {
     return (

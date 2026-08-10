@@ -4,6 +4,7 @@ import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
+import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 
 persistent actor User {
@@ -33,9 +34,31 @@ persistent actor User {
     state       : Text;
   };
 
+  public type StudyPace = {
+    articlesPerWeek : Nat;
+    startDate       : Int;
+  };
+
+  public type ArticleProgress = {
+    articleId    : Text;
+    lastStudied  : Int;
+    timesStudied : Nat;
+    masteryScore : Nat;
+  };
+
+  public type WeeklySchedule = {
+    dueThisWeek : [Text];
+    overdue     : [Text];
+    weekNumber  : Nat;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var profiles : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
+  var profiles   : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
+  var studyPaces : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
+  var progress   : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
+
+  let WEEK_NS : Nat = 7 * 24 * 3600 * 1_000_000_000;
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -75,6 +98,34 @@ persistent actor User {
     }
   };
 
+  public shared ({ caller }) func setStudyPace(articlesPerWeek : Nat) : async Result.Result<StudyPace, Text> {
+    if (articlesPerWeek == 0) return #err("Must study at least 1 article per week");
+    let pace : StudyPace = switch (Map.get(studyPaces, Principal.compare, caller)) {
+      case (?existing) { { articlesPerWeek; startDate = existing.startDate } };
+      case null { { articlesPerWeek; startDate = Time.now() } };
+    };
+    Map.add(studyPaces, Principal.compare, caller, pace);
+    #ok(pace)
+  };
+
+  public shared ({ caller }) func recordArticleStudied(articleId : Text, score : Nat) : async () {
+    let existing = switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] };
+    let now = Time.now();
+    var found = false;
+    let updated = Array.map<ArticleProgress, ArticleProgress>(existing, func(p) {
+      if (p.articleId == articleId) {
+        found := true;
+        let newTimes = p.timesStudied + 1;
+        let newMastery = (p.masteryScore * p.timesStudied + score) / newTimes;
+        { articleId = p.articleId; lastStudied = now; timesStudied = newTimes; masteryScore = newMastery }
+      } else p
+    });
+    let final = if (found) updated else Array.concat<ArticleProgress>(updated, [{
+      articleId; lastStudied = now; timesStudied = 1; masteryScore = score;
+    }]);
+    Map.add(progress, Principal.compare, caller, final);
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -83,6 +134,67 @@ persistent actor User {
 
   public query func getProfile(p : Principal) : async ?Profile {
     Map.get(profiles, Principal.compare, p)
+  };
+
+  public shared query ({ caller }) func getMyStudyPace() : async ?StudyPace {
+    Map.get(studyPaces, Principal.compare, caller)
+  };
+
+  public shared query ({ caller }) func getMyProgress() : async [ArticleProgress] {
+    switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] }
+  };
+
+  // Caller supplies the full, stably-ordered list of article ids (from the
+  // content canister) since this canister doesn't own article data itself.
+  public shared query ({ caller }) func getWeeklySchedule(allArticleIds : [Text]) : async WeeklySchedule {
+    let total = allArticleIds.size();
+    if (total == 0) return { dueThisWeek = []; overdue = []; weekNumber = 0 };
+
+    let pace = switch (Map.get(studyPaces, Principal.compare, caller)) {
+      case (?p) p;
+      case null { return { dueThisWeek = []; overdue = []; weekNumber = 0 } };
+    };
+    let myProgress = switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] };
+    let now = Time.now();
+
+    let weeksElapsed : Nat = if (now <= pace.startDate) 0 else Int.abs(now - pace.startDate) / WEEK_NS;
+    let totalWeeksInCycle : Nat = (total + pace.articlesPerWeek - 1) / pace.articlesPerWeek;
+    let cycleNumber : Nat = weeksElapsed / totalWeeksInCycle;
+    let currentWeekInCycle : Nat = weeksElapsed % totalWeeksInCycle;
+
+    func lastStudiedOf(articleId : Text) : ?Int {
+      switch (Array.find<ArticleProgress>(myProgress, func(p) { p.articleId == articleId })) {
+        case (?p) ?p.lastStudied;
+        case null null;
+      }
+    };
+
+    var due : [Text] = [];
+    var overdue : [Text] = [];
+    var i = 0;
+    while (i < total) {
+      let assignedWeek = i / pace.articlesPerWeek;
+      // Advance dueAt by full cycles so an article becomes "due" again each
+      // time its slot recurs, rather than counting as permanently covered
+      // after the first annual cycle.
+      let dueAt = pace.startDate + (cycleNumber * totalWeeksInCycle + assignedWeek) * WEEK_NS;
+      if (now >= dueAt and assignedWeek <= currentWeekInCycle) {
+        let studiedSince = switch (lastStudiedOf(allArticleIds[i])) {
+          case (?t) t >= dueAt;
+          case null false;
+        };
+        if (not studiedSince) {
+          if (assignedWeek == currentWeekInCycle) {
+            due := Array.concat<Text>(due, [allArticleIds[i]]);
+          } else {
+            overdue := Array.concat<Text>(overdue, [allArticleIds[i]]);
+          };
+        };
+      };
+      i += 1;
+    };
+
+    { dueThisWeek = due; overdue = overdue; weekNumber = currentWeekInCycle + 1 }
   };
 
   public query func metrics() : async { userCount : Nat } {

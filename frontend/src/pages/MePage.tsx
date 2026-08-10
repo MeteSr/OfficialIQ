@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,13 +10,19 @@ type FriendRow = { principal: string; displayName: string; accuracy: number; str
 
 const LEVELS = ["varsity", "collegiate"] as const;
 
+// Rough heuristic: ~45 minutes of focused study per rule article.
+function hoursToArticlesPerWeek(hours: number): number {
+  return Math.max(1, Math.round(hours / 0.75));
+}
+
 function ProfileForm({
-  initial, onSubmit, submitting, submitLabel,
+  initial, onSubmit, submitting, submitLabel, extra,
 }: {
   initial: { displayName: string; level: string; state: string };
   onSubmit: (v: { displayName: string; level: string; state: string }) => void;
   submitting: boolean;
   submitLabel: string;
+  extra?: ReactNode;
 }) {
   const [displayName, setDisplayName] = useState(initial.displayName);
   const [level, setLevel] = useState(initial.level || LEVELS[0]);
@@ -61,6 +67,7 @@ function ProfileForm({
           }}
         />
       </div>
+      {extra}
       <button
         disabled={submitting || !displayName.trim() || state.length !== 2}
         onClick={() => onSubmit({ displayName: displayName.trim(), level, state })}
@@ -83,6 +90,7 @@ export default function MePage() {
   const [saving,     setSaving]     = useState(false);
   const [editing,    setEditing]    = useState(false);
   const [formError,  setFormError]  = useState<string | null>(null);
+  const [hoursPerWeek, setHoursPerWeek] = useState(3);
 
   const [friends,        setFriends]        = useState<FriendRow[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
@@ -209,12 +217,38 @@ export default function MePage() {
               try {
                 const created = await userService.createProfile({ ...v, sport: "ncaa_basketball" });
                 setProfile(created);
+                // Best-effort — a missing pace just means no weekly schedule until
+                // the user sets one later; it shouldn't block onboarding.
+                await userService.setStudyPace(hoursToArticlesPerWeek(hoursPerWeek)).catch(() => {});
               } catch (e: any) {
                 setFormError(e.message ?? "Failed to create profile");
               } finally {
                 setSaving(false);
               }
             }}
+            extra={
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>
+                  How many hours per week can you study?
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => setHoursPerWeek(h => Math.max(1, h - 1))}
+                    style={{ width: 32, height: 32, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+                  >−</button>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 90, textAlign: "center" }}>
+                    {hoursPerWeek} hr{hoursPerWeek === 1 ? "" : "s"}/week
+                  </span>
+                  <button
+                    onClick={() => setHoursPerWeek(h => Math.min(20, h + 1))}
+                    style={{ width: 32, height: 32, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+                  >+</button>
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>
+                  We'll pace you at ~{hoursToArticlesPerWeek(hoursPerWeek)} article{hoursToArticlesPerWeek(hoursPerWeek) === 1 ? "" : "s"}/week to cover the full rulebook every year.
+                </div>
+              </div>
+            }
           />
         </div>
       </div>
