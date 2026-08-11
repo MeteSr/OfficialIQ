@@ -9,7 +9,7 @@ import path from "node:path";
 import { Actor, HttpAgent } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
-import { ARTICLES, SPORT_ID, LEVEL_ID } from "./seedData.mjs";
+import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS } from "./seedData.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -43,13 +43,21 @@ const contentIdlFactory = ({ IDL: I }) => {
   const CasebookPlay = I.Record({
     id: I.Text, articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text),
   });
+  const PoeInput = I.Record({ season: I.Text, title: I.Text, body: I.Text, linkedArticleIds: I.Vec(I.Text) });
+  const Poe = I.Record({
+    id: I.Text, season: I.Text, title: I.Text, body: I.Text,
+    linkedArticleIds: I.Vec(I.Text), audioUrl: I.Opt(I.Text), createdAt: I.Int,
+  });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultArticle = I.Variant({ ok: Article, err: I.Text });
   const ResultPlay = I.Variant({ ok: CasebookPlay, err: I.Text });
+  const ResultPoe = I.Variant({ ok: Poe, err: I.Text });
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
     upsertArticle: I.Func([ArticleInput], [ResultArticle], []),
     upsertPlay: I.Func([PlayInput], [ResultPlay], []),
+    upsertPointOfEmphasis: I.Func([PoeInput], [ResultPoe], []),
+    listPointsOfEmphasis: I.Func([I.Text], [I.Vec(Poe)], ["query"]),
   });
 };
 
@@ -59,12 +67,12 @@ const questionIdlFactory = ({ IDL: I }) => {
   const QuestionInput = I.Record({
     sportId: I.Text, articleId: I.Text, citation: I.Text, stem: I.Text,
     choices: I.Vec(Choice), correctId: I.Text, explanation: I.Text,
-    difficulty: Difficulty, isCasebook: I.Bool,
+    difficulty: Difficulty, isCasebook: I.Bool, isPointOfEmphasis: I.Bool,
   });
   const Question = I.Record({
     id: I.Text, sportId: I.Text, articleId: I.Text, citation: I.Text, stem: I.Text,
     choices: I.Vec(Choice), correctId: I.Text, explanation: I.Text,
-    difficulty: Difficulty, isCasebook: I.Bool, createdAt: I.Int,
+    difficulty: Difficulty, isCasebook: I.Bool, isPointOfEmphasis: I.Bool, createdAt: I.Int,
   });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultQuestion = I.Variant({ ok: Question, err: I.Text });
@@ -144,7 +152,7 @@ async function main() {
         sportId: SPORT_ID, articleId, citation,
         stem: q.stem, choices: q.choices, correctId: q.correctId,
         explanation: q.explanation, difficulty: toDifficultyVariant(q.difficulty),
-        isCasebook: q.isCasebook,
+        isCasebook: q.isCasebook, isPointOfEmphasis: q.isPointOfEmphasis,
       });
       if ("err" in qRes) {
         console.error(`    ✗ question "${q.stem.slice(0, 40)}...": ${qRes.err}`);
@@ -155,8 +163,32 @@ async function main() {
     }
   }
 
+  // upsertPointOfEmphasis always mints a fresh id (unlike articles/plays,
+  // which are keyed deterministically), so skip titles that already exist
+  // for the season to keep re-running this script idempotent.
+  let poeCount = 0;
+  const existingPoes = await content.listPointsOfEmphasis(POINTS_OF_EMPHASIS[0]?.season ?? "");
+  const existingTitles = new Set(existingPoes.map(p => p.title));
+  for (const poe of POINTS_OF_EMPHASIS) {
+    if (existingTitles.has(poe.title)) {
+      console.log(`  · POE "${poe.title}" already seeded — skipping`);
+      poeCount++;
+      continue;
+    }
+    const poeRes = await content.upsertPointOfEmphasis({
+      season: poe.season, title: poe.title, body: poe.body, linkedArticleIds: poe.linkedArticleIds,
+    });
+    if ("err" in poeRes) {
+      console.error(`  ✗ POE "${poe.title}": ${poeRes.err}`);
+      errorCount++;
+    } else {
+      poeCount++;
+      console.log(`  ✓ POE "${poe.title}" -> ${poeRes.ok.id}`);
+    }
+  }
+
   console.log("");
-  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, errors: ${errorCount}`);
+  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, points of emphasis: ${poeCount}, errors: ${errorCount}`);
   if (errorCount > 0) process.exit(1);
 }
 

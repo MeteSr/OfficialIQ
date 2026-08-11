@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
-import { contentService, type Article } from "../services/content";
+import { contentService, type Article, type PointOfEmphasis } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
 import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
+
+const CURRENT_SEASON = "2025-26";
 
 export default function StudyPage() {
   const navigate = useNavigate();
@@ -14,6 +16,39 @@ export default function StudyPage() {
   const [progress, setProgress] = useState<Record<string, ArticleProgress>>({});
   const [overdueIds, setOverdueIds] = useState<Set<string>>(new Set());
   const [dueCounts, setDueCounts] = useState<Record<string, number>>({});
+  const [poes, setPoes] = useState<PointOfEmphasis[]>([]);
+  const [playingPoeId, setPlayingPoeId] = useState<string | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    contentService.listPointsOfEmphasis(CURRENT_SEASON).then(setPoes).catch(() => {});
+    return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
+  }, []);
+
+  async function togglePoeAudio(poe: PointOfEmphasis) {
+    if (playingPoeId === poe.id) {
+      audioRef.current?.pause();
+      setPlayingPoeId(null);
+      return;
+    }
+    setLoadingAudio(poe.id);
+    try {
+      const bytes = await contentService.getArticleAudio(poe.id);
+      if (!bytes) return;
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "audio/mpeg" }));
+      objectUrlRef.current = url;
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        await audioRef.current.play();
+        setPlayingPoeId(poe.id);
+      }
+    } finally {
+      setLoadingAudio(null);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -62,6 +97,74 @@ export default function StudyPage() {
           NCAA Men's Basketball
         </div>
       </div>
+
+      <audio ref={audioRef} onEnded={() => setPlayingPoeId(null)} style={{ display: "none" }} />
+
+      {poes.length > 0 && (
+        <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>
+            POINTS OF EMPHASIS — {CURRENT_SEASON}
+          </div>
+          {poes.map((poe) => {
+            const reviewed = poe.linkedArticleIds.length > 0 &&
+              poe.linkedArticleIds.every(id => Number(progress[id]?.timesStudied ?? 0n) > 0);
+            const hasAudio = poe.audioUrl.length > 0;
+            const isPlaying = playingPoeId === poe.id;
+            return (
+              <div
+                key={poe.id}
+                style={{
+                  padding: "14px 16px", background: T.surface,
+                  border: `1px solid ${reviewed ? T.correct : T.navy}`,
+                  borderRadius: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: T.white, background: T.navy,
+                    borderRadius: 6, padding: "2px 6px",
+                  }}>
+                    POE
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{poe.title}</span>
+                  {reviewed && <span style={{ fontSize: 11, fontWeight: 700, color: T.correct }}>✓ Reviewed</span>}
+                </div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>{poe.body}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {poe.linkedArticleIds.map((id) => {
+                      const a = articles.find(x => x.id === id);
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => navigate(`/quiz/${id}?adaptive=1`)}
+                          style={{
+                            padding: "4px 8px", background: T.bg,
+                            border: `1px solid ${T.border}`, borderRadius: 6, fontSize: 11,
+                          }}
+                        >
+                          {a ? `Art. ${Number(a.number)}` : id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {hasAudio && (
+                    <button
+                      onClick={() => togglePoeAudio(poe)}
+                      style={{
+                        width: 30, height: 30, borderRadius: "50%", background: T.navy, color: T.white,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0,
+                      }}
+                    >
+                      {loadingAudio === poe.id ? "…" : isPlaying ? "❚❚" : "▶"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
         {loading ? (

@@ -10,9 +10,11 @@ import { useAuthStore } from "../store/authStore";
 const SECONDS_PER_Q = 30;
 const TOTAL_QUESTIONS = 10;
 const NEW_RATIO = 0.6;
+const POE_RATIO = 0.2;
 const SEVEN_DAYS_NS = 7n * 24n * 3600n * 1_000_000_000n;
+const CURRENT_SEASON = "2025-26";
 
-type Source = "new" | "retention";
+type Source = "new" | "retention" | "poe";
 type TaggedQuestion = Question & { _source: Source };
 
 type Plan = {
@@ -21,6 +23,8 @@ type Plan = {
   retentionArticles: Article[];
   newCount: number;
   retentionCount: number;
+  poeArticleIds: string[];
+  poeCount: number;
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -53,12 +57,14 @@ export default function WeeklyQuizPage() {
     (async () => {
       const arts = await contentService.listArticles("ncaa_basketball", "varsity");
       const sorted = [...arts].sort((a, b) => Number(a.number) - Number(b.number));
-      const [schedule, progress, hist] = await Promise.all([
+      const [schedule, progress, hist, poes] = await Promise.all([
         userService.getWeeklySchedule(sorted.map(a => a.id)),
         userService.getMyProgress(),
         userService.getWeeklyQuizHistory(),
+        contentService.listPointsOfEmphasis(CURRENT_SEASON).catch(() => []),
       ]);
       setHistory(hist);
+      const poeArticleIds = [...new Set(poes.flatMap(p => p.linkedArticleIds))];
 
       const newArticleIds = new Set(schedule.dueThisWeek);
       const nowNs = BigInt(Date.now()) * 1_000_000n;
@@ -71,12 +77,17 @@ export default function WeeklyQuizPage() {
       const stale = retentionCandidates.filter(p => nowNs - p.lastStudied >= SEVEN_DAYS_NS);
       const retentionPool = (stale.length > 0 ? stale : retentionCandidates).map(p => p.articleId);
 
-      let newCount = Math.round(TOTAL_QUESTIONS * NEW_RATIO);
-      let retentionCount = TOTAL_QUESTIONS - newCount;
-      if (newArticleIds.size === 0) { newCount = 0; retentionCount = TOTAL_QUESTIONS; }
-      if (retentionPool.length === 0) { retentionCount = 0; newCount = TOTAL_QUESTIONS; }
+      // Reserve ~20% of the quiz for Points-of-Emphasis questions when any POE
+      // items are seeded for the current season, then split the remainder
+      // between new and retention as before.
+      const poeCount = poeArticleIds.length > 0 ? Math.round(TOTAL_QUESTIONS * POE_RATIO) : 0;
+      const remaining = TOTAL_QUESTIONS - poeCount;
+      let newCount = Math.round(remaining * NEW_RATIO);
+      let retentionCount = remaining - newCount;
+      if (newArticleIds.size === 0) { newCount = 0; retentionCount = remaining; }
+      if (retentionPool.length === 0) { retentionCount = 0; newCount = remaining; }
 
-      if (newCount === 0 && retentionCount === 0) {
+      if (newCount === 0 && retentionCount === 0 && poeCount === 0) {
         setPhase("empty");
         return;
       }
@@ -88,6 +99,8 @@ export default function WeeklyQuizPage() {
         retentionArticles: retentionPool.slice(0, 5).map(byId).filter((a): a is Article => !!a),
         newCount,
         retentionCount,
+        poeArticleIds,
+        poeCount,
       });
       setPhase("preview");
     })().catch(() => { setPhase("error"); setError("Couldn't load your weekly quiz."); });
@@ -97,7 +110,7 @@ export default function WeeklyQuizPage() {
     if (!plan) return;
     setPhase("loading");
     try {
-      const [newQs, retentionQs] = await Promise.all([
+      const [newQs, retentionQs, poePool] = await Promise.all([
         plan.newCount > 0
           ? questionService.sampleQuiz({
               sportId: "ncaa_basketball", articleIds: plan.newArticles.map(a => a.id),
@@ -110,10 +123,18 @@ export default function WeeklyQuizPage() {
               casebook: false, difficulty: [], count: BigInt(plan.retentionCount),
             })
           : Promise.resolve([]),
+        plan.poeCount > 0
+          ? Promise.all([
+              questionService.sampleQuiz({ sportId: "ncaa_basketball", articleIds: plan.poeArticleIds, casebook: false, difficulty: [], count: 50n }),
+              questionService.sampleQuiz({ sportId: "ncaa_basketball", articleIds: plan.poeArticleIds, casebook: true,  difficulty: [], count: 50n }),
+            ]).then(([a, b]) => [...a, ...b])
+          : Promise.resolve([]),
       ]);
+      const poeQs = shuffle(poePool.filter(q => q.isPointOfEmphasis)).slice(0, plan.poeCount);
       const tagged: TaggedQuestion[] = shuffle([
         ...newQs.map(q => ({ ...q, _source: "new" as const })),
         ...retentionQs.map(q => ({ ...q, _source: "retention" as const })),
+        ...poeQs.map(q => ({ ...q, _source: "poe" as const })),
       ]);
       if (tagged.length === 0) {
         setPhase("empty");
@@ -225,10 +246,20 @@ export default function WeeklyQuizPage() {
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
           <div style={{ fontSize: 20, fontWeight: 700 }}>Week {plan.weekNumber} Retention Quiz</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-            {plan.newCount} new + {plan.retentionCount} retention question{plan.newCount + plan.retentionCount === 1 ? "" : "s"}
+            {plan.newCount} new + {plan.retentionCount} retention{plan.poeCount > 0 ? ` + ${plan.poeCount} points of emphasis` : ""} question{plan.newCount + plan.retentionCount + plan.poeCount === 1 ? "" : "s"}
           </div>
         </div>
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {plan.poeCount > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.navy, marginBottom: 6 }}>
+                📌 POINTS OF EMPHASIS ({plan.poeCount} questions)
+              </div>
+              <div style={{ fontSize: 12, color: T.muted }}>
+                Drawn from this season's officiating points of emphasis.
+              </div>
+            </div>
+          )}
           {plan.newArticles.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
@@ -334,8 +365,11 @@ export default function WeeklyQuizPage() {
       </div>
 
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
-        <div style={{ fontSize: 12, color: currentQ._source === "new" ? T.red : T.wrong, fontWeight: 600, marginBottom: 8 }}>
-          {currentQ._source === "new" ? "NEW" : "RETENTION"} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
+        <div style={{
+          fontSize: 12, fontWeight: 600, marginBottom: 8,
+          color: currentQ._source === "new" ? T.red : currentQ._source === "poe" ? T.navy : T.wrong,
+        }}>
+          {currentQ._source === "new" ? "NEW" : currentQ._source === "poe" ? "📌 POINT OF EMPHASIS" : "RETENTION"} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 

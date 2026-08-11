@@ -19,29 +19,31 @@ persistent actor Question {
   public type Choice = { id : Text; text : Text };
 
   public type Question = {
-    id          : Text;
-    sportId     : Text;
-    articleId   : Text;
-    citation    : Text;
-    stem        : Text;
-    choices     : [Choice];
-    correctId   : Text;
-    explanation : Text;
-    difficulty  : Difficulty;
-    isCasebook  : Bool;
-    createdAt   : Int;
+    id                : Text;
+    sportId           : Text;
+    articleId         : Text;
+    citation          : Text;
+    stem              : Text;
+    choices           : [Choice];
+    correctId         : Text;
+    explanation       : Text;
+    difficulty        : Difficulty;
+    isCasebook        : Bool;
+    isPointOfEmphasis : Bool;
+    createdAt         : Int;
   };
 
   public type QuestionInput = {
-    sportId     : Text;
-    articleId   : Text;
-    citation    : Text;
-    stem        : Text;
-    choices     : [Choice];
-    correctId   : Text;
-    explanation : Text;
-    difficulty  : Difficulty;
-    isCasebook  : Bool;
+    sportId           : Text;
+    articleId         : Text;
+    citation          : Text;
+    stem              : Text;
+    choices           : [Choice];
+    correctId         : Text;
+    explanation       : Text;
+    difficulty        : Difficulty;
+    isCasebook        : Bool;
+    isPointOfEmphasis : Bool;
   };
 
   public type QuizFilter = {
@@ -96,17 +98,18 @@ persistent actor Question {
     let id = "q" # Nat.toText(nextId);
     nextId += 1;
     let q : Question = {
-      id          = id;
-      sportId     = input.sportId;
-      articleId   = input.articleId;
-      citation    = input.citation;
-      stem        = input.stem;
-      choices     = input.choices;
-      correctId   = input.correctId;
-      explanation = input.explanation;
-      difficulty  = input.difficulty;
-      isCasebook  = input.isCasebook;
-      createdAt   = Time.now();
+      id                = id;
+      sportId           = input.sportId;
+      articleId         = input.articleId;
+      citation          = input.citation;
+      stem              = input.stem;
+      choices           = input.choices;
+      correctId         = input.correctId;
+      explanation       = input.explanation;
+      difficulty        = input.difficulty;
+      isCasebook        = input.isCasebook;
+      isPointOfEmphasis = input.isPointOfEmphasis;
+      createdAt         = Time.now();
     };
     Map.add(questions, Text.compare, id, q);
     #ok(q)
@@ -227,7 +230,7 @@ persistent actor Question {
     let buf = VarArray.repeat<Question>({
       id = ""; sportId = ""; articleId = ""; citation = ""; stem = "";
       choices = []; correctId = ""; explanation = "";
-      difficulty = #Beginner; isCasebook = false; createdAt = 0;
+      difficulty = #Beginner; isCasebook = false; isPointOfEmphasis = false; createdAt = 0;
     }, Map.size(questions));
     var i = 0;
     for ((_, q) in Map.entries(questions)) {

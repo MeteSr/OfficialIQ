@@ -25,6 +25,16 @@ export type CasebookPlay = {
   audioUrl:  [] | [string];
 };
 
+export type PointOfEmphasis = {
+  id:               string;
+  season:           string;
+  title:            string;
+  body:             string;
+  linkedArticleIds: string[];
+  audioUrl:         [] | [string];
+  createdAt:        bigint;
+};
+
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
@@ -37,12 +47,17 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     id: I.Text, articleId: I.Text, citation: I.Text,
     scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text),
   });
+  const Poe = I.Record({
+    id: I.Text, season: I.Text, title: I.Text, body: I.Text,
+    linkedArticleIds: I.Vec(I.Text), audioUrl: I.Opt(I.Text), createdAt: I.Int,
+  });
   return I.Service({
-    getArticle:      I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
-    getArticleAudio: I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
-    listArticles:    I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
-    listPlays:       I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
-    metrics:         I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
+    getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
+    getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
+    listArticles:        I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
+    listPlays:           I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
+    listPointsOfEmphasis: I.Func([I.Text],        [I.Vec(Poe)],           ["query"]),
+    metrics:             I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
   });
 };
 
@@ -62,10 +77,11 @@ const CANISTER_ID = typeof CANISTER_ID_CONTENT !== "undefined" ? CANISTER_ID_CON
 
 function actor() {
   return createActor<{
-    getArticle:      (id: string) => Promise<[] | [Article]>;
-    getArticleAudio: (id: string) => Promise<[] | [Uint8Array | number[]]>;
-    listArticles:    (sportId: string, levelId: string) => Promise<Article[]>;
-    listPlays:       (articleId: string) => Promise<CasebookPlay[]>;
+    getArticle:           (id: string) => Promise<[] | [Article]>;
+    getArticleAudio:      (id: string) => Promise<[] | [Uint8Array | number[]]>;
+    listArticles:         (sportId: string, levelId: string) => Promise<Article[]>;
+    listPlays:            (articleId: string) => Promise<CasebookPlay[]>;
+    listPointsOfEmphasis: (season: string) => Promise<PointOfEmphasis[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -113,5 +129,14 @@ export const contentService = {
     const res = await actor().getArticleAudio(id);
     if (!res.length) return null;
     return Uint8Array.from(res[0]);
+  },
+
+  async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {
+    if (!CANISTER_ID) return [];
+    try {
+      return await actor().listPointsOfEmphasis(season);
+    } catch {
+      return [];
+    }
   },
 };

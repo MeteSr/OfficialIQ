@@ -51,6 +51,25 @@ persistent actor Content {
     ruling    : Text;
   };
 
+  public type PoeId = Text;
+
+  public type PointOfEmphasis = {
+    id               : PoeId;
+    season           : Text;
+    title            : Text;
+    body             : Text;
+    linkedArticleIds : [Text];
+    audioUrl         : ?Text;
+    createdAt        : Int;
+  };
+
+  public type PoeInput = {
+    season           : Text;
+    title            : Text;
+    body             : Text;
+    linkedArticleIds : [Text];
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var articles : Map.Map<ArticleId, Article> = Map.empty<ArticleId, Article>();
@@ -64,7 +83,10 @@ persistent actor Content {
   // since audio is served on-chain via getArticleAudio(), not a CDN.
   var audioStore : Map.Map<Text, Blob> = Map.empty<Text, Blob>();
 
+  var poes : Map.Map<PoeId, PointOfEmphasis> = Map.empty<PoeId, PointOfEmphasis>();
+
   var nextPlayId : Nat = 0;
+  var nextPoeId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
   // ─── Admin guards ─────────────────────────────────────────────────────────
@@ -121,6 +143,40 @@ persistent actor Content {
     #ok(play)
   };
 
+  public shared ({ caller }) func upsertPointOfEmphasis(input : PoeInput) : async Result.Result<PointOfEmphasis, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let id = "poe" # Nat.toText(nextPoeId);
+    nextPoeId += 1;
+    let poe : PointOfEmphasis = {
+      id               = id;
+      season           = input.season;
+      title            = input.title;
+      body             = input.body;
+      linkedArticleIds = input.linkedArticleIds;
+      audioUrl         = null;
+      createdAt        = Time.now();
+    };
+    Map.add(poes, Text.compare, id, poe);
+    #ok(poe)
+  };
+
+  // Reuses the same on-chain audioStore as article audio — keyed generically
+  // by id, so a POE's audio lives alongside article audio with no separate store.
+  public shared ({ caller }) func setPoeAudio(id : PoeId, audio : Blob) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    switch (Map.get(poes, Text.compare, id)) {
+      case null { #err("Point of emphasis not found") };
+      case (?p) {
+        Map.add(audioStore, Text.compare, id, audio);
+        Map.add(poes, Text.compare, id, {
+          id = p.id; season = p.season; title = p.title; body = p.body;
+          linkedArticleIds = p.linkedArticleIds; audioUrl = ?id; createdAt = p.createdAt;
+        });
+        #ok(())
+      };
+    }
+  };
+
   public shared ({ caller }) func setArticleAudio(id : ArticleId, audio : Blob) : async Result.Result<(), Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     switch (Map.get(articles, Text.compare, id)) {
@@ -151,6 +207,17 @@ persistent actor Content {
 
   public query func getArticleAudio(id : ArticleId) : async ?Blob {
     Map.get(audioStore, Text.compare, id)
+  };
+
+  public query func listPointsOfEmphasis(season : Text) : async [PointOfEmphasis] {
+    let buf = VarArray.repeat<PointOfEmphasis>({
+      id = ""; season = ""; title = ""; body = ""; linkedArticleIds = []; audioUrl = null; createdAt = 0;
+    }, Map.size(poes));
+    var i = 0;
+    for ((_, p) in Map.entries(poes)) {
+      if (p.season == season) { buf[i] := p; i += 1 };
+    };
+    VarArray.sliceToArray<PointOfEmphasis>(buf, 0, i)
   };
 
   public query func listArticles(sportId : Text, levelId : Text) : async [Article] {

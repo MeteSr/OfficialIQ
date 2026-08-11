@@ -13,6 +13,7 @@ function q(stem, choices, correctId, explanation, difficulty, opts = {}) {
     explanation,
     difficulty,
     isCasebook: !!opts.isCasebook,
+    isPointOfEmphasis: !!opts.isPointOfEmphasis,
     citation: opts.citation ?? null,
   };
 }
@@ -432,7 +433,7 @@ export const ARTICLES = [
         "b", "Bonus free throws are tied to accumulated team fouls reaching a threshold, for otherwise non-shooting fouls.", "Intermediate"),
       q("Which of the following is an example of illegal use of hands?",
         [["a","A defender with hands straight up while guarding"],["b","A defender grabbing and holding an opponent's arm to impede movement"],["c","A defender sliding their feet to stay in front of the dribbler"],["d","A defender taking a legal charge position"]],
-        "b", "Grabbing and holding is illegal contact, unlike legal positioning or vertical defense.", "Intermediate"),
+        "b", "Grabbing and holding is illegal contact, unlike legal positioning or vertical defense.", "Intermediate", { isPointOfEmphasis: true }),
       q("A three-point shooter is fouled and misses the attempt. How many free throws are awarded?",
         [["a","Two"],["b","Three"],["c","One"],["d","None, since the shot missed"]],
         "b", "The free throw count matches the value of the attempted shot, so three free throws are awarded.", "Advanced"),
@@ -447,7 +448,7 @@ export const ARTICLES = [
         "b", "The award matches the attempted shot's value, so three free throws are correct.", "Advanced", { isCasebook: true, citation: "Art. 8-3, Case 1" }),
       q("Case: A team commits a non-shooting foul after already reaching the bonus threshold for the half. What is the ruling?",
         [["a","No free throws; the ball is simply given to the other team"],["b","The fouled player is awarded bonus free throws under the applicable procedure"],["c","A technical foul is automatically added"],["d","The offending player is disqualified"]],
-        "b", "Reaching the bonus threshold means subsequent non-shooting fouls yield bonus free throws for the fouled team.", "Expert", { isCasebook: true, citation: "Art. 8-6, Case 1" }),
+        "b", "Reaching the bonus threshold means subsequent non-shooting fouls yield bonus free throws for the fouled team.", "Expert", { isCasebook: true, citation: "Art. 8-6, Case 1", isPointOfEmphasis: true }),
     ],
   },
   {
@@ -489,7 +490,7 @@ export const ARTICLES = [
         "b", "Officials may use graduated judgment, including warnings, for less severe conduct.", "Intermediate"),
       q("Which of the following is most likely to be treated as unsportsmanlike conduct?",
         [["a","A player setting a legal screen"],["b","A player taunting an opponent after a dunk"],["c","A player calling for the ball on offense"],["d","A player boxing out for a rebound"]],
-        "b", "Taunting is a classic example of unsportsmanlike conduct distinct from normal competitive play.", "Advanced"),
+        "b", "Taunting is a classic example of unsportsmanlike conduct distinct from normal competitive play.", "Advanced", { isPointOfEmphasis: true }),
       q("Can bench personnel other than the head coach be assessed a technical foul?",
         [["a","No, only players and head coaches"],["b","Yes, bench personnel conduct can also result in a technical foul"],["c","Only if they enter the court"],["d","Only during timeouts"]],
         "b", "Technical foul liability can extend to other bench personnel, not just players and the head coach.", "Advanced"),
@@ -498,7 +499,7 @@ export const ARTICLES = [
         "b", "The core distinction is contact-based fouling versus conduct-based fouling.", "Expert"),
       q("Case: A player slams the ball to the floor in frustration with no contact toward anyone. Is a technical foul appropriate?",
         [["a","Never, without contact"],["b","Possibly, at the official's judgment based on the severity of the outburst"],["c","Only if it happens during a free throw"],["d","Only if the opposing coach objects"]],
-        "b", "Judgment-based assessment applies to conduct like this, even without contact.", "Advanced", { isCasebook: true, citation: "Art. 9-2, Case 1" }),
+        "b", "Judgment-based assessment applies to conduct like this, even without contact.", "Advanced", { isCasebook: true, citation: "Art. 9-2, Case 1", isPointOfEmphasis: true }),
       q("Case: A head coach receives a second technical foul after an earlier warning and technical in the same game. What is the ruling?",
         [["a","A third warning is given first"],["b","The coach is ejected in addition to the free throws awarded"],["c","Only the team is penalized, not the coach personally"],["d","The technical fouls cancel each other out"]],
         "b", "A second technical against the same individual results in ejection, on top of the free throw penalty.", "Expert", { isCasebook: true, citation: "Art. 9-5, Case 1" }),
@@ -534,10 +535,10 @@ export const ARTICLES = [
         "b", "The three-second rule limits time in the lane to three seconds, as the name suggests.", "Beginner"),
       q("What causes a backcourt violation?",
         [["a","Any pass that crosses half court"],["b","The offense illegally causing the ball to return to the backcourt after gaining frontcourt control"],["c","A defensive player crossing half court"],["d","A player dribbling too fast"]],
-        "b", "Backcourt violations specifically involve the offense illegally sending the ball back after frontcourt control.", "Intermediate"),
+        "b", "Backcourt violations specifically involve the offense illegally sending the ball back after frontcourt control.", "Intermediate", { isPointOfEmphasis: true }),
       q("What happens if the offense fails to attempt a try before the shot clock expires?",
         [["a","Nothing; play continues"],["b","A shot clock violation is called, and the ball is turned over"],["c","The defense is charged a foul"],["d","The half ends immediately"]],
-        "b", "A shot clock violation results in a turnover to the opposing team.", "Intermediate"),
+        "b", "A shot clock violation results in a turnover to the opposing team.", "Intermediate", { isPointOfEmphasis: true }),
       q("A player establishes a pivot foot and lifts it before passing. What must happen for this to remain legal?",
         [["a","The pivot foot may never lift at all"],["b","The ball must be released before the pivot foot returns to the floor"],["c","The player must dribble first"],["d","The player must call a timeout"]],
         "b", "Legal pivoting requires releasing the ball before the pivot foot touches back down.", "Advanced"),
@@ -557,5 +558,31 @@ export const ARTICLES = [
         [["a","Yes, any return from the backcourt after frontcourt control is a violation"],["b","Not necessarily; incidental, non-team-caused presence in the backcourt is judged differently"],["c","Yes, but only a warning is given the first time"],["d","No, because saves are always exempt from all violations"]],
         "b", "Officials weigh whether the backcourt presence resulted from illegal team action versus incidental circumstances.", "Expert", { isCasebook: true, citation: "Art. 10-6, Case 1" }),
     ],
+  },
+];
+
+export const CURRENT_SEASON = "2025-26";
+
+export const POINTS_OF_EMPHASIS = [
+  {
+    season: CURRENT_SEASON,
+    title: "Verticality and Legal Guarding Position",
+    body:
+      "Officials are asked to more consistently reward defenders who establish legal guarding position and defend with verticality — hands straight up, no leaning or lateral movement into the offensive player. Grabbing, holding, and other illegal use of hands should be called promptly and consistently regardless of shot outcome.",
+    linkedArticleIds: [`${SPORT_ID}:art8`],
+  },
+  {
+    season: CURRENT_SEASON,
+    title: "Unsportsmanlike Conduct Standards",
+    body:
+      "Crews should hold a consistent line on taunting, excessive complaining to officials, and other unsportsmanlike conduct — using a graduated warning where appropriate, but not hesitating to assess a technical foul for conduct that crosses the line, regardless of which team commits it.",
+    linkedArticleIds: [`${SPORT_ID}:art9`],
+  },
+  {
+    season: CURRENT_SEASON,
+    title: "Backcourt and Shot-Clock Administration",
+    body:
+      "Emphasis this season is on precise administration of backcourt and shot-clock violations — correctly distinguishing incidental, non-team-caused backcourt presence from an illegal return of team control, and ensuring the shot clock is properly set and enforced after every change of team control.",
+    linkedArticleIds: [`${SPORT_ID}:art10`],
   },
 ];

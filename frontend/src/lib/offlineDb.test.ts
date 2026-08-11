@@ -16,7 +16,7 @@ function makeQuestion(id: string, articleId: string, isCasebook: boolean): Quest
   return {
     id, sportId: "ncaa_basketball", articleId, citation: "Art. X",
     stem: `stem ${id}`, choices: [{ id: "a", text: "A" }, { id: "b", text: "B" }],
-    correctId: "a", explanation: "because", difficulty: { Beginner: null }, isCasebook, createdAt: 0n,
+    correctId: "a", explanation: "because", difficulty: { Beginner: null }, isCasebook, isPointOfEmphasis: false, createdAt: 0n,
   };
 }
 

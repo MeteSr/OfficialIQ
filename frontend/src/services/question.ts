@@ -13,17 +13,18 @@ export type Difficulty =
 export type Choice = { id: string; text: string };
 
 export type Question = {
-  id:          string;
-  sportId:     string;
-  articleId:   string;
-  citation:    string;
-  stem:        string;
-  choices:     Choice[];
-  correctId:   string;
-  explanation: string;
-  difficulty:  Difficulty;
-  isCasebook:  boolean;
-  createdAt:   bigint;
+  id:                string;
+  sportId:           string;
+  articleId:         string;
+  citation:          string;
+  stem:              string;
+  choices:           Choice[];
+  correctId:         string;
+  explanation:       string;
+  difficulty:        Difficulty;
+  isCasebook:        boolean;
+  isPointOfEmphasis: boolean;
+  createdAt:         bigint;
 };
 
 export type QuizFilter = {
@@ -53,7 +54,8 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Q      = I.Record({
     id: I.Text, sportId: I.Text, articleId: I.Text, citation: I.Text,
     stem: I.Text, choices: I.Vec(Choice), correctId: I.Text,
-    explanation: I.Text, difficulty: Diff, isCasebook: I.Bool, createdAt: I.Int,
+    explanation: I.Text, difficulty: Diff, isCasebook: I.Bool,
+    isPointOfEmphasis: I.Bool, createdAt: I.Int,
   });
   const Filter = I.Record({
     sportId: I.Text, articleIds: I.Vec(I.Text),
@@ -89,7 +91,7 @@ export const MOCK_QUESTIONS: Question[] = [
       { id: "d", text: "Player control foul on offense" },
     ],
     correctId: "b", explanation: "A defender who has established legal guarding position may not move into the path of the dribbler.",
-    difficulty: { Intermediate: null }, isCasebook: true, createdAt: 0n,
+    difficulty: { Intermediate: null }, isCasebook: true, isPointOfEmphasis: false, createdAt: 0n,
   },
   {
     id: "q1", sportId: "ncaa_basketball", articleId: "ncaa_basketball:art4",
@@ -102,7 +104,7 @@ export const MOCK_QUESTIONS: Question[] = [
       { id: "d", text: "The team as a whole" },
     ],
     correctId: "c", explanation: "Technical fouls for unsporting conduct are charged to the individual responsible.",
-    difficulty: { Beginner: null }, isCasebook: false, createdAt: 0n,
+    difficulty: { Beginner: null }, isCasebook: false, isPointOfEmphasis: false, createdAt: 0n,
   },
   {
     id: "q2", sportId: "ncaa_basketball", articleId: "ncaa_basketball:art5",
@@ -115,7 +117,7 @@ export const MOCK_QUESTIONS: Question[] = [
       { id: "d", text: "A carrying violation" },
     ],
     correctId: "a", explanation: "The pivot foot must not lift before the dribble begins.",
-    difficulty: { Beginner: null }, isCasebook: false, createdAt: 0n,
+    difficulty: { Beginner: null }, isCasebook: false, isPointOfEmphasis: false, createdAt: 0n,
   },
 ];
 
