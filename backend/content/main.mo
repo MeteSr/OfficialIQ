@@ -91,6 +91,37 @@ persistent actor Content {
     linkedArticleIds : [Text];
   };
 
+  // Tap-to-assign coverage zone for the mechanics "coverage zone" quiz
+  // type — a rectangular region on the CourtDiagram grid (same 0-100
+  // percentage coordinate system as DiagramPlayer) with the crew role that
+  // correctly has primary responsibility for it.
+  public type MechanicsZone = {
+    id              : Text;
+    x               : Nat;
+    y               : Nat;
+    width           : Nat;
+    height          : Nat;
+    correctOfficial : Text; // e.g. "Trail", "Lead", "Center"
+  };
+
+  public type MechanicsScenario = {
+    id          : Text;
+    crewSize    : Nat; // 2 or 3
+    title       : Text;
+    description : Text;
+    players     : [DiagramPlayer];
+    zones       : [MechanicsZone];
+    createdAt   : Int;
+  };
+
+  public type ScenarioInput = {
+    crewSize    : Nat;
+    title       : Text;
+    description : Text;
+    players     : [DiagramPlayer];
+    zones       : [MechanicsZone];
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var articles : Map.Map<ArticleId, Article> = Map.empty<ArticleId, Article>();
@@ -106,8 +137,11 @@ persistent actor Content {
 
   var poes : Map.Map<PoeId, PointOfEmphasis> = Map.empty<PoeId, PointOfEmphasis>();
 
+  var scenarios : Map.Map<Text, MechanicsScenario> = Map.empty<Text, MechanicsScenario>();
+
   var nextPlayId : Nat = 0;
   var nextPoeId : Nat = 0;
+  var nextScenarioId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
   // ─── Admin guards ─────────────────────────────────────────────────────────
@@ -180,6 +214,18 @@ persistent actor Content {
     };
     Map.add(poes, Text.compare, id, poe);
     #ok(poe)
+  };
+
+  public shared ({ caller }) func upsertMechanicsScenario(input : ScenarioInput) : async Result.Result<MechanicsScenario, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let id = "msc" # Nat.toText(nextScenarioId);
+    nextScenarioId += 1;
+    let s : MechanicsScenario = {
+      id; crewSize = input.crewSize; title = input.title; description = input.description;
+      players = input.players; zones = input.zones; createdAt = Time.now();
+    };
+    Map.add(scenarios, Text.compare, id, s);
+    #ok(s)
   };
 
   // Reuses the same on-chain audioStore as article audio — keyed generically
@@ -266,6 +312,19 @@ persistent actor Content {
       if (p.articleId == articleId) { buf[i] := p; i += 1 };
     };
     VarArray.sliceToArray<CasebookPlay>(buf, 0, i)
+  };
+
+  public query func listMechanicsScenarios() : async [MechanicsScenario] {
+    let buf = VarArray.repeat<MechanicsScenario>({
+      id = ""; crewSize = 0; title = ""; description = ""; players = []; zones = []; createdAt = 0;
+    }, Map.size(scenarios));
+    var i = 0;
+    for ((_, s) in Map.entries(scenarios)) { buf[i] := s; i += 1 };
+    VarArray.sliceToArray<MechanicsScenario>(buf, 0, i)
+  };
+
+  public query func getMechanicsScenario(id : Text) : async ?MechanicsScenario {
+    Map.get(scenarios, Text.compare, id)
   };
 
   public query func metrics() : async { articleCount : Nat; playCount : Nat } {

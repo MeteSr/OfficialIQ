@@ -55,6 +55,25 @@ export type PointOfEmphasis = {
   createdAt:        bigint;
 };
 
+export type MechanicsZone = {
+  id:              string;
+  x:               bigint;
+  y:               bigint;
+  width:           bigint;
+  height:          bigint;
+  correctOfficial: string;
+};
+
+export type MechanicsScenario = {
+  id:          string;
+  crewSize:    bigint;
+  title:       string;
+  description: string;
+  players:     DiagramPlayer[];
+  zones:       MechanicsZone[];
+  createdAt:   bigint;
+};
+
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
@@ -76,12 +95,21 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     id: I.Text, season: I.Text, title: I.Text, body: I.Text,
     linkedArticleIds: I.Vec(I.Text), audioUrl: I.Opt(I.Text), createdAt: I.Int,
   });
+  const MechanicsZone = I.Record({
+    id: I.Text, x: I.Nat, y: I.Nat, width: I.Nat, height: I.Nat, correctOfficial: I.Text,
+  });
+  const Scenario = I.Record({
+    id: I.Text, crewSize: I.Nat, title: I.Text, description: I.Text,
+    players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone), createdAt: I.Int,
+  });
   return I.Service({
     getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
     getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
     listArticles:        I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
     listPlays:           I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
     listPointsOfEmphasis: I.Func([I.Text],        [I.Vec(Poe)],           ["query"]),
+    listMechanicsScenarios: I.Func([],            [I.Vec(Scenario)],      ["query"]),
+    getMechanicsScenario: I.Func([I.Text],        [I.Opt(Scenario)],      ["query"]),
     metrics:             I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
   });
 };
@@ -107,6 +135,8 @@ function actor() {
     listArticles:         (sportId: string, levelId: string) => Promise<Article[]>;
     listPlays:            (articleId: string) => Promise<CasebookPlay[]>;
     listPointsOfEmphasis: (season: string) => Promise<PointOfEmphasis[]>;
+    listMechanicsScenarios: () => Promise<MechanicsScenario[]>;
+    getMechanicsScenario: (id: string) => Promise<[] | [MechanicsScenario]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -168,5 +198,20 @@ export const contentService = {
     } catch {
       return [];
     }
+  },
+
+  async listMechanicsScenarios(): Promise<MechanicsScenario[]> {
+    if (!CANISTER_ID) return [];
+    try {
+      return await actor().listMechanicsScenarios();
+    } catch {
+      return [];
+    }
+  },
+
+  async getMechanicsScenario(id: string): Promise<MechanicsScenario | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getMechanicsScenario(id);
+    return res.length ? res[0] : null;
   },
 };

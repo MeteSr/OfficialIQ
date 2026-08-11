@@ -9,7 +9,7 @@ import path from "node:path";
 import { Actor, HttpAgent } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
-import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS } from "./seedData.mjs";
+import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS, MECHANICS_ARTICLE_ID, MECHANICS_QUESTIONS, MECHANICS_SCENARIOS } from "./seedData.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -52,16 +52,30 @@ const contentIdlFactory = ({ IDL: I }) => {
     id: I.Text, season: I.Text, title: I.Text, body: I.Text,
     linkedArticleIds: I.Vec(I.Text), audioUrl: I.Opt(I.Text), createdAt: I.Int,
   });
+  const MechanicsZone = I.Record({
+    id: I.Text, x: I.Nat, y: I.Nat, width: I.Nat, height: I.Nat, correctOfficial: I.Text,
+  });
+  const ScenarioInput = I.Record({
+    crewSize: I.Nat, title: I.Text, description: I.Text,
+    players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone),
+  });
+  const Scenario = I.Record({
+    id: I.Text, crewSize: I.Nat, title: I.Text, description: I.Text,
+    players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone), createdAt: I.Int,
+  });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultArticle = I.Variant({ ok: Article, err: I.Text });
   const ResultPlay = I.Variant({ ok: CasebookPlay, err: I.Text });
   const ResultPoe = I.Variant({ ok: Poe, err: I.Text });
+  const ResultScenario = I.Variant({ ok: Scenario, err: I.Text });
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
     upsertArticle: I.Func([ArticleInput], [ResultArticle], []),
     upsertPlay: I.Func([PlayInput], [ResultPlay], []),
     upsertPointOfEmphasis: I.Func([PoeInput], [ResultPoe], []),
     listPointsOfEmphasis: I.Func([I.Text], [I.Vec(Poe)], ["query"]),
+    upsertMechanicsScenario: I.Func([ScenarioInput], [ResultScenario], []),
+    listMechanicsScenarios: I.Func([], [I.Vec(Scenario)], ["query"]),
   });
 };
 
@@ -220,6 +234,51 @@ async function main() {
     }
   }
 
+  // Mechanics questions live under one pseudo-article bucket rather than a
+  // real content Article, so they're seeded straight to the question
+  // canister without an upsertArticle call first (see seedData.mjs).
+  let mechanicsQuestionCount = 0;
+  for (const q of MECHANICS_QUESTIONS) {
+    const qRes = await question.addQuestion({
+      sportId: SPORT_ID, articleId: MECHANICS_ARTICLE_ID, citation: q.citation,
+      stem: q.stem, choices: q.choices, correctId: q.correctId,
+      explanation: q.explanation, difficulty: toDifficultyVariant(q.difficulty),
+      isCasebook: q.isCasebook, isPointOfEmphasis: q.isPointOfEmphasis,
+    });
+    if ("err" in qRes) {
+      console.error(`  ✗ mechanics question "${q.stem.slice(0, 40)}...": ${qRes.err}`);
+      errorCount++;
+    } else {
+      mechanicsQuestionCount++;
+    }
+  }
+  console.log(`  ✓ Mechanics questions seeded: ${mechanicsQuestionCount}`);
+
+  // upsertMechanicsScenario always mints a fresh id — skip titles already
+  // seeded to keep re-running this script idempotent.
+  let scenarioCount = 0;
+  const existingScenarios = await content.listMechanicsScenarios();
+  const existingScenarioTitles = new Set(existingScenarios.map(s => s.title));
+  for (const s of MECHANICS_SCENARIOS) {
+    if (existingScenarioTitles.has(s.title)) {
+      console.log(`  · Mechanics scenario "${s.title}" already seeded — skipping`);
+      scenarioCount++;
+      continue;
+    }
+    const players = s.players.map(p => ({ ...p, x: BigInt(p.x), y: BigInt(p.y) }));
+    const zones = s.zones.map(z => ({ ...z, x: BigInt(z.x), y: BigInt(z.y), width: BigInt(z.width), height: BigInt(z.height) }));
+    const sRes = await content.upsertMechanicsScenario({
+      crewSize: BigInt(s.crewSize), title: s.title, description: s.description, players, zones,
+    });
+    if ("err" in sRes) {
+      console.error(`  ✗ Mechanics scenario "${s.title}": ${sRes.err}`);
+      errorCount++;
+    } else {
+      scenarioCount++;
+      console.log(`  ✓ Mechanics scenario "${sRes.ok.title}" -> ${sRes.ok.id}`);
+    }
+  }
+
   let examTemplateCount = 0;
   if (exam) {
     // upsertExamTemplate also mints a fresh id each call — skip if a
@@ -251,7 +310,7 @@ async function main() {
   }
 
   console.log("");
-  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, points of emphasis: ${poeCount}, exam templates: ${examTemplateCount}, errors: ${errorCount}`);
+  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, mechanics questions: ${mechanicsQuestionCount}, mechanics scenarios: ${scenarioCount}, points of emphasis: ${poeCount}, exam templates: ${examTemplateCount}, errors: ${errorCount}`);
   if (errorCount > 0) process.exit(1);
 }
 

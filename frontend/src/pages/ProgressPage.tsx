@@ -7,6 +7,7 @@ import { contentService, type Article } from "../services/content";
 import { useAuthStore } from "../store/authStore";
 
 const THIRTY_DAYS_NS = 30n * 24n * 3600n * 1_000_000_000n;
+const MECHANICS_ARTICLE_ID = "ncaa_basketball:mechanics";
 
 function masteryColor(pct: number): string {
   if (pct >= 80) return T.correct;
@@ -99,8 +100,11 @@ export default function ProgressPage() {
   const recentHistory = history.filter(h => nowNs - h.timestamp <= THIRTY_DAYS_NS);
 
   const progressByArticle = Object.fromEntries(progress.map(p => [p.articleId, p]));
-  const studied = progress.filter(p => Number(p.timesStudied) > 0);
+  const studied = progress.filter(p => Number(p.timesStudied) > 0 && p.articleId !== MECHANICS_ARTICLE_ID);
   const weakest = [...studied].sort((a, b) => Number(a.masteryScore) - Number(b.masteryScore)).slice(0, 3);
+  const mechanicsProgress = progress.find(p => p.articleId === MECHANICS_ARTICLE_ID);
+  const mechanicsMastery = mechanicsProgress && Number(mechanicsProgress.timesStudied) > 0
+    ? Number(mechanicsProgress.masteryScore) : null;
 
   const statCards = [
     { label: "Exams Taken",     value: stats ? Number(stats.examCount) : 0 },
@@ -165,6 +169,28 @@ export default function ProgressPage() {
             </div>
           </div>
         )}
+
+        {/* Mechanics mastery */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Mechanics Mastery</div>
+          <button
+            onClick={() => navigate("/study")}
+            style={{
+              width: "100%", padding: "12px 14px", textAlign: "left",
+              background: mechanicsMastery !== null ? masteryBg(mechanicsMastery) : T.bg,
+              border: `1px solid ${mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.border}`,
+              borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>🏀 Crew Positioning &amp; Coverage</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>2-person and 3-person mechanics</div>
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.muted }}>
+              {mechanicsMastery !== null ? `${mechanicsMastery}%` : "—"}
+            </span>
+          </button>
+        </div>
 
         {/* Mastery grid */}
         <div>

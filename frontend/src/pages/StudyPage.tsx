@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
-import { contentService, type Article, type PointOfEmphasis } from "../services/content";
+import { contentService, type Article, type PointOfEmphasis, type MechanicsScenario } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
 import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
@@ -11,6 +11,7 @@ import { associationService, type Assignment } from "../services/association";
 type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
 const CURRENT_SEASON = "2025-26";
+const MECHANICS_ARTICLE_ID = "ncaa_basketball:mechanics";
 
 export default function StudyPage() {
   const navigate = useNavigate();
@@ -28,12 +29,24 @@ export default function StudyPage() {
   const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([]);
+  const [tab, setTab] = useState<"rules" | "mechanics">("rules");
+  const [scenarios, setScenarios] = useState<MechanicsScenario[]>([]);
+  const [mechanicsMastery, setMechanicsMastery] = useState<number | null>(null);
 
   useEffect(() => {
     contentService.listPointsOfEmphasis(CURRENT_SEASON).then(setPoes).catch(() => {});
     getDownloadedAudioIds().then(ids => setDownloadedIds(new Set(ids))).catch(() => {});
+    contentService.listMechanicsScenarios().then(setScenarios).catch(() => {});
     return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setMechanicsMastery(null); return; }
+    userService.getMyProgress().then((p) => {
+      const m = p.find(x => x.articleId === MECHANICS_ARTICLE_ID);
+      setMechanicsMastery(m && Number(m.timesStudied) > 0 ? Number(m.masteryScore) : null);
+    }).catch(() => {});
+  }, [isAuthenticated, tab]);
 
   useEffect(() => {
     if (!isAuthenticated) { setAssignmentRows([]); return; }
@@ -151,8 +164,89 @@ export default function StudyPage() {
         </div>
       </div>
 
+      <div style={{ display: "flex", padding: "12px 16px 0", gap: 8 }}>
+        {([["rules", "📖 Rules"], ["mechanics", "🏀 Mechanics"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+              background: tab === key ? T.navy : T.surface,
+              color: tab === key ? T.white : T.text,
+              border: `1px solid ${tab === key ? T.navy : T.border}`,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <audio ref={audioRef} onEnded={() => setPlayingPoeId(null)} style={{ display: "none" }} />
 
+      {tab === "mechanics" ? (
+        <div style={{ padding: 16 }}>
+          <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5, marginBottom: 14 }}>
+            Crew positioning, rotations, and coverage responsibilities for 2-person and 3-person officiating mechanics.
+          </div>
+
+          {mechanicsMastery !== null && (
+            <div style={{
+              padding: "12px 14px", marginBottom: 14, background: T.surface,
+              border: `1px solid ${T.border}`, borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Mechanics Mastery</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: T.navy }}>{mechanicsMastery}%</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => navigate(`/quiz/${MECHANICS_ARTICLE_ID}`, {
+              state: { articleIds: [MECHANICS_ARTICLE_ID], casebook: false },
+            })}
+            style={{
+              width: "100%", padding: "16px", background: T.navy, color: T.white,
+              borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", gap: 12, marginBottom: 16,
+            }}
+          >
+            <span style={{ fontSize: 26 }}>❓</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Rotation &amp; Communication Quiz</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
+                Scenario-based mechanics questions
+              </div>
+            </div>
+            <span style={{ fontSize: 18 }}>›</span>
+          </button>
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 10 }}>
+            COVERAGE ZONE DRILLS
+          </div>
+          {scenarios.length === 0 ? (
+            <div style={{ fontSize: 13, color: T.muted }}>No coverage-zone drills available yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {scenarios.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => navigate(`/mechanics/${s.id}`)}
+                  style={{
+                    padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`,
+                    borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{Number(s.crewSize)}-person crew · {s.zones.length} zones</div>
+                  </div>
+                  <span style={{ color: T.muted, fontSize: 18 }}>›</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {assignmentRows.length > 0 && (
         <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>ASSIGNED MODULES</div>
@@ -337,6 +431,8 @@ export default function StudyPage() {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }

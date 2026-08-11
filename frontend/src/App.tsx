@@ -23,6 +23,7 @@ import MentorPage from "./pages/MentorPage";
 import MentorReportPage from "./pages/MentorReportPage";
 import AssociationPage from "./pages/AssociationPage";
 import AssociationDetailPage from "./pages/AssociationDetailPage";
+import MechanicsScenarioPage from "./pages/MechanicsScenarioPage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/mentor/:token" element={<MentorReportPage />} />
             <Route path="/association" element={<AssociationPage />} />
             <Route path="/association/:id" element={<AssociationDetailPage />} />
+            <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>
