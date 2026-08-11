@@ -595,6 +595,18 @@ export default function MePage() {
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
+          onClick={() => navigate("/schedule")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          📅 My Schedule &amp; Assigning Accounts
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+        <button
           onClick={() => navigate("/ask")}
           style={{
             width: "100%", padding: "12px 14px", background: T.surface,

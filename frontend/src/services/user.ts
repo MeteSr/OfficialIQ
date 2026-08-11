@@ -14,6 +14,11 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const WeeklySchedule  = I.Record({ dueThisWeek: I.Vec(I.Text), overdue: I.Vec(I.Text), weekNumber: I.Nat });
   const WeeklyQuizResult = I.Record({ weekNumber: I.Nat, newScore: I.Nat, retentionScore: I.Nat, completedAt: I.Int });
   const MonthlyQuizResult = I.Record({ month: I.Nat, score: I.Nat, articleScores: I.Vec(I.Tuple(I.Text, I.Nat)), completedAt: I.Int });
+  const LinkedAccount = I.Record({ provider: I.Text, externalId: I.Text, linkedAt: I.Int });
+  const UpcomingGame = I.Record({ id: I.Text, opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text, createdAt: I.Int });
+  const UpcomingGameInput = I.Record({ opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text });
+  const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
+  const ResultGame = I.Variant({ ok: UpcomingGame, err: I.Text });
   return I.Service({
     createProfile:        I.Func([ProfileUpd],       [ResultP],        []),
     updateProfile:        I.Func([ProfileUpd],       [ResultP],        []),
@@ -29,6 +34,12 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     getWeeklyQuizHistory: I.Func([],                 [I.Vec(WeeklyQuizResult)], ["query"]),
     getMonthlyQuizHistory: I.Func([],                [I.Vec(MonthlyQuizResult)], ["query"]),
     becomeCoordinator:    I.Func([],                 [ResultP],        []),
+    linkExternalAccount:  I.Func([I.Text, I.Text],   [ResultUnit],     []),
+    unlinkExternalAccount: I.Func([I.Text],          [ResultUnit],     []),
+    getMyLinkedAccounts:  I.Func([],                 [I.Vec(LinkedAccount)], ["query"]),
+    addUpcomingGame:      I.Func([UpcomingGameInput], [ResultGame],    []),
+    removeUpcomingGame:   I.Func([I.Text],           [ResultUnit],     []),
+    getMyUpcomingGames:   I.Func([],                 [I.Vec(UpcomingGame)], ["query"]),
     metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
@@ -52,6 +63,10 @@ export type ArticleProgress = { articleId: string; lastStudied: bigint; timesStu
 export type WeeklySchedule = { dueThisWeek: string[]; overdue: string[]; weekNumber: bigint };
 export type WeeklyQuizResult = { weekNumber: bigint; newScore: bigint; retentionScore: bigint; completedAt: bigint };
 export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [string, bigint][]; completedAt: bigint };
+
+export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
+export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
+export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: string; levelId: string; notes: string };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -85,6 +100,12 @@ function actor() {
     getWeeklyQuizHistory: ()                 => Promise<WeeklyQuizResult[]>;
     getMonthlyQuizHistory: ()                => Promise<MonthlyQuizResult[]>;
     becomeCoordinator:    ()                 => Promise<{ ok: UserProfile } | { err: string }>;
+    linkExternalAccount:  (provider: string, externalId: string) => Promise<{ ok: null } | { err: string }>;
+    unlinkExternalAccount: (provider: string) => Promise<{ ok: null } | { err: string }>;
+    getMyLinkedAccounts:  ()                 => Promise<LinkedAccount[]>;
+    addUpcomingGame:      (input: { opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string }) => Promise<{ ok: UpcomingGame } | { err: string }>;
+    removeUpcomingGame:   (id: string)       => Promise<{ ok: null } | { err: string }>;
+    getMyUpcomingGames:   ()                 => Promise<UpcomingGame[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -171,5 +192,44 @@ export const userService = {
     const res = await actor().becomeCoordinator();
     if ("err" in res) throw new Error(res.err);
     return res.ok;
+  },
+
+  async linkExternalAccount(provider: string, externalId: string): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().linkExternalAccount(provider, externalId);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async unlinkExternalAccount(provider: string): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().unlinkExternalAccount(provider);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async getMyLinkedAccounts(): Promise<LinkedAccount[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyLinkedAccounts();
+  },
+
+  // input.gameDate is a JS milliseconds timestamp (Date.getTime()); the
+  // canister stores/compares Int time fields in nanoseconds throughout this
+  // app (matching Time.now()), so it's converted here at the service
+  // boundary rather than pushing unit-juggling onto every caller.
+  async addUpcomingGame(input: UpcomingGameInput): Promise<UpcomingGame> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().addUpcomingGame({ ...input, gameDate: BigInt(input.gameDate) * 1_000_000n });
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async removeUpcomingGame(id: string): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().removeUpcomingGame(id);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async getMyUpcomingGames(): Promise<UpcomingGame[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyUpcomingGames();
   },
 };

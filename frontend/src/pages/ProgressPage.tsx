@@ -4,8 +4,28 @@ import { T } from "../tokens";
 import { rankingService, type UserStats, type EloSnapshot } from "../services/ranking";
 import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
+import { examService, type ExamSession } from "../services/exam";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
+
+function examModeLabel(mode: ExamSession["config"]["mode"]): string {
+  return Object.keys(mode)[0] ?? "Unknown";
+}
+
+function downloadCsv(filename: string, rows: (string | number)[][]) {
+  const esc = (v: string | number) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = rows.map(r => r.map(esc).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const THIRTY_DAYS_NS = 30n * 24n * 3600n * 1_000_000_000n;
 
@@ -65,6 +85,7 @@ export default function ProgressPage() {
   const [history,  setHistory]  = useState<EloSnapshot[]>([]);
   const [progress, setProgress] = useState<ArticleProgress[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
+  const [exams,    setExams]    = useState<ExamSession[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -74,11 +95,13 @@ export default function ProgressPage() {
       rankingService.getMyEloHistory(),
       userService.getMyProgress(),
       contentService.listArticles(sportId, levelId),
-    ]).then(([s, h, p, arts]) => {
+      examService.getMyExams(),
+    ]).then(([s, h, p, arts, ex]) => {
       setStats(s);
       setHistory(h);
       setProgress(p);
       setArticles([...arts].sort((a, b) => Number(a.number) - Number(b.number)));
+      setExams(ex);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [isAuthenticated, sportId, levelId]);
 
@@ -115,6 +138,24 @@ export default function ProgressPage() {
     { label: "Best Streak",     value: stats ? Number(stats.bestStreak) : 0 },
   ];
 
+  function handleExportCsv() {
+    const rows: (string | number)[][] = [
+      ["Date", "Sport", "Mode", "Score (%)", "Questions", "Avg Time (sec)"],
+      ...exams
+        .filter(e => e.score.length > 0)
+        .sort((a, b) => Number(a.startedAt) - Number(b.startedAt))
+        .map(e => [
+          e.finishedAt.length ? new Date(Number(e.finishedAt[0]) / 1e6).toISOString().slice(0, 10) : "",
+          e.config.sportId,
+          examModeLabel(e.config.mode),
+          e.score.length ? Number(e.score[0]) : "",
+          e.questionIds.length,
+          e.avgElapsedSec.length ? Number(e.avgElapsedSec[0]) : "",
+        ]),
+    ];
+    downloadCsv(`officialiq-exam-history-${Date.now()}.csv`, rows);
+  }
+
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
@@ -125,6 +166,14 @@ export default function ProgressPage() {
       </div>
 
       <div style={{ padding: 16 }}>
+        {exams.length > 0 && (
+          <button
+            onClick={handleExportCsv}
+            style={{ width: "100%", padding: "10px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 16 }}
+          >
+            ⬇️ Export Exam History (CSV)
+          </button>
+        )}
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           {statCards.map(s => (

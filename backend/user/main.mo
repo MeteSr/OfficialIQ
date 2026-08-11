@@ -2,6 +2,7 @@ import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Array "mo:core/Array";
@@ -67,6 +68,38 @@ persistent actor User {
     completedAt   : Int;
   };
 
+  // Assigning-platform integrations (issue #25). ArbiterSports/RefTown have
+  // no public API as of this writing (partnership required — see the
+  // follow-up issue), so linking is ID-based only: the official pastes in
+  // their existing external account id, nothing is verified or synced
+  // automatically. "provider" is a free-form label (e.g. "ArbiterSports",
+  // "RefTown") so new platforms don't need a schema change to add.
+  public type LinkedAccount = {
+    provider   : Text;
+    externalId : Text;
+    linkedAt   : Int;
+  };
+
+  // Manually-entered upcoming games, standing in for the real schedule pull
+  // an assigning-platform webhook would eventually provide.
+  public type UpcomingGame = {
+    id        : Text;
+    opponent  : Text;
+    gameDate  : Int;
+    sportId   : Text;
+    levelId   : Text;
+    notes     : Text;
+    createdAt : Int;
+  };
+
+  public type UpcomingGameInput = {
+    opponent : Text;
+    gameDate : Int;
+    sportId  : Text;
+    levelId  : Text;
+    notes    : Text;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var profiles           : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
@@ -74,6 +107,10 @@ persistent actor User {
   var progress            : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
   var weeklyQuizHistory   : Map.Map<Principal, [WeeklyQuizResult]> = Map.empty<Principal, [WeeklyQuizResult]>();
   var monthlyQuizHistory  : Map.Map<Principal, [MonthlyQuizResult]> = Map.empty<Principal, [MonthlyQuizResult]>();
+  var linkedAccounts     : Map.Map<Principal, [LinkedAccount]> = Map.empty<Principal, [LinkedAccount]>();
+  var upcomingGames      : Map.Map<Principal, [UpcomingGame]> = Map.empty<Principal, [UpcomingGame]>();
+
+  var nextGameId : Nat = 0;
 
   let WEEK_NS : Nat = 7 * 24 * 3600 * 1_000_000_000;
 
@@ -169,6 +206,49 @@ persistent actor User {
     Map.add(monthlyQuizHistory, Principal.compare, caller, Array.concat<MonthlyQuizResult>(existing, [entry]));
   };
 
+  // Replaces any existing link for the same provider (re-linking updates the
+  // stored id rather than accumulating duplicates).
+  public shared ({ caller }) func linkExternalAccount(provider : Text, externalId : Text) : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (provider == "" or externalId == "") return #err("Provider and account id are required");
+    let existing = switch (Map.get(linkedAccounts, Principal.compare, caller)) { case (?a) a; case null [] };
+    let withoutProvider = Array.filter<LinkedAccount>(existing, func(a) { a.provider != provider });
+    let entry : LinkedAccount = { provider; externalId; linkedAt = Time.now() };
+    Map.add(linkedAccounts, Principal.compare, caller, Array.concat<LinkedAccount>(withoutProvider, [entry]));
+    #ok(())
+  };
+
+  public shared ({ caller }) func unlinkExternalAccount(provider : Text) : async Result.Result<(), Text> {
+    let existing = switch (Map.get(linkedAccounts, Principal.compare, caller)) { case (?a) a; case null [] };
+    Map.add(linkedAccounts, Principal.compare, caller, Array.filter<LinkedAccount>(existing, func(a) { a.provider != provider }));
+    #ok(())
+  };
+
+  public shared ({ caller }) func addUpcomingGame(input : UpcomingGameInput) : async Result.Result<UpcomingGame, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (input.opponent == "") return #err("Opponent/matchup is required");
+    let id = "g" # Nat.toText(nextGameId);
+    nextGameId += 1;
+    let game : UpcomingGame = {
+      id;
+      opponent  = input.opponent;
+      gameDate  = input.gameDate;
+      sportId   = input.sportId;
+      levelId   = input.levelId;
+      notes     = input.notes;
+      createdAt = Time.now();
+    };
+    let existing = switch (Map.get(upcomingGames, Principal.compare, caller)) { case (?g) g; case null [] };
+    Map.add(upcomingGames, Principal.compare, caller, Array.concat<UpcomingGame>(existing, [game]));
+    #ok(game)
+  };
+
+  public shared ({ caller }) func removeUpcomingGame(id : Text) : async Result.Result<(), Text> {
+    let existing = switch (Map.get(upcomingGames, Principal.compare, caller)) { case (?g) g; case null [] };
+    Map.add(upcomingGames, Principal.compare, caller, Array.filter<UpcomingGame>(existing, func(g) { g.id != id }));
+    #ok(())
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -193,6 +273,19 @@ persistent actor User {
 
   public shared query ({ caller }) func getMonthlyQuizHistory() : async [MonthlyQuizResult] {
     switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] }
+  };
+
+  public shared query ({ caller }) func getMyLinkedAccounts() : async [LinkedAccount] {
+    switch (Map.get(linkedAccounts, Principal.compare, caller)) { case (?a) a; case null [] }
+  };
+
+  // Past games age out on their own here rather than needing a cleanup job:
+  // only games at or after "now" are ever returned.
+  public shared query ({ caller }) func getMyUpcomingGames() : async [UpcomingGame] {
+    let all = switch (Map.get(upcomingGames, Principal.compare, caller)) { case (?g) g; case null [] };
+    let now = Time.now();
+    let future = Array.filter<UpcomingGame>(all, func(g) { g.gameDate >= now });
+    Array.sort<UpcomingGame>(future, func(a, b) { Int.compare(a.gameDate, b.gameDate) })
   };
 
   // Caller supplies the full, stably-ordered list of article ids (from the

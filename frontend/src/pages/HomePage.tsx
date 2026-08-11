@@ -4,7 +4,7 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { challengeService, type Challenge } from "../services/challenge";
 import { rankingService, type UserStats, type DailyActivity } from "../services/ranking";
-import { userService, type StudyPace, type WeeklySchedule } from "../services/user";
+import { userService, type StudyPace, type WeeklySchedule, type UpcomingGame } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
 import { mentorshipService } from "../services/mentorship";
@@ -23,6 +23,7 @@ export default function HomePage() {
   const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
   const [unseenNotes, setUnseenNotes] = useState(0);
   const [unseenReports, setUnseenReports] = useState(0);
+  const [nextGame, setNextGame] = useState<UpcomingGame | null>(null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [names,       setNames]     = useState<Record<string, string>>({});
   const [accepting,   setAccepting] = useState<string | null>(null);
@@ -77,6 +78,7 @@ export default function HomePage() {
       refreshChallenges();
       mentorshipService.getMyUnseenAnnotationCount().then(setUnseenNotes).catch(() => {});
       reportService.getMyUnseenShareCount().then(setUnseenReports).catch(() => {});
+      userService.getMyUpcomingGames().then(gs => setNextGame(gs.length ? gs[0] : null)).catch(() => {});
     }
     if (isAuthenticated && profile) refreshSchedule();
   }, [isAuthenticated, principal, !!profile, sportId, levelId]);
@@ -148,6 +150,17 @@ export default function HomePage() {
           }}
         >
           📋 {unseenReports} report card{unseenReports === 1 ? "" : "s"} shared with you — tap to view
+        </div>
+      )}
+      {nextGame && (
+        <div
+          onClick={() => navigate("/schedule")}
+          style={{
+            background: T.navy, color: T.white, textAlign: "center",
+            padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+          }}
+        >
+          📅 Game vs {nextGame.opponent} on {new Date(Number(nextGame.gameDate) / 1e6).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} — review recommendations
         </div>
       )}
       {/* Header */}
