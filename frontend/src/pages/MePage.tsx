@@ -519,12 +519,24 @@ export default function MePage() {
           onClick={() => navigate("/mentor")}
           style={{
             width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             fontSize: 13, fontWeight: 600,
           }}
         >
           🧑‍🏫 Mentorship
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+        <button
+          onClick={() => navigate("/association")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          🏛️ Associations
           <span style={{ color: T.muted }}>›</span>
         </button>
       </div>

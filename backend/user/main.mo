@@ -15,6 +15,7 @@ persistent actor User {
     #Official;
     #Assessor;
     #Admin;
+    #Coordinator;
   };
 
   public type Profile = {
@@ -108,6 +109,20 @@ persistent actor User {
           state       = req.state;
           createdAt   = existing.createdAt;
         };
+        Map.add(profiles, Principal.compare, caller, updated);
+        #ok(updated)
+      };
+    }
+  };
+
+  // Self-service elevation, mirroring the low-friction model already used for
+  // creating study groups/associations elsewhere — anyone who sets up an
+  // association becomes its coordinator.
+  public shared ({ caller }) func becomeCoordinator() : async Result.Result<Profile, Text> {
+    switch (Map.get(profiles, Principal.compare, caller)) {
+      case null #err("Profile not found");
+      case (?existing) {
+        let updated : Profile = { existing with role = #Coordinator };
         Map.add(profiles, Principal.compare, caller, updated);
         #ok(updated)
       };

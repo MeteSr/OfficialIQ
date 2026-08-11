@@ -4,7 +4,7 @@ import { createActor } from "./actor";
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null });
+  const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null, Coordinator: I.Null });
   const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, createdAt: I.Int });
   const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });
   const ResultP     = I.Variant({ ok: Profile, err: I.Text });
@@ -28,13 +28,14 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     getWeeklySchedule:    I.Func([I.Vec(I.Text)],     [WeeklySchedule], ["query"]),
     getWeeklyQuizHistory: I.Func([],                 [I.Vec(WeeklyQuizResult)], ["query"]),
     getMonthlyQuizHistory: I.Func([],                [I.Vec(MonthlyQuizResult)], ["query"]),
+    becomeCoordinator:    I.Func([],                 [ResultP],        []),
     metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type UserRole = { Official: null } | { Assessor: null } | { Admin: null };
+export type UserRole = { Official: null } | { Assessor: null } | { Admin: null } | { Coordinator: null };
 export type UserProfile = {
   principal:   import("@icp-sdk/core/principal").Principal;
   displayName: string;
@@ -83,6 +84,7 @@ function actor() {
     getWeeklySchedule:    (ids: string[])    => Promise<WeeklySchedule>;
     getWeeklyQuizHistory: ()                 => Promise<WeeklyQuizResult[]>;
     getMonthlyQuizHistory: ()                => Promise<MonthlyQuizResult[]>;
+    becomeCoordinator:    ()                 => Promise<{ ok: UserProfile } | { err: string }>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -162,5 +164,12 @@ export const userService = {
   async getMonthlyQuizHistory(): Promise<MonthlyQuizResult[]> {
     if (!CANISTER_ID) return [];
     return actor().getMonthlyQuizHistory();
+  },
+
+  async becomeCoordinator(): Promise<UserProfile> {
+    if (!CANISTER_ID) return { ...MOCK_PROFILE, role: { Coordinator: null } };
+    const res = await actor().becomeCoordinator();
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 };

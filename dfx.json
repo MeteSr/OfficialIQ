@@ -33,10 +33,14 @@
       "type": "motoko",
       "main": "backend/mentorship/main.mo"
     },
+    "association": {
+      "type": "motoko",
+      "main": "backend/association/main.mo"
+    },
     "assets": {
       "type": "assets",
       "source": ["frontend/dist"],
-      "dependencies": ["user", "content", "question", "exam", "ranking", "challenge", "mentorship"],
+      "dependencies": ["user", "content", "question", "exam", "ranking", "challenge", "mentorship", "association"],
       "frontend": {
         "entrypoint": "frontend/dist/index.html"
       }

@@ -21,6 +21,8 @@ import CertExamPage from "./pages/CertExamPage";
 import CommuteModePage from "./pages/CommuteModePage";
 import MentorPage from "./pages/MentorPage";
 import MentorReportPage from "./pages/MentorReportPage";
+import AssociationPage from "./pages/AssociationPage";
+import AssociationDetailPage from "./pages/AssociationDetailPage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="/commute" element={<CommuteModePage />} />
             <Route path="/mentor" element={<MentorPage />} />
             <Route path="/mentor/:token" element={<MentorReportPage />} />
+            <Route path="/association" element={<AssociationPage />} />
+            <Route path="/association/:id" element={<AssociationDetailPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

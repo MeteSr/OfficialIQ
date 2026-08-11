@@ -12,10 +12,14 @@ import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord, ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
+import { associationService } from "../services/association";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
-type NavState = { sessionId?: string; questionIds?: string[]; secPerQ?: number } | null;
+type NavState = {
+  sessionId?: string; questionIds?: string[]; secPerQ?: number;
+  assignmentId?: string; articleIds?: string[]; casebook?: boolean;
+} | null;
 
 export default function QuizPage() {
   const { articleId, token } = useParams<{ articleId?: string; token?: string }>();
@@ -42,6 +46,7 @@ export default function QuizPage() {
   const [offlineExamConfig, setOfflineExamConfig] = useState<ExamConfig | null>(null);
   const [history, setHistory] = useState<(UserQuestionHistory | null)[]>([]);
   const [playsCache, setPlaysCache] = useState<Record<string, CasebookPlay[]>>({});
+  const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
   const isAdaptive = searchParams.get("adaptive") === "1";
 
@@ -54,6 +59,7 @@ export default function QuizPage() {
     setLoading(true);
     setError(null);
     setOfflineExamConfig(null);
+    setAssignmentId(navState?.assignmentId ?? null);
 
     async function fetchQuestions(ids: string[]): Promise<Question[]> {
       const qs = await Promise.all(ids.map(id => questionService.getQuestion(id)));
@@ -83,10 +89,16 @@ export default function QuizPage() {
 
       const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
       const countFromQuery = Number(searchParams.get("count")) || 25;
+      // An assignment from a coordinator (see AssociationDetailPage) carries
+      // its own article set + casebook flag via router state; otherwise this
+      // is a single-article self-generated quiz from StudyPage.
+      const assignedArticleIds = navState?.articleIds;
+      const effectiveArticleIds = assignedArticleIds ?? (articleId ? [articleId] : []);
+      const effectiveCasebook = navState?.casebook ?? true;
       const quizFilter = {
         sportId:    "ncaa_basketball",
-        articleIds: articleId ? [articleId] : [],
-        casebook:   true,
+        articleIds: effectiveArticleIds,
+        casebook:   effectiveCasebook,
         difficulty: [] as [],
         count:      BigInt(countFromQuery),
       };
@@ -98,7 +110,7 @@ export default function QuizPage() {
       if (qs.length === 0) { setError("No cached questions available for this article yet — connect once to download content."); return; }
 
       const config: ExamConfig = {
-        sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
+        sportId: "ncaa_basketball", articleIds: effectiveArticleIds, casebook: effectiveCasebook,
         count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null },
       };
       try {
@@ -234,9 +246,13 @@ export default function QuizPage() {
             enqueuePendingAction({ kind: "recordArticleStudied", articleId, score })
           );
         }));
+
+        if (assignmentId) {
+          associationService.recordCompletion(assignmentId, finalScore).catch(() => {});
+        }
       }
     }
-  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit, offlineExamConfig]);
+  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit, offlineExamConfig, assignmentId]);
 
   if (loading) {
     return (

@@ -6,6 +6,9 @@ import { userService, type ArticleProgress } from "../services/user";
 import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
 import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/offlineDb";
+import { associationService, type Assignment } from "../services/association";
+
+type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
 const CURRENT_SEASON = "2025-26";
 
@@ -24,12 +27,39 @@ export default function StudyPage() {
   const objectUrlRef = useRef<string | null>(null);
   const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([]);
 
   useEffect(() => {
     contentService.listPointsOfEmphasis(CURRENT_SEASON).then(setPoes).catch(() => {});
     getDownloadedAudioIds().then(ids => setDownloadedIds(new Set(ids))).catch(() => {});
     return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setAssignmentRows([]); return; }
+    Promise.all([associationService.getMyAssignments(), associationService.getMyCompletions()])
+      .then(async ([assigns, completions]) => {
+        const doneIds = new Set(completions.map(c => c.assignmentId));
+        const uniqueAssocIds = [...new Set(assigns.map(a => a.associationId))];
+        const assocs = await Promise.all(uniqueAssocIds.map(id => associationService.getAssociation(id)));
+        const assocById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, assocs[i]]));
+        const coordinators = await Promise.all(uniqueAssocIds.map((id) => {
+          const rec = assocById[id];
+          return rec ? userService.getProfile(rec.coordinator).catch(() => null) : Promise.resolve(null);
+        }));
+        const coordNameById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, coordinators[i]?.displayName ?? "your coordinator"]));
+        const rows: AssignmentRow[] = assigns
+          .map(a => ({
+            assignment: a,
+            associationName: assocById[a.associationId]?.name ?? "",
+            coordinatorName: coordNameById[a.associationId] ?? "your coordinator",
+            done: doneIds.has(a.id),
+          }))
+          .sort((a, b) => Number(a.assignment.dueAt - b.assignment.dueAt));
+        setAssignmentRows(rows);
+      })
+      .catch(() => setAssignmentRows([]));
+  }, [isAuthenticated]);
 
   async function handleDownloadToggle(articleId: string, e: MouseEvent) {
     e.stopPropagation();
@@ -122,6 +152,38 @@ export default function StudyPage() {
       </div>
 
       <audio ref={audioRef} onEnded={() => setPlayingPoeId(null)} style={{ display: "none" }} />
+
+      {assignmentRows.length > 0 && (
+        <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>ASSIGNED MODULES</div>
+          {assignmentRows.map(({ assignment: a, coordinatorName, done }) => (
+            <div
+              key={a.id}
+              onClick={() => !done && navigate(`/quiz/${a.articleIds[0] ?? "ncaa_basketball:art4"}`, {
+                state: { assignmentId: a.id, articleIds: a.articleIds, casebook: a.casebook },
+              })}
+              style={{
+                padding: "12px 14px", background: T.surface,
+                border: `1px solid ${done ? T.correct : T.navy}`, borderRadius: 10,
+                cursor: done ? "default" : "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: T.white,
+                  background: done ? T.correct : T.navy, borderRadius: 6, padding: "2px 6px",
+                }}>
+                  {done ? "DONE" : "ASSIGNED"}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{a.title}</span>
+              </div>
+              <div style={{ fontSize: 11, color: T.muted }}>
+                Assigned by {coordinatorName} · Due {new Date(Number(a.dueAt / 1_000_000n)).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {poes.length > 0 && (
         <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
