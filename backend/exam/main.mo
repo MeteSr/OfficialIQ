@@ -207,6 +207,23 @@ persistent actor Exam {
     VarArray.sliceToArray<ExamSession>(buf, 0, i)
   };
 
+  // Public by-principal, mirroring ranking.getStats(p)/user.getProfile(p) —
+  // association coordinators need per-exam scores for members other than
+  // themselves to compute real season-cohort trends (ranking's EloSnapshot
+  // only tracks a cumulative running-average accuracy, which is too blunt
+  // a signal for "how is this member trending recently").
+  public query func getExamsFor(p : Principal) : async [ExamSession] {
+    let buf = VarArray.repeat<ExamSession>({
+      id = ""; owner = p; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
+      questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;
+    }, Map.size(sessions));
+    var i = 0;
+    for ((_, s) in Map.entries(sessions)) {
+      if (s.owner == p) { buf[i] := s; i += 1 };
+    };
+    VarArray.sliceToArray<ExamSession>(buf, 0, i)
+  };
+
   public query func getByShareToken(token : Text) : async ?ExamSession {
     switch (Map.get(shareIndex, Text.compare, token)) {
       case null null;

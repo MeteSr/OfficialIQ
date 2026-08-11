@@ -257,6 +257,44 @@ persistent actor Question {
     VarArray.sliceToArray<Question>(buf, 0, i)
   };
 
+  // Aggregates the (already-global, not caller-scoped) history map by
+  // question, for association coordinators to spot content that needs
+  // re-explanation across their whole membership. Miss-rate needs at least
+  // 3 answers to surface — otherwise one unlucky guess on a rarely-seen
+  // question would dominate the list.
+  public query func getMostMissedQuestions(sportId : Text, limit : Nat) : async [(Text, Nat, Nat)] {
+    let wrongCounts = Map.empty<Text, Nat>();
+    let totalCounts = Map.empty<Text, Nat>();
+    for ((_, h) in Map.entries(history)) {
+      switch (Map.get(questions, Text.compare, h.questionId)) {
+        case (?q) {
+          if (q.sportId == sportId) {
+            let prevTotal = switch (Map.get(totalCounts, Text.compare, h.questionId)) { case (?n) n; case null 0 };
+            Map.add(totalCounts, Text.compare, h.questionId, prevTotal + h.timesAnswered);
+            let prevWrong = switch (Map.get(wrongCounts, Text.compare, h.questionId)) { case (?n) n; case null 0 };
+            let wrongForThisHistory = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
+            Map.add(wrongCounts, Text.compare, h.questionId, prevWrong + wrongForThisHistory);
+          };
+        };
+        case null {};
+      };
+    };
+    let entries = List.empty<(Text, Nat, Nat)>();
+    for ((qid, total) in Map.entries(totalCounts)) {
+      if (total >= 3) {
+        let wrong = switch (Map.get(wrongCounts, Text.compare, qid)) { case (?n) n; case null 0 };
+        List.add(entries, (qid, wrong, total));
+      };
+    };
+    let sorted = List.sort<(Text, Nat, Nat)>(entries, func((_, wa, ta), (_, wb, tb)) {
+      // Sort by miss rate (wrong/total) descending, comparing via cross-multiplication to avoid float division.
+      let lhs = wa * tb;
+      let rhs = wb * ta;
+      if (lhs > rhs) #less else if (lhs < rhs) #greater else #equal
+    });
+    List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(limit, List.size(sorted)))
+  };
+
   public query func metrics() : async { questionCount : Nat } {
     { questionCount = Map.size(questions) }
   };

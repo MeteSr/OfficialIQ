@@ -67,6 +67,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     createSession:      I.Func([Config, I.Vec(I.Text)], [ResultS],        []),
     submitExam:         I.Func([I.Text, I.Vec(Answer)],  [ResultS],        []),
     getMyExams:         I.Func([],                        [I.Vec(Session)], ["query"]),
+    getExamsFor:        I.Func([I.Principal],              [I.Vec(Session)], ["query"]),
     getByShareToken:    I.Func([I.Text],                  [I.Opt(Session)], ["query"]),
     listExamTemplates:  I.Func([I.Text],                  [I.Vec(Template)], ["query"]),
     getExamTemplate:    I.Func([I.Text],                  [I.Opt(Template)], ["query"]),
@@ -83,6 +84,7 @@ function actor() {
     createSession:     (config: ExamConfig, qIds: string[]) => Promise<{ ok: ExamSession } | { err: string }>;
     submitExam:        (id: string, answers: AnswerRecord[]) => Promise<{ ok: ExamSession } | { err: string }>;
     getMyExams:        () => Promise<ExamSession[]>;
+    getExamsFor:       (p: any) => Promise<ExamSession[]>;
     getByShareToken:   (token: string) => Promise<[] | [ExamSession]>;
     listExamTemplates: (sportId: string) => Promise<ExamTemplate[]>;
     getExamTemplate:   (id: string) => Promise<[] | [ExamTemplate]>;
@@ -125,6 +127,11 @@ export const examService = {
   async getMyExams(): Promise<ExamSession[]> {
     if (!CANISTER_ID) return [];
     return actor().getMyExams();
+  },
+
+  async getExamsFor(p: any): Promise<ExamSession[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getExamsFor(p);
   },
 
   async getByShareToken(token: string): Promise<ExamSession | null> {

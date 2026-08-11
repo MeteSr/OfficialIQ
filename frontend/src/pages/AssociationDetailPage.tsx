@@ -158,6 +158,14 @@ export default function AssociationDetailPage() {
       </div>
 
       <div style={{ padding: 16 }}>
+        {isCoordinator && (
+          <button
+            onClick={() => navigate(`/association/${assoc.id}/analytics`)}
+            style={{ width: "100%", padding: "12px 14px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 16 }}
+          >
+            📈 View Analytics &amp; Readiness Dashboard
+          </button>
+        )}
         {/* Roster / leaderboard — visible to coordinator and all members */}
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
           Members ({roster.length})

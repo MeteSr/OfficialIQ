@@ -33,6 +33,8 @@ import RuleAssistantPage from "./pages/RuleAssistantPage";
 import AiDrillsPage from "./pages/AiDrillsPage";
 import ScenarioGeneratorPage from "./pages/ScenarioGeneratorPage";
 import SchedulePage from "./pages/SchedulePage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import AssociationAnalyticsPage from "./pages/AssociationAnalyticsPage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -72,6 +74,8 @@ export default function App() {
             <Route path="/ai-drills" element={<AiDrillsPage />} />
             <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>
