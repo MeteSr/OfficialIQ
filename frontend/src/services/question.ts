@@ -35,6 +35,19 @@ export type QuizFilter = {
   count:      bigint;
 };
 
+export type QuestionInput = {
+  sportId:           string;
+  articleId:         string;
+  citation:          string;
+  stem:              string;
+  choices:           Choice[];
+  correctId:         string;
+  explanation:       string;
+  difficulty:        Difficulty;
+  isCasebook:        boolean;
+  isPointOfEmphasis: boolean;
+};
+
 export type UserQuestionHistory = {
   questionId:    string;
   timesAnswered: bigint;
@@ -61,6 +74,13 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     sportId: I.Text, articleIds: I.Vec(I.Text),
     casebook: I.Bool, difficulty: I.Opt(Diff), count: I.Nat,
   });
+  const QInput = I.Record({
+    sportId: I.Text, articleId: I.Text, citation: I.Text,
+    stem: I.Text, choices: I.Vec(Choice), correctId: I.Text,
+    explanation: I.Text, difficulty: Diff, isCasebook: I.Bool,
+    isPointOfEmphasis: I.Bool,
+  });
+  const ResultQ = I.Variant({ ok: Q, err: I.Text });
   const History = I.Record({
     questionId: I.Text, timesAnswered: I.Nat, timesCorrect: I.Nat,
     lastAnswered: I.Int, nextDue: I.Int, easiness: I.Float64,
@@ -73,6 +93,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     getDueCount:        I.Func([I.Text, I.Vec(I.Text), I.Bool], [I.Nat], ["query"]),
     getMyHistoryBatch:  I.Func([I.Vec(I.Text)],              [I.Vec(I.Opt(History))], ["query"]),
     recordAnswer:       I.Func([I.Text, I.Bool],              [], []),
+    addQuestion:        I.Func([QInput],                     [ResultQ], []),
     metrics:            I.Func([],                            [I.Record({ questionCount: I.Nat })], ["query"]),
   });
 };
@@ -133,6 +154,7 @@ function actor() {
     getDueCount:       (sportId: string, articleIds: string[], casebook: boolean) => Promise<bigint>;
     getMyHistoryBatch: (questionIds: string[]) => Promise<([] | [UserQuestionHistory])[]>;
     recordAnswer:      (questionId: string, isCorrect: boolean) => Promise<void>;
+    addQuestion:       (input: QuestionInput) => Promise<{ ok: Question } | { err: string }>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -204,5 +226,12 @@ export const questionService = {
   async recordAnswer(questionId: string, isCorrect: boolean): Promise<void> {
     if (!CANISTER_ID) return;
     await actor().recordAnswer(questionId, isCorrect);
+  },
+
+  async addQuestion(input: QuestionInput): Promise<Question> {
+    if (!CANISTER_ID) throw new Error("Question canister not deployed");
+    const res = await actor().addQuestion(input);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 };

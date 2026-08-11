@@ -15,6 +15,7 @@ import {
 import { Principal } from "@icp-sdk/core/principal";
 import { useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { syncAllContent } from "../lib/offlineSync";
+import { aiProxyService } from "../services/aiProxy";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
 
@@ -141,6 +142,7 @@ export default function MePage() {
   const [downloadedArticles, setDownloadedArticles] = useState<Article[]>([]);
   const [clearingStorage,   setClearingStorage]   = useState(false);
   const [isContentAdmin,   setIsContentAdmin]     = useState(false);
+  const [isAiAdmin,        setIsAiAdmin]          = useState(false);
 
   useEffect(() => {
     contentService.listSports().then(setSports).catch(() => {});
@@ -150,6 +152,7 @@ export default function MePage() {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
     contentService.isAdmin().then(setIsContentAdmin).catch(() => {});
+    aiProxyService.isAdmin().then(setIsAiAdmin).catch(() => {});
   }, [isAuthenticated]);
 
   function loadStorage() {
@@ -591,6 +594,44 @@ export default function MePage() {
           🎬 Submit a Video Clip
           <span style={{ color: T.muted }}>›</span>
         </button>
+        <button
+          onClick={() => navigate("/ask")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          🤖 Ask the Rule Assistant
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+        <button
+          onClick={() => navigate("/ai-drills")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          🎯 AI Practice Drills
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+        {isAiAdmin && (
+          <button
+            onClick={() => navigate("/ai-scenarios")}
+            style={{
+              width: "100%", padding: "12px 14px", background: T.surface,
+              border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              fontSize: 13, fontWeight: 600,
+            }}
+          >
+            🧪 AI Scenario Generator
+            <span style={{ color: T.muted }}>›</span>
+          </button>
+        )}
         <button
           onClick={() => navigate("/reports")}
           style={{

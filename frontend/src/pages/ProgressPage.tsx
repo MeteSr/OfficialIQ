@@ -145,7 +145,15 @@ export default function ProgressPage() {
         {/* Weak areas */}
         {weakest.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Weakest Areas</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>Weakest Areas</div>
+              <button
+                onClick={() => navigate("/ai-drills")}
+                style={{ padding: "6px 12px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+              >
+                🎯 AI Practice
+              </button>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {weakest.map(p => {
                 const a = articles.find(x => x.id === p.articleId);

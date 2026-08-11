@@ -43,6 +43,7 @@ export default defineConfig({
     CANISTER_ID_MENTORSHIP: JSON.stringify(process.env.CANISTER_ID_MENTORSHIP ?? ""),
     CANISTER_ID_ASSOCIATION: JSON.stringify(process.env.CANISTER_ID_ASSOCIATION ?? ""),
     CANISTER_ID_REPORT:    JSON.stringify(process.env.CANISTER_ID_REPORT    ?? ""),
+    CANISTER_ID_AI_PROXY:  JSON.stringify(process.env.CANISTER_ID_AI_PROXY  ?? ""),
     DFX_NETWORK:           JSON.stringify(process.env.DFX_NETWORK           ?? "local"),
   },
   server: {

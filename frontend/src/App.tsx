@@ -29,6 +29,9 @@ import ModerationQueuePage from "./pages/ModerationQueuePage";
 import ReportCardPage from "./pages/ReportCardPage";
 import PublicReportPage from "./pages/PublicReportPage";
 import SharedReportsPage from "./pages/SharedReportsPage";
+import RuleAssistantPage from "./pages/RuleAssistantPage";
+import AiDrillsPage from "./pages/AiDrillsPage";
+import ScenarioGeneratorPage from "./pages/ScenarioGeneratorPage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -64,6 +67,9 @@ export default function App() {
             <Route path="/reports" element={<ReportCardPage />} />
             <Route path="/reports/shared" element={<SharedReportsPage />} />
             <Route path="/report/:id" element={<PublicReportPage />} />
+            <Route path="/ask" element={<RuleAssistantPage />} />
+            <Route path="/ai-drills" element={<AiDrillsPage />} />
+            <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>
