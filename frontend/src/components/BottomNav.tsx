@@ -13,6 +13,10 @@ export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // The certification exam simulation is a full-screen, distraction-free
+  // mode (see issue #16) — no tab bar while it's in progress.
+  if (location.pathname.startsWith("/exam-sim")) return null;
+
   return (
     <nav style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",

@@ -12,7 +12,7 @@ persistent actor Exam {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type ExamMode = { #Solo; #ShareLink; #Timed };
+  public type ExamMode = { #Solo; #ShareLink; #Timed; #Certification };
 
   public type ExamConfig = {
     sportId    : Text;
@@ -43,13 +43,56 @@ persistent actor Exam {
     finishedAt    : ?Int;
   };
 
+  // Admin-configurable certification exam format: how many questions, how
+  // long, what fraction should be casebook, and how article selection is
+  // weighted (a plain list of (articleId, weight) pairs; weight is relative,
+  // not a percentage).
+  public type ExamTemplate = {
+    id               : Text;
+    name             : Text;
+    sportId          : Text;
+    questionCount    : Nat;
+    timeLimitSec     : Nat;
+    casebookRatioPct : Nat; // 0-100
+    passThresholdPct : Nat; // 0-100
+    articleWeights   : [(Text, Nat)];
+    createdAt        : Int;
+  };
+
+  public type ExamTemplateInput = {
+    name             : Text;
+    sportId          : Text;
+    questionCount    : Nat;
+    timeLimitSec     : Nat;
+    casebookRatioPct : Nat;
+    passThresholdPct : Nat;
+    articleWeights   : [(Text, Nat)];
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var sessions : Map.Map<Text, ExamSession> = Map.empty<Text, ExamSession>();
 
   var shareIndex : Map.Map<Text, Text> = Map.empty<Text, Text>();
 
-  var nextId : Nat = 0;
+  var examTemplates : Map.Map<Text, ExamTemplate> = Map.empty<Text, ExamTemplate>();
+
+  var nextId         : Nat = 0;
+  var nextTemplateId : Nat = 0;
+  var adminPrincipal : ?Principal = null;
+
+  // ─── Admin guard ──────────────────────────────────────────────────────────
+
+  public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
+    switch adminPrincipal {
+      case null { adminPrincipal := ?p; #ok(()) };
+      case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
+    }
+  };
+
+  func isAdmin(p : Principal) : Bool {
+    switch adminPrincipal { case (?a) a == p; case null false }
+  };
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -115,7 +158,42 @@ persistent actor Exam {
     }
   };
 
+  public shared ({ caller }) func upsertExamTemplate(input : ExamTemplateInput) : async Result.Result<ExamTemplate, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let id = "tmpl" # Nat.toText(nextTemplateId);
+    nextTemplateId += 1;
+    let t : ExamTemplate = {
+      id;
+      name             = input.name;
+      sportId          = input.sportId;
+      questionCount    = input.questionCount;
+      timeLimitSec     = input.timeLimitSec;
+      casebookRatioPct = input.casebookRatioPct;
+      passThresholdPct = input.passThresholdPct;
+      articleWeights   = input.articleWeights;
+      createdAt        = Time.now();
+    };
+    Map.add(examTemplates, Text.compare, id, t);
+    #ok(t)
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
+
+  public query func listExamTemplates(sportId : Text) : async [ExamTemplate] {
+    let buf = VarArray.repeat<ExamTemplate>({
+      id = ""; name = ""; sportId = ""; questionCount = 0; timeLimitSec = 0;
+      casebookRatioPct = 0; passThresholdPct = 0; articleWeights = []; createdAt = 0;
+    }, Map.size(examTemplates));
+    var i = 0;
+    for ((_, t) in Map.entries(examTemplates)) {
+      if (t.sportId == sportId) { buf[i] := t; i += 1 };
+    };
+    VarArray.sliceToArray<ExamTemplate>(buf, 0, i)
+  };
+
+  public query func getExamTemplate(id : Text) : async ?ExamTemplate {
+    Map.get(examTemplates, Text.compare, id)
+  };
 
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
     let buf = VarArray.repeat<ExamSession>({

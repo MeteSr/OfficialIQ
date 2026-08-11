@@ -108,6 +108,23 @@ export default function ExamPage() {
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
 
+        <button
+          onClick={() => navigate("/exam-sim")}
+          style={{
+            width: "100%", padding: "16px", background: T.navy, color: T.white,
+            borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 26 }}>🎓</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Certification Exam Simulation</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
+              100 questions · 90 minutes · full certification format
+            </div>
+          </div>
+          <span style={{ fontSize: 18 }}>›</span>
+        </button>
+
         {/* Article selector */}
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>Rule Articles</div>

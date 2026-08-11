@@ -65,6 +65,25 @@ const contentIdlFactory = ({ IDL: I }) => {
   });
 };
 
+const examIdlFactory = ({ IDL: I }) => {
+  const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
+  const Template = I.Record({
+    id: I.Text, name: I.Text, sportId: I.Text, questionCount: I.Nat, timeLimitSec: I.Nat,
+    casebookRatioPct: I.Nat, passThresholdPct: I.Nat,
+    articleWeights: I.Vec(I.Tuple(I.Text, I.Nat)), createdAt: I.Int,
+  });
+  const TemplateInput = I.Record({
+    name: I.Text, sportId: I.Text, questionCount: I.Nat, timeLimitSec: I.Nat,
+    casebookRatioPct: I.Nat, passThresholdPct: I.Nat, articleWeights: I.Vec(I.Tuple(I.Text, I.Nat)),
+  });
+  const ResultTemplate = I.Variant({ ok: Template, err: I.Text });
+  return I.Service({
+    setAdmin: I.Func([I.Principal], [ResultUnit], []),
+    upsertExamTemplate: I.Func([TemplateInput], [ResultTemplate], []),
+    listExamTemplates: I.Func([I.Text], [I.Vec(Template)], ["query"]),
+  });
+};
+
 const questionIdlFactory = ({ IDL: I }) => {
   const Choice = I.Record({ id: I.Text, text: I.Text });
   const Difficulty = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
@@ -106,6 +125,7 @@ async function main() {
   const env = readEnvFile();
   const contentId = env.CANISTER_ID_CONTENT;
   const questionId = env.CANISTER_ID_QUESTION;
+  const examId = env.CANISTER_ID_EXAM;
   if (!contentId || !questionId) {
     throw new Error("CANISTER_ID_CONTENT / CANISTER_ID_QUESTION not found in .env — run `make deploy` first.");
   }
@@ -117,10 +137,12 @@ async function main() {
 
   const content = Actor.createActor(contentIdlFactory, { agent, canisterId: contentId });
   const question = Actor.createActor(questionIdlFactory, { agent, canisterId: questionId });
+  const exam = examId ? Actor.createActor(examIdlFactory, { agent, canisterId: examId }) : null;
 
   console.log(`Seeding as principal ${principal.toText()} on network "${NETWORK}"`);
   await ensureAdmin("content", content, principal);
   await ensureAdmin("question", question, principal);
+  if (exam) await ensureAdmin("exam", exam, principal);
 
   let articleCount = 0, playCount = 0, questionCount = 0, errorCount = 0;
 
@@ -198,8 +220,38 @@ async function main() {
     }
   }
 
+  let examTemplateCount = 0;
+  if (exam) {
+    // upsertExamTemplate also mints a fresh id each call — skip if a
+    // template with this name already exists for the sport.
+    const existingTemplates = await exam.listExamTemplates(SPORT_ID);
+    const already = existingTemplates.some(t => t.name === "NCAA Men's Basketball Certification Exam");
+    if (already) {
+      console.log(`  · Exam template "NCAA Men's Basketball Certification Exam" already seeded — skipping`);
+      examTemplateCount++;
+    } else {
+      const articleWeights = ARTICLES.map(a => [`${SPORT_ID}:art${a.number}`, 1n]);
+      const templateRes = await exam.upsertExamTemplate({
+        name: "NCAA Men's Basketball Certification Exam",
+        sportId: SPORT_ID,
+        questionCount: 100n,
+        timeLimitSec: 5400n, // 90 minutes
+        casebookRatioPct: 40n,
+        passThresholdPct: 75n,
+        articleWeights,
+      });
+      if ("err" in templateRes) {
+        console.error(`  ✗ Exam template: ${templateRes.err}`);
+        errorCount++;
+      } else {
+        examTemplateCount++;
+        console.log(`  ✓ Exam template "${templateRes.ok.name}" -> ${templateRes.ok.id}`);
+      }
+    }
+  }
+
   console.log("");
-  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, points of emphasis: ${poeCount}, errors: ${errorCount}`);
+  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, points of emphasis: ${poeCount}, exam templates: ${examTemplateCount}, errors: ${errorCount}`);
   if (errorCount > 0) process.exit(1);
 }
 

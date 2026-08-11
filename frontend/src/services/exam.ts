@@ -3,7 +3,19 @@ import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ExamMode = { Solo: null } | { ShareLink: null } | { Timed: null };
+export type ExamMode = { Solo: null } | { ShareLink: null } | { Timed: null } | { Certification: null };
+
+export type ExamTemplate = {
+  id:               string;
+  name:             string;
+  sportId:          string;
+  questionCount:    bigint;
+  timeLimitSec:     bigint;
+  casebookRatioPct: bigint;
+  passThresholdPct: bigint;
+  articleWeights:   [string, bigint][];
+  createdAt:        bigint;
+};
 
 export type ExamConfig = {
   sportId:    string;
@@ -37,7 +49,7 @@ export type ExamSession = {
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Mode    = I.Variant({ Solo: I.Null, ShareLink: I.Null, Timed: I.Null });
+  const Mode    = I.Variant({ Solo: I.Null, ShareLink: I.Null, Timed: I.Null, Certification: I.Null });
   const Config  = I.Record({ sportId: I.Text, articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, secPerQ: I.Nat, mode: Mode });
   const Answer  = I.Record({ questionId: I.Text, chosenId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat });
   const Session = I.Record({
@@ -45,13 +57,20 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     answers: I.Vec(Answer), score: I.Opt(I.Nat), avgElapsedSec: I.Opt(I.Nat), shareToken: I.Opt(I.Text),
     startedAt: I.Int, finishedAt: I.Opt(I.Int),
   });
+  const Template = I.Record({
+    id: I.Text, name: I.Text, sportId: I.Text, questionCount: I.Nat, timeLimitSec: I.Nat,
+    casebookRatioPct: I.Nat, passThresholdPct: I.Nat,
+    articleWeights: I.Vec(I.Tuple(I.Text, I.Nat)), createdAt: I.Int,
+  });
   const ResultS = I.Variant({ ok: Session, err: I.Text });
   return I.Service({
-    createSession:  I.Func([Config, I.Vec(I.Text)], [ResultS],        []),
-    submitExam:     I.Func([I.Text, I.Vec(Answer)],  [ResultS],        []),
-    getMyExams:     I.Func([],                        [I.Vec(Session)], ["query"]),
-    getByShareToken:I.Func([I.Text],                  [I.Opt(Session)], ["query"]),
-    metrics:        I.Func([],                        [I.Record({ sessionCount: I.Nat })], ["query"]),
+    createSession:      I.Func([Config, I.Vec(I.Text)], [ResultS],        []),
+    submitExam:         I.Func([I.Text, I.Vec(Answer)],  [ResultS],        []),
+    getMyExams:         I.Func([],                        [I.Vec(Session)], ["query"]),
+    getByShareToken:    I.Func([I.Text],                  [I.Opt(Session)], ["query"]),
+    listExamTemplates:  I.Func([I.Text],                  [I.Vec(Template)], ["query"]),
+    getExamTemplate:    I.Func([I.Text],                  [I.Opt(Template)], ["query"]),
+    metrics:            I.Func([],                        [I.Record({ sessionCount: I.Nat })], ["query"]),
   });
 };
 
@@ -61,10 +80,12 @@ const CANISTER_ID = typeof CANISTER_ID_EXAM !== "undefined" ? CANISTER_ID_EXAM :
 
 function actor() {
   return createActor<{
-    createSession:   (config: ExamConfig, qIds: string[]) => Promise<{ ok: ExamSession } | { err: string }>;
-    submitExam:      (id: string, answers: AnswerRecord[]) => Promise<{ ok: ExamSession } | { err: string }>;
-    getMyExams:      () => Promise<ExamSession[]>;
-    getByShareToken: (token: string) => Promise<[] | [ExamSession]>;
+    createSession:     (config: ExamConfig, qIds: string[]) => Promise<{ ok: ExamSession } | { err: string }>;
+    submitExam:        (id: string, answers: AnswerRecord[]) => Promise<{ ok: ExamSession } | { err: string }>;
+    getMyExams:        () => Promise<ExamSession[]>;
+    getByShareToken:   (token: string) => Promise<[] | [ExamSession]>;
+    listExamTemplates: (sportId: string) => Promise<ExamTemplate[]>;
+    getExamTemplate:   (id: string) => Promise<[] | [ExamTemplate]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -111,4 +132,28 @@ export const examService = {
     const res = await actor().getByShareToken(token);
     return res.length ? res[0] : null;
   },
+
+  async listExamTemplates(sportId: string): Promise<ExamTemplate[]> {
+    if (!CANISTER_ID) return [];
+    return actor().listExamTemplates(sportId);
+  },
+
+  async getExamTemplate(id: string): Promise<ExamTemplate | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getExamTemplate(id);
+    return res.length ? res[0] : null;
+  },
+};
+
+// Fallback used when no admin-configured template exists yet (e.g. before
+// the first `scripts/seed-content.mjs` run) — mirrors the standard NCAA
+// certification format from issue #16's acceptance criteria.
+export const DEFAULT_CERT_TEMPLATE: Omit<ExamTemplate, "id" | "createdAt"> = {
+  name:             "NCAA Men's Basketball Certification Exam",
+  sportId:          "ncaa_basketball",
+  questionCount:    100n,
+  timeLimitSec:     5400n, // 90 minutes
+  casebookRatioPct: 40n,
+  passThresholdPct: 75n,
+  articleWeights: Array.from({ length: 10 }, (_, i) => [`ncaa_basketball:art${i + 1}`, 1n] as [string, bigint]),
 };
