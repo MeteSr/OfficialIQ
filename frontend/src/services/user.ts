@@ -13,6 +13,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const ArticleProgress = I.Record({ articleId: I.Text, lastStudied: I.Int, timesStudied: I.Nat, masteryScore: I.Nat });
   const WeeklySchedule  = I.Record({ dueThisWeek: I.Vec(I.Text), overdue: I.Vec(I.Text), weekNumber: I.Nat });
   const WeeklyQuizResult = I.Record({ weekNumber: I.Nat, newScore: I.Nat, retentionScore: I.Nat, completedAt: I.Int });
+  const MonthlyQuizResult = I.Record({ month: I.Nat, score: I.Nat, articleScores: I.Vec(I.Tuple(I.Text, I.Nat)), completedAt: I.Int });
   return I.Service({
     createProfile:        I.Func([ProfileUpd],       [ResultP],        []),
     updateProfile:        I.Func([ProfileUpd],       [ResultP],        []),
@@ -21,10 +22,12 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     setStudyPace:         I.Func([I.Nat],             [ResultPace],     []),
     recordArticleStudied: I.Func([I.Text, I.Nat],    [],               []),
     recordWeeklyQuizResult: I.Func([I.Nat, I.Nat, I.Nat], [],          []),
+    recordMonthlyQuizResult: I.Func([I.Nat, I.Nat, I.Vec(I.Tuple(I.Text, I.Nat))], [], []),
     getMyStudyPace:       I.Func([],                 [I.Opt(StudyPace)], ["query"]),
     getMyProgress:        I.Func([],                 [I.Vec(ArticleProgress)], ["query"]),
     getWeeklySchedule:    I.Func([I.Vec(I.Text)],     [WeeklySchedule], ["query"]),
     getWeeklyQuizHistory: I.Func([],                 [I.Vec(WeeklyQuizResult)], ["query"]),
+    getMonthlyQuizHistory: I.Func([],                [I.Vec(MonthlyQuizResult)], ["query"]),
     metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
@@ -47,6 +50,7 @@ export type StudyPace = { articlesPerWeek: bigint; startDate: bigint };
 export type ArticleProgress = { articleId: string; lastStudied: bigint; timesStudied: bigint; masteryScore: bigint };
 export type WeeklySchedule = { dueThisWeek: string[]; overdue: string[]; weekNumber: bigint };
 export type WeeklyQuizResult = { weekNumber: bigint; newScore: bigint; retentionScore: bigint; completedAt: bigint };
+export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [string, bigint][]; completedAt: bigint };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -73,10 +77,12 @@ function actor() {
     setStudyPace:         (n: bigint)        => Promise<{ ok: StudyPace } | { err: string }>;
     recordArticleStudied: (articleId: string, score: bigint) => Promise<undefined>;
     recordWeeklyQuizResult: (weekNumber: bigint, newScore: bigint, retentionScore: bigint) => Promise<undefined>;
+    recordMonthlyQuizResult: (month: bigint, score: bigint, articleScores: [string, bigint][]) => Promise<undefined>;
     getMyStudyPace:       ()                 => Promise<[] | [StudyPace]>;
     getMyProgress:        ()                 => Promise<ArticleProgress[]>;
     getWeeklySchedule:    (ids: string[])    => Promise<WeeklySchedule>;
     getWeeklyQuizHistory: ()                 => Promise<WeeklyQuizResult[]>;
+    getMonthlyQuizHistory: ()                => Promise<MonthlyQuizResult[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -143,5 +149,18 @@ export const userService = {
   async getWeeklyQuizHistory(): Promise<WeeklyQuizResult[]> {
     if (!CANISTER_ID) return [];
     return actor().getWeeklyQuizHistory();
+  },
+
+  async recordMonthlyQuizResult(month: number, score: number, articleScores: [string, number][]): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().recordMonthlyQuizResult(
+      BigInt(month), BigInt(Math.round(score)),
+      articleScores.map(([id, s]) => [id, BigInt(Math.round(s))] as [string, bigint]),
+    );
+  },
+
+  async getMonthlyQuizHistory(): Promise<MonthlyQuizResult[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMonthlyQuizHistory();
   },
 };

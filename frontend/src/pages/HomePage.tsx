@@ -6,6 +6,7 @@ import { challengeService, type Challenge } from "../services/challenge";
 import { rankingService, type UserStats } from "../services/ranking";
 import { userService, type StudyPace, type WeeklySchedule } from "../services/user";
 import { contentService, type Article } from "../services/content";
+import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
 
 export default function HomePage() {
   const navigate   = useNavigate();
@@ -195,6 +196,25 @@ export default function HomePage() {
               {continueLabel}
             </button>
           </div>
+        )}
+
+        {/* Monthly exam banner — surfaces only during its open window */}
+        {isInLastFiveDaysOfMonth(new Date()) && (
+          <button
+            onClick={() => navigate("/monthly-quiz")}
+            style={{
+              width: "100%", padding: "14px 16px", marginBottom: 12,
+              background: T.navy, color: T.white, borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              border: "none", textAlign: "left",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>📊 Monthly Comprehensive Exam is open</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>50 questions · trend vs last month</div>
+            </div>
+            <span style={{ fontSize: 18 }}>›</span>
+          </button>
         )}
 
         {/* Quick actions */}

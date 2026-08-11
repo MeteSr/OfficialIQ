@@ -59,12 +59,20 @@ persistent actor User {
     completedAt    : Int;
   };
 
+  public type MonthlyQuizResult = {
+    month         : Nat; // YYYYMM, e.g. 202608
+    score         : Nat;
+    articleScores : [(Text, Nat)];
+    completedAt   : Int;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var profiles          : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
-  var studyPaces         : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
-  var progress           : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
-  var weeklyQuizHistory  : Map.Map<Principal, [WeeklyQuizResult]> = Map.empty<Principal, [WeeklyQuizResult]>();
+  var profiles           : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
+  var studyPaces          : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
+  var progress            : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
+  var weeklyQuizHistory   : Map.Map<Principal, [WeeklyQuizResult]> = Map.empty<Principal, [WeeklyQuizResult]>();
+  var monthlyQuizHistory  : Map.Map<Principal, [MonthlyQuizResult]> = Map.empty<Principal, [MonthlyQuizResult]>();
 
   let WEEK_NS : Nat = 7 * 24 * 3600 * 1_000_000_000;
 
@@ -140,6 +148,12 @@ persistent actor User {
     Map.add(weeklyQuizHistory, Principal.compare, caller, Array.concat<WeeklyQuizResult>(existing, [entry]));
   };
 
+  public shared ({ caller }) func recordMonthlyQuizResult(month : Nat, score : Nat, articleScores : [(Text, Nat)]) : async () {
+    let existing = switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
+    let entry : MonthlyQuizResult = { month; score; articleScores; completedAt = Time.now() };
+    Map.add(monthlyQuizHistory, Principal.compare, caller, Array.concat<MonthlyQuizResult>(existing, [entry]));
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -160,6 +174,10 @@ persistent actor User {
 
   public shared query ({ caller }) func getWeeklyQuizHistory() : async [WeeklyQuizResult] {
     switch (Map.get(weeklyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] }
+  };
+
+  public shared query ({ caller }) func getMonthlyQuizHistory() : async [MonthlyQuizResult] {
+    switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] }
   };
 
   // Caller supplies the full, stably-ordered list of article ids (from the
