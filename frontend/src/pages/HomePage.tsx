@@ -179,7 +179,11 @@ export default function HomePage() {
               </div>
             )}
             <button
-              onClick={() => navigate(nextArticleId ? `/quiz/${nextArticleId}` : "/study")}
+              onClick={() => {
+                if (!nextArticleId) navigate("/study");
+                else if (isCatchingUp) navigate(`/quiz/${nextArticleId}`);
+                else navigate("/weekly-quiz");
+              }}
               disabled={!nextArticleId}
               style={{
                 width: "100%", padding: "13px 0",

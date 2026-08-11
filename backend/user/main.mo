@@ -52,11 +52,19 @@ persistent actor User {
     weekNumber  : Nat;
   };
 
+  public type WeeklyQuizResult = {
+    weekNumber     : Nat;
+    newScore       : Nat;
+    retentionScore : Nat;
+    completedAt    : Int;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var profiles   : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
-  var studyPaces : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
-  var progress   : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
+  var profiles          : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
+  var studyPaces         : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
+  var progress           : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
+  var weeklyQuizHistory  : Map.Map<Principal, [WeeklyQuizResult]> = Map.empty<Principal, [WeeklyQuizResult]>();
 
   let WEEK_NS : Nat = 7 * 24 * 3600 * 1_000_000_000;
 
@@ -126,6 +134,12 @@ persistent actor User {
     Map.add(progress, Principal.compare, caller, final);
   };
 
+  public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
+    let existing = switch (Map.get(weeklyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
+    let entry : WeeklyQuizResult = { weekNumber; newScore; retentionScore; completedAt = Time.now() };
+    Map.add(weeklyQuizHistory, Principal.compare, caller, Array.concat<WeeklyQuizResult>(existing, [entry]));
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -142,6 +156,10 @@ persistent actor User {
 
   public shared query ({ caller }) func getMyProgress() : async [ArticleProgress] {
     switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] }
+  };
+
+  public shared query ({ caller }) func getWeeklyQuizHistory() : async [WeeklyQuizResult] {
+    switch (Map.get(weeklyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] }
   };
 
   // Caller supplies the full, stably-ordered list of article ids (from the

@@ -12,17 +12,20 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const ResultPace  = I.Variant({ ok: StudyPace, err: I.Text });
   const ArticleProgress = I.Record({ articleId: I.Text, lastStudied: I.Int, timesStudied: I.Nat, masteryScore: I.Nat });
   const WeeklySchedule  = I.Record({ dueThisWeek: I.Vec(I.Text), overdue: I.Vec(I.Text), weekNumber: I.Nat });
+  const WeeklyQuizResult = I.Record({ weekNumber: I.Nat, newScore: I.Nat, retentionScore: I.Nat, completedAt: I.Int });
   return I.Service({
-    createProfile:       I.Func([ProfileUpd],       [ResultP],        []),
-    updateProfile:       I.Func([ProfileUpd],       [ResultP],        []),
-    getMyProfile:        I.Func([],                 [I.Opt(Profile)], ["query"]),
-    getProfile:          I.Func([I.Principal],      [I.Opt(Profile)], ["query"]),
-    setStudyPace:        I.Func([I.Nat],             [ResultPace],     []),
+    createProfile:        I.Func([ProfileUpd],       [ResultP],        []),
+    updateProfile:        I.Func([ProfileUpd],       [ResultP],        []),
+    getMyProfile:         I.Func([],                 [I.Opt(Profile)], ["query"]),
+    getProfile:           I.Func([I.Principal],      [I.Opt(Profile)], ["query"]),
+    setStudyPace:         I.Func([I.Nat],             [ResultPace],     []),
     recordArticleStudied: I.Func([I.Text, I.Nat],    [],               []),
-    getMyStudyPace:      I.Func([],                 [I.Opt(StudyPace)], ["query"]),
-    getMyProgress:       I.Func([],                 [I.Vec(ArticleProgress)], ["query"]),
-    getWeeklySchedule:   I.Func([I.Vec(I.Text)],     [WeeklySchedule], ["query"]),
-    metrics:             I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
+    recordWeeklyQuizResult: I.Func([I.Nat, I.Nat, I.Nat], [],          []),
+    getMyStudyPace:       I.Func([],                 [I.Opt(StudyPace)], ["query"]),
+    getMyProgress:        I.Func([],                 [I.Vec(ArticleProgress)], ["query"]),
+    getWeeklySchedule:    I.Func([I.Vec(I.Text)],     [WeeklySchedule], ["query"]),
+    getWeeklyQuizHistory: I.Func([],                 [I.Vec(WeeklyQuizResult)], ["query"]),
+    metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
 
@@ -43,6 +46,7 @@ export type ProfileUpdate = { displayName: string; sport: string; level: string;
 export type StudyPace = { articlesPerWeek: bigint; startDate: bigint };
 export type ArticleProgress = { articleId: string; lastStudied: bigint; timesStudied: bigint; masteryScore: bigint };
 export type WeeklySchedule = { dueThisWeek: string[]; overdue: string[]; weekNumber: bigint };
+export type WeeklyQuizResult = { weekNumber: bigint; newScore: bigint; retentionScore: bigint; completedAt: bigint };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -68,9 +72,11 @@ function actor() {
     getProfile:           (p: any)           => Promise<[] | [UserProfile]>;
     setStudyPace:         (n: bigint)        => Promise<{ ok: StudyPace } | { err: string }>;
     recordArticleStudied: (articleId: string, score: bigint) => Promise<undefined>;
+    recordWeeklyQuizResult: (weekNumber: bigint, newScore: bigint, retentionScore: bigint) => Promise<undefined>;
     getMyStudyPace:       ()                 => Promise<[] | [StudyPace]>;
     getMyProgress:        ()                 => Promise<ArticleProgress[]>;
     getWeeklySchedule:    (ids: string[])    => Promise<WeeklySchedule>;
+    getWeeklyQuizHistory: ()                 => Promise<WeeklyQuizResult[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -127,5 +133,15 @@ export const userService = {
   async getWeeklySchedule(allArticleIds: string[]): Promise<WeeklySchedule> {
     if (!CANISTER_ID) return { dueThisWeek: allArticleIds.slice(0, 2), overdue: [], weekNumber: 1n };
     return actor().getWeeklySchedule(allArticleIds);
+  },
+
+  async recordWeeklyQuizResult(weekNumber: number, newScore: number, retentionScore: number): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().recordWeeklyQuizResult(BigInt(weekNumber), BigInt(Math.round(newScore)), BigInt(Math.round(retentionScore)));
+  },
+
+  async getWeeklyQuizHistory(): Promise<WeeklyQuizResult[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getWeeklyQuizHistory();
   },
 };
