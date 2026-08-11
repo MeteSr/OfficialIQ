@@ -187,6 +187,7 @@ export default function WeeklyQuizPage() {
     const newScore = newAnswers.length ? Math.round((newAnswers.filter(a => a.correct).length / newAnswers.length) * 100) : 0;
     const retentionScore = retentionAnswers.length ? Math.round((retentionAnswers.filter(a => a.correct).length / retentionAnswers.length) * 100) : 0;
     const overallScore = Math.round((updated.filter(a => a.correct).length / updated.length) * 100);
+    rankingService.recordQuestionsAnswered(updated.length).catch(() => {});
 
     const byArticle = new Map<string, { correct: number; total: number }>();
     updated.forEach(({ q, correct }) => {

@@ -171,6 +171,9 @@ export default function QuizPage() {
       questionService.recordAnswer(questionId, isCorrect).catch(() =>
         enqueuePendingAction({ kind: "recordAnswer", questionId, isCorrect }),
       );
+      // Feeds the "Speed Demon" and "Casebook King" badges — best effort,
+      // not queued offline since it's a minor cosmetic counter.
+      rankingService.recordAnswerSignal(isCorrect, timerSeconds - timeLeft, currentQ.isCasebook).catch(() => {});
     }
   }, [chosen, currentQ, timeLeft, timerSeconds, principal]);
 
@@ -211,6 +214,7 @@ export default function QuizPage() {
           displayName: profile.displayName, sport: profile.sport, state: profile.state || "TX",
           avgElapsedSec,
         }));
+        rankingService.recordQuestionsAnswered(finalAnswers.length).catch(() => {});
 
         // Attribute progress per-article (a session can span several
         // articles), scored by that article's own accuracy within this quiz.

@@ -3,15 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { challengeService, type Challenge } from "../services/challenge";
-import { rankingService, type UserStats } from "../services/ranking";
+import { rankingService, type UserStats, type DailyActivity } from "../services/ranking";
 import { userService, type StudyPace, type WeeklySchedule } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
+
+const STREAK_MILESTONES = [100, 30, 7];
+const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
 
 export default function HomePage() {
   const navigate   = useNavigate();
   const { profile, principal, isAuthenticated } = useAuthStore();
   const [stats,      setStats]      = useState<UserStats | null>(null);
+  const [dailyStreak, setDailyStreak] = useState<DailyActivity | null>(null);
+  const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [names,       setNames]     = useState<Record<string, string>>({});
   const [accepting,   setAccepting] = useState<string | null>(null);
@@ -51,7 +56,20 @@ export default function HomePage() {
 
   useEffect(() => {
     rankingService.getMyStats().then(setStats).catch(() => {});
-    if (principal) refreshChallenges();
+    if (principal) {
+      rankingService.getDailyStreak().then((activity) => {
+        setDailyStreak(activity);
+        if (!activity) return;
+        const current = Number(activity.currentStreak);
+        const seen = Number(localStorage.getItem(STREAK_MILESTONE_KEY) ?? "0");
+        const hit = STREAK_MILESTONES.find(m => current >= m && m > seen);
+        if (hit) {
+          setMilestoneToast(`🔥 ${hit}-day streak! Keep it going.`);
+          localStorage.setItem(STREAK_MILESTONE_KEY, String(hit));
+        }
+      }).catch(() => {});
+      refreshChallenges();
+    }
     if (isAuthenticated && profile) refreshSchedule();
   }, [isAuthenticated, principal, !!profile]);
 
@@ -68,7 +86,7 @@ export default function HomePage() {
   }
 
   const pending = challenges.filter(c => "Pending" in c.status && c.challenged.toString() === principal);
-  const streak  = stats?.streak ?? 14n;
+  const streak  = dailyStreak?.currentStreak ?? stats?.streak ?? 14n;
   const accuracy = stats ? Math.round(stats.accuracy * 100) : 84;
 
   const articleTitle = (id: string) => {
@@ -91,6 +109,17 @@ export default function HomePage() {
 
   return (
     <div style={{ paddingBottom: 16 }}>
+      {milestoneToast && (
+        <div
+          onClick={() => setMilestoneToast(null)}
+          style={{
+            background: T.red, color: T.white, textAlign: "center",
+            padding: "8px 16px", fontSize: 13, fontWeight: 700,
+          }}
+        >
+          {milestoneToast}
+        </div>
+      )}
       {/* Header */}
       <div style={{
         background: T.navy, color: T.white,

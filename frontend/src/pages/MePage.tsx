@@ -5,6 +5,8 @@ import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
 import { userService } from "../services/user";
+import { challengeService } from "../services/challenge";
+import { computeBadges, type Badge } from "../lib/badges";
 import { Principal } from "@icp-sdk/core/principal";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
@@ -99,11 +101,25 @@ export default function MePage() {
   const [addFriendInput, setAddFriendInput] = useState("");
   const [addFriendError, setAddFriendError] = useState<string | null>(null);
   const [copied,         setCopied]         = useState(false);
+  const [badges,         setBadges]         = useState<Badge[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !principal) return;
+    Promise.all([
+      rankingService.getDailyStreak().catch(() => null),
+      rankingService.getSkillCounters().catch(() => null),
+      rankingService.getMyStats().catch(() => null),
+      userService.getWeeklyQuizHistory().catch(() => []),
+      challengeService.getMyChallenges().catch(() => []),
+    ]).then(([dailyStreak, skills, myStats, weeklyHistory, challenges]) => {
+      setBadges(computeBadges({ dailyStreak, skills, stats: myStats, weeklyHistory, challenges, myPrincipal: principal }));
+    });
+  }, [isAuthenticated, principal]);
 
   async function loadFriends() {
     setFriendsLoading(true);
@@ -352,7 +368,44 @@ export default function MePage() {
         </div>
       )}
 
+      {badges.length > 0 && (
+        <div style={{ padding: "16px 16px 0" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+            Badges — {badges.filter(b => b.earned).length}/{badges.length}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            {badges.map((b) => (
+              <div
+                key={b.id}
+                title={b.description}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                  padding: "10px 4px", background: b.earned ? T.surface : T.bg,
+                  border: `1px solid ${b.earned ? T.navy : T.border}`, borderRadius: 8,
+                  opacity: b.earned ? 1 : 0.45,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>{b.icon}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{b.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: "12px 16px 0" }}>
+        <button
+          onClick={() => navigate("/groups")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          👥 Study Groups
+          <span style={{ color: T.muted }}>›</span>
+        </button>
         <button
           onClick={() => navigate("/progress")}
           style={{

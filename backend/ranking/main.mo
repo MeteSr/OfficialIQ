@@ -2,6 +2,7 @@ import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import VarArray "mo:core/VarArray";
+import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Float "mo:core/Float";
@@ -46,6 +47,49 @@ persistent actor Ranking {
 
   public type SortKey = { #Elo; #Accuracy; #Speed };
 
+  // Consecutive-day activity streak: extended once per calendar day the
+  // first time that day's answered-question count reaches the threshold.
+  public type DailyActivity = {
+    currentStreak     : Nat;
+    longestStreak     : Nat;
+    activityDay       : Int; // day number (Time.now() / DAY_NS) answeredToday belongs to
+    answeredToday     : Nat;
+    lastQualifyingDay : Int; // day number the streak was last extended; -1 if never
+  };
+
+  public type SkillCounters = {
+    casebookCorrect : Nat;
+    casebookTotal   : Nat;
+    speedStreak     : Nat; // current consecutive correct-and-under-10s answers
+    bestSpeedStreak : Nat;
+  };
+
+  public type Group = {
+    id          : Text;
+    name        : Text;
+    sport       : Text;
+    state       : Text;
+    isPrivate   : Bool;
+    owner       : Principal;
+    memberCount : Nat;
+    createdAt   : Int;
+  };
+
+  public type GroupChallenge = {
+    id        : Text;
+    groupId   : Text;
+    title     : Text;
+    deadline  : Int;
+    createdAt : Int;
+  };
+
+  public type GroupLeaderboardEntry = {
+    rank           : Nat;
+    principal      : Principal;
+    displayName    : Text;
+    weeklyAccuracy : Float;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var stats : Map.Map<Principal, UserStats> = Map.empty<Principal, UserStats>();
@@ -54,7 +98,20 @@ persistent actor Ranking {
 
   var examHistory : Map.Map<Principal, [EloSnapshot]> = Map.empty<Principal, [EloSnapshot]>();
 
+  var dailyActivity : Map.Map<Principal, DailyActivity> = Map.empty<Principal, DailyActivity>();
+
+  var skillCounters : Map.Map<Principal, SkillCounters> = Map.empty<Principal, SkillCounters>();
+
+  var groups          : Map.Map<Text, Group> = Map.empty<Text, Group>();
+  var groupMembers    : Map.Map<Text, [Principal]> = Map.empty<Text, [Principal]>();
+  var myGroupIds      : Map.Map<Principal, [Text]> = Map.empty<Principal, [Text]>();
+  var groupChallenges : Map.Map<Text, [GroupChallenge]> = Map.empty<Text, [GroupChallenge]>();
+
+  var nextGroupId          : Nat = 0;
+  var nextGroupChallengeId : Nat = 0;
+
   let MAX_HISTORY : Nat = 60;
+  let DAY_NS : Int = 86_400_000_000_000;
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -166,6 +223,109 @@ persistent actor Ranking {
     #ok(())
   };
 
+  // ─── Daily streak + skill badges ───────────────────────────────────────────
+
+  func defaultActivity() : DailyActivity {
+    { currentStreak = 0; longestStreak = 0; activityDay = 0; answeredToday = 0; lastQualifyingDay = -1 }
+  };
+
+  // Called once per quiz completion with that session's answered-question
+  // count. A day first crosses the >=5 threshold exactly once; from then on
+  // extra answers that day just accumulate in answeredToday for display.
+  public shared ({ caller }) func recordQuestionsAnswered(count : Nat) : async DailyActivity {
+    let today = Time.now() / DAY_NS;
+    let prev = switch (Map.get(dailyActivity, Principal.compare, caller)) { case (?a) a; case null defaultActivity() };
+    let answeredToday = if (prev.activityDay == today) prev.answeredToday + count else count;
+
+    var currentStreak = prev.currentStreak;
+    var lastQualifyingDay = prev.lastQualifyingDay;
+    if (answeredToday >= 5 and prev.lastQualifyingDay != today) {
+      currentStreak := if (prev.lastQualifyingDay == today - 1) prev.currentStreak + 1 else 1;
+      lastQualifyingDay := today;
+    };
+    let longestStreak = if (currentStreak > prev.longestStreak) currentStreak else prev.longestStreak;
+
+    let updated : DailyActivity = { currentStreak; longestStreak; activityDay = today; answeredToday; lastQualifyingDay };
+    Map.add(dailyActivity, Principal.compare, caller, updated);
+    updated
+  };
+
+  // Per-answer signal used for the "Speed Demon" and "Casebook King" badges.
+  public shared ({ caller }) func recordAnswerSignal(isCorrect : Bool, elapsedSec : Nat, isCasebook : Bool) : async () {
+    let prev = switch (Map.get(skillCounters, Principal.compare, caller)) {
+      case (?c) c;
+      case null { { casebookCorrect = 0; casebookTotal = 0; speedStreak = 0; bestSpeedStreak = 0 } };
+    };
+    let casebookCorrect = prev.casebookCorrect + (if (isCasebook and isCorrect) 1 else 0);
+    let casebookTotal   = prev.casebookTotal + (if (isCasebook) 1 else 0);
+    let speedStreak      = if (isCorrect and elapsedSec < 10) prev.speedStreak + 1 else 0;
+    let bestSpeedStreak  = if (speedStreak > prev.bestSpeedStreak) speedStreak else prev.bestSpeedStreak;
+    Map.add(skillCounters, Principal.compare, caller, { casebookCorrect; casebookTotal; speedStreak; bestSpeedStreak });
+  };
+
+  // ─── Study groups ───────────────────────────────────────────────────────────
+
+  public shared ({ caller }) func createGroup(name : Text, sport : Text, state : Text, isPrivate : Bool) : async Result.Result<Group, Text> {
+    let id = "grp" # Nat.toText(nextGroupId);
+    nextGroupId += 1;
+    let g : Group = { id; name; sport; state; isPrivate; owner = caller; memberCount = 1; createdAt = Time.now() };
+    Map.add(groups, Text.compare, id, g);
+    Map.add(groupMembers, Text.compare, id, [caller]);
+    let mine = switch (Map.get(myGroupIds, Principal.compare, caller)) { case (?m) m; case null [] };
+    Map.add(myGroupIds, Principal.compare, caller, Array.concat<Text>(mine, [id]));
+    #ok(g)
+  };
+
+  // Joining a private group requires knowing its id (e.g. a shared link) —
+  // "private" controls listing visibility, not a separate access-control gate.
+  public shared ({ caller }) func joinGroup(groupId : Text) : async Result.Result<Group, Text> {
+    switch (Map.get(groups, Text.compare, groupId)) {
+      case null #err("Group not found");
+      case (?g) {
+        let members = switch (Map.get(groupMembers, Text.compare, groupId)) { case (?m) m; case null [] };
+        if (Array.find<Principal>(members, func(p) { p == caller }) != null) return #err("Already a member");
+        let newMembers = Array.concat<Principal>(members, [caller]);
+        Map.add(groupMembers, Text.compare, groupId, newMembers);
+        let updated = { g with memberCount = newMembers.size() };
+        Map.add(groups, Text.compare, groupId, updated);
+        let mine = switch (Map.get(myGroupIds, Principal.compare, caller)) { case (?m) m; case null [] };
+        Map.add(myGroupIds, Principal.compare, caller, Array.concat<Text>(mine, [groupId]));
+        #ok(updated)
+      };
+    }
+  };
+
+  public shared ({ caller }) func leaveGroup(groupId : Text) : async Result.Result<(), Text> {
+    switch (Map.get(groups, Text.compare, groupId)) {
+      case null #err("Group not found");
+      case (?g) {
+        let members = switch (Map.get(groupMembers, Text.compare, groupId)) { case (?m) m; case null [] };
+        let filtered = Array.filter<Principal>(members, func(p) { p != caller });
+        if (filtered.size() == members.size()) return #err("Not a member");
+        Map.add(groupMembers, Text.compare, groupId, filtered);
+        Map.add(groups, Text.compare, groupId, { g with memberCount = filtered.size() });
+        let mine = switch (Map.get(myGroupIds, Principal.compare, caller)) { case (?m) m; case null [] };
+        Map.add(myGroupIds, Principal.compare, caller, Array.filter<Text>(mine, func(id) { id != groupId }));
+        #ok(())
+      };
+    }
+  };
+
+  public shared ({ caller }) func postGroupChallenge(groupId : Text, title : Text, deadline : Int) : async Result.Result<GroupChallenge, Text> {
+    switch (Map.get(groups, Text.compare, groupId)) {
+      case null #err("Group not found");
+      case (?g) {
+        if (g.owner != caller) return #err("Only the group owner can post a challenge");
+        let id = "gch" # Nat.toText(nextGroupChallengeId);
+        nextGroupChallengeId += 1;
+        let ch : GroupChallenge = { id; groupId; title; deadline; createdAt = Time.now() };
+        let existing = switch (Map.get(groupChallenges, Text.compare, groupId)) { case (?c) c; case null [] };
+        Map.add(groupChallenges, Text.compare, groupId, Array.concat<GroupChallenge>(existing, [ch]));
+        #ok(ch)
+      };
+    }
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getFriendPrincipals() : async [Principal] {
@@ -226,6 +386,75 @@ persistent actor Ranking {
 
   public shared query ({ caller }) func getMyEloHistory() : async [EloSnapshot] {
     switch (Map.get(examHistory, Principal.compare, caller)) { case (?h) h; case null [] }
+  };
+
+  public shared query ({ caller }) func getDailyStreak() : async DailyActivity {
+    let today = Time.now() / DAY_NS;
+    switch (Map.get(dailyActivity, Principal.compare, caller)) {
+      case null defaultActivity();
+      case (?a) {
+        // A gap of more than one day since the streak last extended means it's
+        // broken even without a new mutation call — reflect that at read time.
+        if (a.lastQualifyingDay != -1 and today - a.lastQualifyingDay > 1) ({ a with currentStreak = 0 })
+        else a
+      };
+    }
+  };
+
+  public shared query ({ caller }) func getSkillCounters() : async SkillCounters {
+    switch (Map.get(skillCounters, Principal.compare, caller)) {
+      case (?c) c;
+      case null { { casebookCorrect = 0; casebookTotal = 0; speedStreak = 0; bestSpeedStreak = 0 } };
+    }
+  };
+
+  public query func listPublicGroups(sport : Text) : async [Group] {
+    let buf = List.empty<Group>();
+    for ((_, g) in Map.entries(groups)) {
+      if (g.sport == sport and not g.isPrivate) { List.add(buf, g) };
+    };
+    List.toArray<Group>(buf)
+  };
+
+  public shared query ({ caller }) func getMyGroups() : async [Group] {
+    let ids = switch (Map.get(myGroupIds, Principal.compare, caller)) { case (?m) m; case null [] };
+    Array.filterMap<Text, Group>(ids, func(id) { Map.get(groups, Text.compare, id) })
+  };
+
+  public query func getGroup(groupId : Text) : async ?Group {
+    Map.get(groups, Text.compare, groupId)
+  };
+
+  public query func getGroupChallenges(groupId : Text) : async [GroupChallenge] {
+    switch (Map.get(groupChallenges, Text.compare, groupId)) { case (?c) c; case null [] }
+  };
+
+  func weeklyAccuracy(p : Principal) : Float {
+    let history = switch (Map.get(examHistory, Principal.compare, p)) { case (?h) h; case null [] };
+    let cutoff = Time.now() - 7 * DAY_NS;
+    let recent = Array.filter<EloSnapshot>(history, func(s) { s.timestamp >= cutoff });
+    if (recent.size() == 0) {
+      switch (Map.get(stats, Principal.compare, p)) { case (?s) s.accuracy; case null 0.0 }
+    } else {
+      var sum = 0.0;
+      for (s in recent.vals()) { sum += s.accuracy };
+      sum / Float.fromInt(recent.size())
+    }
+  };
+
+  // Members ranked by accuracy averaged over exams from the last 7 days
+  // (falling back to all-time accuracy for members with no recent exams).
+  public query func getGroupLeaderboard(groupId : Text) : async [GroupLeaderboardEntry] {
+    let members = switch (Map.get(groupMembers, Text.compare, groupId)) { case (?m) m; case null [] };
+    let buf = List.empty<GroupLeaderboardEntry>();
+    for (p in members.vals()) {
+      let displayName = switch (Map.get(stats, Principal.compare, p)) { case (?s) s.displayName; case null "Member" };
+      List.add(buf, { rank = 0; principal = p; displayName; weeklyAccuracy = weeklyAccuracy(p) });
+    };
+    let sorted = Array.sort<GroupLeaderboardEntry>(List.toArray<GroupLeaderboardEntry>(buf), func(a, b) {
+      if (a.weeklyAccuracy > b.weeklyAccuracy) #less else if (a.weeklyAccuracy < b.weeklyAccuracy) #greater else #equal
+    });
+    Array.mapEntries<GroupLeaderboardEntry, GroupLeaderboardEntry>(sorted, func(e, i) { ({ e with rank = i + 1 }) })
   };
 
   public query func metrics() : async { userCount : Nat } {

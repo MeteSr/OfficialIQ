@@ -65,7 +65,12 @@ export default function RanksPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 20, fontWeight: 700 }}>
             🏆 Rankings
           </div>
-          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Aug 2025</span>
+          <button
+            onClick={() => navigate("/groups")}
+            style={{ fontSize: 13, color: T.white, background: "rgba(255,255,255,0.12)", borderRadius: 12, padding: "5px 10px", fontWeight: 600 }}
+          >
+            👥 Groups
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: 4 }}>
