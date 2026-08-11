@@ -45,7 +45,7 @@ const contentIdlFactory = ({ IDL: I }) => {
   const PlayInput = I.Record({ articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text, diagram: I.Opt(Diagram) });
   const CasebookPlay = I.Record({
     id: I.Text, articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text,
-    audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram),
+    audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram), videoUrl: I.Opt(I.Text),
   });
   const PoeInput = I.Record({ season: I.Text, title: I.Text, body: I.Text, linkedArticleIds: I.Vec(I.Text) });
   const Poe = I.Record({

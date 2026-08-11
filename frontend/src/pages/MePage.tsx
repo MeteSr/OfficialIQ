@@ -115,10 +115,12 @@ export default function MePage() {
   const [storage,           setStorage]           = useState<StorageBreakdown | null>(null);
   const [downloadedArticles, setDownloadedArticles] = useState<Article[]>([]);
   const [clearingStorage,   setClearingStorage]   = useState(false);
+  const [isContentAdmin,   setIsContentAdmin]     = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
+    contentService.isAdmin().then(setIsContentAdmin).catch(() => {});
   }, [isAuthenticated]);
 
   function loadStorage() {
@@ -531,7 +533,7 @@ export default function MePage() {
           onClick={() => navigate("/association")}
           style={{
             width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8,
+            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
             display: "flex", alignItems: "center", justifyContent: "space-between",
             fontSize: 13, fontWeight: 600,
           }}
@@ -539,6 +541,32 @@ export default function MePage() {
           🏛️ Associations
           <span style={{ color: T.muted }}>›</span>
         </button>
+        <button
+          onClick={() => navigate("/submit-clip")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          🎬 Submit a Video Clip
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+        {isContentAdmin && (
+          <button
+            onClick={() => navigate("/moderation")}
+            style={{
+              width: "100%", padding: "12px 14px", background: T.surface,
+              border: `1px solid ${T.border}`, borderRadius: 8, marginTop: 10,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              fontSize: 13, fontWeight: 600,
+            }}
+          >
+            🗂️ Clip Moderation Queue
+            <span style={{ color: T.muted }}>›</span>
+          </button>
+        )}
       </div>
 
       {/* Friends */}

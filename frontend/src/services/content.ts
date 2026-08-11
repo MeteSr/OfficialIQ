@@ -43,6 +43,7 @@ export type CasebookPlay = {
   ruling:    string;
   audioUrl:  [] | [string];
   diagram:   [] | [CourtDiagram];
+  videoUrl:  [] | [string];
 };
 
 export type PointOfEmphasis = {
@@ -74,6 +75,19 @@ export type MechanicsScenario = {
   createdAt:   bigint;
 };
 
+export type SubmissionStatus = { Pending: null } | { Approved: null } | { Rejected: null };
+
+export type VideoSubmission = {
+  id:           string;
+  submitter:    import("@icp-sdk/core/principal").Principal;
+  citation:     string;
+  clipUrl:      string;
+  status:       SubmissionStatus;
+  linkedPlayId: [] | [string];
+  createdAt:    bigint;
+  reviewedAt:   [] | [bigint];
+};
+
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
@@ -90,6 +104,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Play = I.Record({
     id: I.Text, articleId: I.Text, citation: I.Text,
     scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram),
+    videoUrl: I.Opt(I.Text),
   });
   const Poe = I.Record({
     id: I.Text, season: I.Text, title: I.Text, body: I.Text,
@@ -102,6 +117,13 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     id: I.Text, crewSize: I.Nat, title: I.Text, description: I.Text,
     players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone), createdAt: I.Int,
   });
+  const Status = I.Variant({ Pending: I.Null, Approved: I.Null, Rejected: I.Null });
+  const Submission = I.Record({
+    id: I.Text, submitter: I.Principal, citation: I.Text, clipUrl: I.Text,
+    status: Status, linkedPlayId: I.Opt(I.Text), createdAt: I.Int, reviewedAt: I.Opt(I.Int),
+  });
+  const ResultSubmission = I.Variant({ ok: Submission, err: I.Text });
+  const ResultSubmissions = I.Variant({ ok: I.Vec(Submission), err: I.Text });
   return I.Service({
     getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
     getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
@@ -110,6 +132,12 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     listPointsOfEmphasis: I.Func([I.Text],        [I.Vec(Poe)],           ["query"]),
     listMechanicsScenarios: I.Func([],            [I.Vec(Scenario)],      ["query"]),
     getMechanicsScenario: I.Func([I.Text],        [I.Opt(Scenario)],      ["query"]),
+    isAdminCaller:        I.Func([],              [I.Bool],               ["query"]),
+    submitVideoClip:      I.Func([I.Text, I.Text], [ResultSubmission],    []),
+    getMySubmissions:     I.Func([],              [I.Vec(Submission)],    ["query"]),
+    listPendingSubmissions: I.Func([],            [ResultSubmissions],    ["query"]),
+    approveSubmission:    I.Func([I.Text, I.Text], [ResultSubmission],    []),
+    rejectSubmission:     I.Func([I.Text],        [ResultSubmission],     []),
     metrics:             I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
   });
 };
@@ -137,6 +165,12 @@ function actor() {
     listPointsOfEmphasis: (season: string) => Promise<PointOfEmphasis[]>;
     listMechanicsScenarios: () => Promise<MechanicsScenario[]>;
     getMechanicsScenario: (id: string) => Promise<[] | [MechanicsScenario]>;
+    isAdminCaller:        () => Promise<boolean>;
+    submitVideoClip:      (citation: string, clipUrl: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
+    getMySubmissions:     () => Promise<VideoSubmission[]>;
+    listPendingSubmissions: () => Promise<{ ok: VideoSubmission[] } | { err: string }>;
+    approveSubmission:    (id: string, playId: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
+    rejectSubmission:     (id: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -213,5 +247,47 @@ export const contentService = {
     if (!CANISTER_ID) return null;
     const res = await actor().getMechanicsScenario(id);
     return res.length ? res[0] : null;
+  },
+
+  async isAdmin(): Promise<boolean> {
+    if (!CANISTER_ID) return false;
+    try {
+      return await actor().isAdminCaller();
+    } catch {
+      return false;
+    }
+  },
+
+  async submitVideoClip(citation: string, clipUrl: string): Promise<VideoSubmission> {
+    if (!CANISTER_ID) throw new Error("Content canister not deployed");
+    const res = await actor().submitVideoClip(citation, clipUrl);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async getMySubmissions(): Promise<VideoSubmission[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMySubmissions();
+  },
+
+  async listPendingSubmissions(): Promise<VideoSubmission[]> {
+    if (!CANISTER_ID) return [];
+    const res = await actor().listPendingSubmissions();
+    if ("err" in res) return [];
+    return res.ok;
+  },
+
+  async approveSubmission(id: string, playId: string): Promise<VideoSubmission> {
+    if (!CANISTER_ID) throw new Error("Content canister not deployed");
+    const res = await actor().approveSubmission(id, playId);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async rejectSubmission(id: string): Promise<VideoSubmission> {
+    if (!CANISTER_ID) throw new Error("Content canister not deployed");
+    const res = await actor().rejectSubmission(id);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 };

@@ -48,8 +48,8 @@ describe("offlineDb: article cache", () => {
 
 describe("offlineDb: casebook play cache", () => {
   it("indexes plays by articleId", async () => {
-    const playA: CasebookPlay = { id: "test:playA", articleId: "test:art-plays-1", citation: "c1", scenario: "s1", ruling: "r1", audioUrl: [], diagram: [] };
-    const playB: CasebookPlay = { id: "test:playB", articleId: "test:art-plays-2", citation: "c2", scenario: "s2", ruling: "r2", audioUrl: [], diagram: [] };
+    const playA: CasebookPlay = { id: "test:playA", articleId: "test:art-plays-1", citation: "c1", scenario: "s1", ruling: "r1", audioUrl: [], diagram: [], videoUrl: [] };
+    const playB: CasebookPlay = { id: "test:playB", articleId: "test:art-plays-2", citation: "c2", scenario: "s2", ruling: "r2", audioUrl: [], diagram: [], videoUrl: [] };
     await cachePlays([playA, playB]);
 
     const forArt1 = await getCachedPlays("test:art-plays-1");

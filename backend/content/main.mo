@@ -1,4 +1,5 @@
 import Map "mo:core/Map";
+import List "mo:core/List";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import VarArray "mo:core/VarArray";
@@ -54,6 +55,10 @@ persistent actor Content {
     ruling    : Text;
     audioUrl  : ?Text;
     diagram   : ?CourtDiagram;
+    // Points at a hosted clip (Cloudflare R2 or similar CDN in production;
+    // a same-origin asset path also works, e.g. "/clips/foo.mp4") — unlike
+    // audio, video isn't stored on-chain as a Blob, just referenced by URL.
+    videoUrl  : ?Text;
   };
 
   public type ArticleInput = {
@@ -122,6 +127,21 @@ persistent actor Content {
     zones       : [MechanicsZone];
   };
 
+  // ── Community video submissions (issue #21, phase 3b) ────────────────────
+
+  public type SubmissionStatus = { #Pending; #Approved; #Rejected };
+
+  public type VideoSubmission = {
+    id           : Text;
+    submitter    : Principal;
+    citation     : Text; // article/casebook citation the clip is meant to illustrate
+    clipUrl      : Text;
+    status       : SubmissionStatus;
+    linkedPlayId : ?Text; // set once approved and linked to a specific play
+    createdAt    : Int;
+    reviewedAt   : ?Int;
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var articles : Map.Map<ArticleId, Article> = Map.empty<ArticleId, Article>();
@@ -139,9 +159,12 @@ persistent actor Content {
 
   var scenarios : Map.Map<Text, MechanicsScenario> = Map.empty<Text, MechanicsScenario>();
 
+  var submissions : Map.Map<Text, VideoSubmission> = Map.empty<Text, VideoSubmission>();
+
   var nextPlayId : Nat = 0;
   var nextPoeId : Nat = 0;
   var nextScenarioId : Nat = 0;
+  var nextSubmissionId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
   // ─── Admin guards ─────────────────────────────────────────────────────────
@@ -158,6 +181,10 @@ persistent actor Content {
 
   func isAdmin(p : Principal) : Bool {
     switch adminPrincipal { case (?a) a == p; case null false }
+  };
+
+  public shared query ({ caller }) func isAdminCaller() : async Bool {
+    isAdmin(caller)
   };
 
   // ─── Mutations ────────────────────────────────────────────────────────────
@@ -194,9 +221,64 @@ persistent actor Content {
       ruling    = input.ruling;
       audioUrl  = null;
       diagram   = input.diagram;
+      videoUrl  = null;
     };
     Map.add(plays, Text.compare, id, play);
     #ok(play)
+  };
+
+  public shared ({ caller }) func setPlayVideo(id : Text, url : Text) : async Result.Result<CasebookPlay, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    switch (Map.get(plays, Text.compare, id)) {
+      case null #err("Play not found");
+      case (?p) {
+        let updated = { p with videoUrl = ?url };
+        Map.add(plays, Text.compare, id, updated);
+        #ok(updated)
+      };
+    }
+  };
+
+  public shared ({ caller }) func submitVideoClip(citation : Text, clipUrl : Text) : async Result.Result<VideoSubmission, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    let id = "vs" # Nat.toText(nextSubmissionId);
+    nextSubmissionId += 1;
+    let s : VideoSubmission = {
+      id; submitter = caller; citation; clipUrl;
+      status = #Pending; linkedPlayId = null; createdAt = Time.now(); reviewedAt = null;
+    };
+    Map.add(submissions, Text.compare, id, s);
+    #ok(s)
+  };
+
+  public shared ({ caller }) func approveSubmission(id : Text, playId : Text) : async Result.Result<VideoSubmission, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    switch (Map.get(submissions, Text.compare, id)) {
+      case null #err("Submission not found");
+      case (?s) {
+        switch (Map.get(plays, Text.compare, playId)) {
+          case null #err("Target play not found");
+          case (?p) {
+            Map.add(plays, Text.compare, playId, { p with videoUrl = ?s.clipUrl });
+            let updated = { s with status = #Approved; linkedPlayId = ?playId; reviewedAt = ?Time.now() };
+            Map.add(submissions, Text.compare, id, updated);
+            #ok(updated)
+          };
+        }
+      };
+    }
+  };
+
+  public shared ({ caller }) func rejectSubmission(id : Text) : async Result.Result<VideoSubmission, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    switch (Map.get(submissions, Text.compare, id)) {
+      case null #err("Submission not found");
+      case (?s) {
+        let updated = { s with status = #Rejected; reviewedAt = ?Time.now() };
+        Map.add(submissions, Text.compare, id, updated);
+        #ok(updated)
+      };
+    }
   };
 
   public shared ({ caller }) func upsertPointOfEmphasis(input : PoeInput) : async Result.Result<PointOfEmphasis, Text> {
@@ -305,7 +387,7 @@ persistent actor Content {
 
   public query func listPlays(articleId : ArticleId) : async [CasebookPlay] {
     let buf = VarArray.repeat<CasebookPlay>({
-      id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null; diagram = null;
+      id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null; diagram = null; videoUrl = null;
     }, Map.size(plays));
     var i = 0;
     for ((_, p) in Map.entries(plays)) {
@@ -325,6 +407,23 @@ persistent actor Content {
 
   public query func getMechanicsScenario(id : Text) : async ?MechanicsScenario {
     Map.get(scenarios, Text.compare, id)
+  };
+
+  public shared query ({ caller }) func getMySubmissions() : async [VideoSubmission] {
+    let buf = List.empty<VideoSubmission>();
+    for ((_, s) in Map.entries(submissions)) {
+      if (s.submitter == caller) List.add(buf, s);
+    };
+    List.toArray(buf)
+  };
+
+  public shared query ({ caller }) func listPendingSubmissions() : async Result.Result<[VideoSubmission], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let buf = List.empty<VideoSubmission>();
+    for ((_, s) in Map.entries(submissions)) {
+      if (s.status == #Pending) List.add(buf, s);
+    };
+    #ok(List.toArray(buf))
   };
 
   public query func metrics() : async { articleCount : Nat; playCount : Nat } {

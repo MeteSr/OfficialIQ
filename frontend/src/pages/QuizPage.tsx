@@ -7,6 +7,7 @@ import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { contentService, type CasebookPlay } from "../services/content";
 import CourtDiagram from "../components/CourtDiagram";
+import VideoPlayer from "../components/VideoPlayer";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
 import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord, ExamConfig } from "../services/exam";
@@ -47,8 +48,17 @@ export default function QuizPage() {
   const [history, setHistory] = useState<(UserQuestionHistory | null)[]>([]);
   const [playsCache, setPlaysCache] = useState<Record<string, CasebookPlay[]>>({});
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
+  const [videoWatched, setVideoWatched] = useState(false);
 
   const isAdaptive = searchParams.get("adaptive") === "1";
+
+  // Casebook video (issue #21) — the question can't be answered until the
+  // clip has played through once. Derived here (not just in the render
+  // body) so handleChoice and the countdown timer can gate on it too.
+  const currentPlay = currentQ?.isCasebook
+    ? (playsCache[currentQ.articleId] ?? []).find(p => p.citation === currentQ.citation) ?? null
+    : null;
+  const hasVideo = !!(currentPlay && currentPlay.videoUrl.length);
 
   // Load questions for this quiz — three possible entry paths:
   //  1. /quiz/share/:token   — resolve the shared ExamSession and its exact questions
@@ -141,6 +151,7 @@ export default function QuizPage() {
   useEffect(() => {
     setChosen(null);
     setTimeLeft(timerSeconds);
+    setVideoWatched(false);
   }, [currentIdx, timerSeconds]);
 
   // Spaced-repetition history for the "Why this question?" explainer — best
@@ -159,16 +170,17 @@ export default function QuizPage() {
       .catch(() => {});
   }, [currentQ?.articleId, currentQ?.isCasebook, playsCache]);
 
-  // Countdown timer
+  // Countdown timer — paused while a required casebook clip hasn't been
+  // watched through yet, so the clock doesn't burn away during playback.
   useEffect(() => {
-    if (chosen !== null || isComplete || loading) return;
+    if (chosen !== null || isComplete || loading || (hasVideo && !videoWatched)) return;
     if (timeLeft === 0) { setChosen("__timeout__"); return; }
     const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [timeLeft, chosen, isComplete, loading]);
+  }, [timeLeft, chosen, isComplete, loading, hasVideo, videoWatched]);
 
   const handleChoice = useCallback((choiceId: string) => {
-    if (chosen !== null || !currentQ) return;
+    if (chosen !== null || !currentQ || (hasVideo && !videoWatched)) return;
     setChosen(choiceId);
     const isCorrect = choiceId === currentQ.correctId;
     const ans: AnswerRecord = {
@@ -188,7 +200,7 @@ export default function QuizPage() {
       // not queued offline since it's a minor cosmetic counter.
       rankingService.recordAnswerSignal(isCorrect, timerSeconds - timeLeft, currentQ.isCasebook).catch(() => {});
     }
-  }, [chosen, currentQ, timeLeft, timerSeconds, principal]);
+  }, [chosen, currentQ, timeLeft, timerSeconds, principal, hasVideo, videoWatched]);
 
   const handleNext = useCallback(async () => {
     advance();
@@ -369,10 +381,8 @@ export default function QuizPage() {
       : `You've answered this correctly ${currentHistory.repetitions} time${currentHistory.repetitions === 1n ? "" : "s"} in a row`;
   })();
 
-  const currentPlay = currentQ.isCasebook
-    ? (playsCache[currentQ.articleId] ?? []).find(p => p.citation === currentQ.citation) ?? null
-    : null;
   const currentPlayDiagram = currentPlay && currentPlay.diagram.length ? currentPlay.diagram[0] : null;
+  const videoLocked = hasVideo && !videoWatched;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
@@ -398,7 +408,15 @@ export default function QuizPage() {
           {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
 
-        {currentPlay && (
+        {currentPlay && hasVideo && (
+          <VideoPlayer
+            key={currentPlay.id}
+            src={currentPlay.videoUrl[0]!}
+            onFirstPlaythrough={() => setVideoWatched(true)}
+          />
+        )}
+
+        {currentPlay && (!hasVideo || videoWatched) && (
           <div style={{
             padding: "12px 14px", marginBottom: 14,
             background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8,
@@ -414,40 +432,48 @@ export default function QuizPage() {
           </div>
         )}
 
-        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: explainer ? 8 : 20 }}>{currentQ.stem}</p>
-        {explainer && (
-          <div style={{ fontSize: 12, color: T.muted, marginBottom: 20, fontStyle: "italic" }}>
-            💡 {explainer}
+        {videoLocked ? (
+          <div style={{ padding: "12px 14px", textAlign: "center", color: T.muted, fontSize: 13 }}>
+            Watch the play above — the question unlocks once it's finished.
           </div>
-        )}
+        ) : (
+          <>
+            <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: explainer ? 8 : 20 }}>{currentQ.stem}</p>
+            {explainer && (
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 20, fontStyle: "italic" }}>
+                💡 {explainer}
+              </div>
+            )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {currentQ.choices.map((c) => {
-            let bg = T.surface, border = T.border, color = T.text;
-            if (revealed) {
-              if (c.id === currentQ.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
-              else if (c.id === chosen)          { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
-            }
-            return (
-              <button
-                key={c.id}
-                disabled={revealed}
-                onClick={() => handleChoice(c.id)}
-                style={{
-                  padding: "13px 16px", background: bg, border: `2px solid ${border}`,
-                  borderRadius: 8, textAlign: "left", fontSize: 14, color, fontWeight: 400,
-                  display: "flex", gap: 10, alignItems: "center",
-                }}
-              >
-                <span style={{ fontWeight: 700, minWidth: 18, color: revealed && c.id === currentQ.correctId ? T.correct : T.muted }}>
-                  {c.id.toUpperCase()}.
-                </span>
-                {c.text}
-                {revealed && c.id === currentQ.correctId && <span style={{ marginLeft: "auto" }}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {currentQ.choices.map((c) => {
+                let bg = T.surface, border = T.border, color = T.text;
+                if (revealed) {
+                  if (c.id === currentQ.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
+                  else if (c.id === chosen)          { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
+                }
+                return (
+                  <button
+                    key={c.id}
+                    disabled={revealed}
+                    onClick={() => handleChoice(c.id)}
+                    style={{
+                      padding: "13px 16px", background: bg, border: `2px solid ${border}`,
+                      borderRadius: 8, textAlign: "left", fontSize: 14, color, fontWeight: 400,
+                      display: "flex", gap: 10, alignItems: "center",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, minWidth: 18, color: revealed && c.id === currentQ.correctId ? T.correct : T.muted }}>
+                      {c.id.toUpperCase()}.
+                    </span>
+                    {c.text}
+                    {revealed && c.id === currentQ.correctId && <span style={{ marginLeft: "auto" }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {revealed && (
           <div style={{
