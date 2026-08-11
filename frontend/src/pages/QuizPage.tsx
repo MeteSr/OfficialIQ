@@ -7,7 +7,8 @@ import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
 import { useAuthStore } from "../store/authStore";
-import type { AnswerRecord } from "../services/exam";
+import type { AnswerRecord, ExamConfig } from "../services/exam";
+import { enqueuePendingAction } from "../lib/offlineDb";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
@@ -35,6 +36,7 @@ export default function QuizPage() {
   const [timeLeft,     setTimeLeft]     = useState(DEFAULT_SECONDS_PER_Q);
   const [sessionId,    setSessionId]    = useState<string | null>(null);
   const [canSubmit,    setCanSubmit]    = useState(true);
+  const [offlineExamConfig, setOfflineExamConfig] = useState<ExamConfig | null>(null);
 
   // Load questions for this quiz — three possible entry paths:
   //  1. /quiz/share/:token   — resolve the shared ExamSession and its exact questions
@@ -44,6 +46,7 @@ export default function QuizPage() {
     reset();
     setLoading(true);
     setError(null);
+    setOfflineExamConfig(null);
 
     async function fetchQuestions(ids: string[]): Promise<Question[]> {
       const qs = await Promise.all(ids.map(id => questionService.getQuestion(id)));
@@ -73,6 +76,8 @@ export default function QuizPage() {
 
       const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
       const countFromQuery = Number(searchParams.get("count")) || 25;
+      // questionService.sampleQuiz falls back to the IndexedDB content cache
+      // when the canister is unreachable, so this can succeed offline too.
       const qs = await questionService.sampleQuiz({
         sportId:    "ncaa_basketball",
         articleIds: articleId ? [articleId] : [],
@@ -80,15 +85,28 @@ export default function QuizPage() {
         difficulty: [],
         count:      BigInt(countFromQuery),
       });
-      const session = await examService.createSession(
-        { sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
-          count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null } },
-        qs.map(q => q.id),
-      );
-      loadQuestions(qs, session.id);
-      setSessionId(session.id);
+      if (qs.length === 0) { setError("No cached questions available for this article yet — connect once to download content."); return; }
+
+      const config: ExamConfig = {
+        sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
+        count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null },
+      };
+      try {
+        const session = await examService.createSession(config, qs.map(q => q.id));
+        loadQuestions(qs, session.id);
+        setSessionId(session.id);
+        setCanSubmit(true);
+      } catch {
+        // Offline (or the canister is otherwise unreachable): still let the
+        // user take the quiz from cached questions. handleNext queues the
+        // create+submit as a single action once we're back online.
+        const localSessionId = `offline-${Date.now()}`;
+        loadQuestions(qs, localSessionId);
+        setSessionId(localSessionId);
+        setOfflineExamConfig(config);
+        setCanSubmit(false);
+      }
       setTimerSeconds(secFromQuery);
-      setCanSubmit(true);
     }
 
     load()
@@ -133,18 +151,33 @@ export default function QuizPage() {
       const avgElapsedSec = finalAnswers.length
         ? Number(finalAnswers.reduce((sum, a) => sum + a.elapsedSec, 0n)) / finalAnswers.length
         : 0;
-      // Only the session owner can record answers against the shared ExamSession
-      // (a non-owner opening a share link still gets ranked, just not written
-      // into the owner's session record).
-      if (canSubmit) {
-        await examService.submitExam(sessionId, finalAnswers).catch(() => {});
+
+      if (offlineExamConfig) {
+        // The canister was already known unreachable when this quiz started
+        // (see the plain-articleId load path) — queue the full create+submit
+        // rather than attempting it now.
+        await enqueuePendingAction({
+          kind: "offlineExam", config: offlineExamConfig,
+          questionIds: questions.map(q => q.id), answers: finalAnswers,
+        });
+      } else if (canSubmit) {
+        // Only the session owner can record answers against the shared ExamSession
+        // (a non-owner opening a share link still gets ranked, just not written
+        // into the owner's session record).
+        await examService.submitExam(sessionId, finalAnswers).catch(() =>
+          enqueuePendingAction({ kind: "submitExam", sessionId, answers: finalAnswers })
+        );
       }
       if (profile) {
         await rankingService.recordExamResult(
           finalScore, questions.length,
           profile.displayName, profile.sport, profile.state || "TX",
           avgElapsedSec,
-        ).catch(() => {});
+        ).catch(() => enqueuePendingAction({
+          kind: "recordExamResult", score: finalScore, questionCount: questions.length,
+          displayName: profile.displayName, sport: profile.sport, state: profile.state || "TX",
+          avgElapsedSec,
+        }));
 
         // Attribute progress per-article (a session can span several
         // articles), scored by that article's own accuracy within this quiz.
@@ -157,12 +190,15 @@ export default function QuizPage() {
           if (a.isCorrect) bucket.correct += 1;
           byArticle.set(articleId, bucket);
         });
-        await Promise.all([...byArticle.entries()].map(([articleId, b]) =>
-          userService.recordArticleStudied(articleId, Math.round((b.correct / b.total) * 100)).catch(() => {})
-        ));
+        await Promise.all([...byArticle.entries()].map(([articleId, b]) => {
+          const score = Math.round((b.correct / b.total) * 100);
+          return userService.recordArticleStudied(articleId, score).catch(() =>
+            enqueuePendingAction({ kind: "recordArticleStudied", articleId, score })
+          );
+        }));
       }
     }
-  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit]);
+  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit, offlineExamConfig]);
 
   if (loading) {
     return (
@@ -265,6 +301,11 @@ export default function QuizPage() {
         </span>
         <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{currentIdx + 1}/{total}</span>
       </div>
+      {offlineExamConfig && (
+        <div style={{ background: "#3A2F00", color: "#FFD666", fontSize: 11, fontWeight: 600, padding: "5px 16px", textAlign: "center" }}>
+          📡 Offline — your result will sync automatically once you're reconnected
+        </div>
+      )}
 
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
         <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>

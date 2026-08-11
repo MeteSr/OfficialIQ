@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { registerOfflineSync } from "./lib/offlineSync";
 import BottomNav from "./components/BottomNav";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
@@ -14,6 +16,8 @@ import MonthlyQuizPage from "./pages/MonthlyQuizPage";
 import ProgressPage from "./pages/ProgressPage";
 
 export default function App() {
+  useEffect(() => { registerOfflineSync(); }, []);
+
   return (
     <AuthProvider>
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", maxWidth: 430, margin: "0 auto" }}>

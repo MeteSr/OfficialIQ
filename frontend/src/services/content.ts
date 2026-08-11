@@ -1,5 +1,6 @@
 import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
+import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,17 +70,39 @@ function actor() {
 export const contentService = {
   async listArticles(sportId: string, levelId: string): Promise<Article[]> {
     if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && a.levelId === levelId);
-    return actor().listArticles(sportId, levelId);
+    try {
+      const articles = await actor().listArticles(sportId, levelId);
+      cacheArticles(articles).catch(() => {});
+      return articles;
+    } catch (e) {
+      const cached = (await getCachedArticles()).filter(a => a.sportId === sportId && a.levelId === levelId);
+      if (cached.length > 0) return cached;
+      throw e;
+    }
   },
 
   async getArticle(id: string): Promise<Article | null> {
     if (!CANISTER_ID) return MOCK_ARTICLES.find(a => a.id === id) ?? null;
-    const res = await actor().getArticle(id);
-    return res.length ? res[0] : null;
+    try {
+      const res = await actor().getArticle(id);
+      return res.length ? res[0] : null;
+    } catch (e) {
+      const cached = (await getCachedArticles()).find(a => a.id === id);
+      if (cached) return cached;
+      throw e;
+    }
   },
 
   async listPlays(articleId: string): Promise<CasebookPlay[]> {
     if (!CANISTER_ID) return [];
-    return actor().listPlays(articleId);
+    try {
+      const plays = await actor().listPlays(articleId);
+      cachePlays(plays).catch(() => {});
+      return plays;
+    } catch (e) {
+      const cached = await getCachedPlays(articleId);
+      if (cached.length > 0) return cached;
+      throw e;
+    }
   },
 };

@@ -1,5 +1,6 @@
 import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
+import { cacheQuestions, getCachedQuestion, getCachedQuestionsFor } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,12 +120,26 @@ export const questionService = {
       );
       return pool.slice(0, Number(filter.count));
     }
-    return actor().sampleQuiz(filter);
+    try {
+      const qs = await actor().sampleQuiz(filter);
+      cacheQuestions(qs).catch(() => {});
+      return qs;
+    } catch (e) {
+      const cached = await getCachedQuestionsFor(filter.articleIds, filter.casebook, Number(filter.count));
+      if (cached.length > 0) return cached;
+      throw e;
+    }
   },
 
   async getQuestion(id: string): Promise<Question | null> {
     if (!CANISTER_ID) return MOCK_QUESTIONS.find(q => q.id === id) ?? null;
-    const res = await actor().getQuestion(id);
-    return res.length ? res[0] : null;
+    try {
+      const res = await actor().getQuestion(id);
+      return res.length ? res[0] : null;
+    } catch (e) {
+      const cached = await getCachedQuestion(id);
+      if (cached) return cached;
+      throw e;
+    }
   },
 };

@@ -1,9 +1,32 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: "autoUpdate",
+      // Service worker is generated for production builds only (the
+      // default); `vite dev` is unaffected, avoiding stale-cache dev friction.
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,svg}"],
+        // Article/question/casebook reads go through IndexedDB (see
+        // src/lib/offlineDb.ts), not the Cache API, so no runtimeCaching
+        // rules are needed here for canister calls.
+      },
+      manifest: {
+        name: "OfficialIQ",
+        short_name: "OfficialIQ",
+        description: "Study and certify for sports officiating exams offline or online.",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#F4F5F7",
+        theme_color: "#1D428A",
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -24,5 +47,9 @@ export default defineConfig({
     proxy: {
       "/api": "http://127.0.0.1:4943",
     },
+  },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

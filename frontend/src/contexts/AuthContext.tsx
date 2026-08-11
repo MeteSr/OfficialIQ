@@ -2,8 +2,9 @@ import { createContext, useContext, useEffect, useRef, type ReactNode } from "re
 import { AuthClient } from "@icp-sdk/auth/client";
 import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { initAgent, resetAgent } from "../services/actor";
-import { userService } from "../services/user";
+import { userService, type UserProfile } from "../services/user";
 import { useAuthStore } from "../store/authStore";
+import { syncAllContent } from "../lib/offlineSync";
 
 type AuthContextValue = {
   login:    () => Promise<void>;
@@ -25,6 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<AuthClient | null>(null);
   const { setAuth, setLoading, clear } = useAuthStore();
 
+  // Best-effort content sync-down for offline use — never blocks login.
+  function completeAuth(principal: string, profile: UserProfile | null) {
+    setAuth(principal, profile);
+    syncAllContent().catch(() => {});
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -40,14 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         initAgent(identity);
         const principal = identity.getPrincipal().toText();
         const profile = await userService.getMyProfile();
-        if (!cancelled) setAuth(principal, profile);
+        if (!cancelled) completeAuth(principal, profile);
       } else if (import.meta.env.DEV) {
         // Auto dev-login so the app is usable without II in development
         const identity = Ed25519KeyIdentity.generate(DEV_SEED);
         initAgent(identity);
         const principal = identity.getPrincipal().toText();
         const profile = await userService.getMyProfile();
-        if (!cancelled) setAuth(principal, profile);
+        if (!cancelled) completeAuth(principal, profile);
       } else {
         if (!cancelled) setLoading(false);
       }
@@ -68,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAgent(identity);
     const principal = identity.getPrincipal().toText();
     const profile   = await userService.getMyProfile();
-    setAuth(principal, profile);
+    completeAuth(principal, profile);
   }
 
   async function devLogin() {
@@ -77,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAgent(identity);
     const principal = identity.getPrincipal().toText();
     const profile   = await userService.getMyProfile();
-    setAuth(principal, profile);
+    completeAuth(principal, profile);
   }
 
   async function logout() {
