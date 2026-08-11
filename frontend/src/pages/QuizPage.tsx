@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { T } from "../tokens";
-import { questionService, type Question } from "../services/question";
+import { questionService, type Question, type UserQuestionHistory } from "../services/question";
 import { examService } from "../services/exam";
 import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
@@ -37,6 +37,9 @@ export default function QuizPage() {
   const [sessionId,    setSessionId]    = useState<string | null>(null);
   const [canSubmit,    setCanSubmit]    = useState(true);
   const [offlineExamConfig, setOfflineExamConfig] = useState<ExamConfig | null>(null);
+  const [history, setHistory] = useState<(UserQuestionHistory | null)[]>([]);
+
+  const isAdaptive = searchParams.get("adaptive") === "1";
 
   // Load questions for this quiz — three possible entry paths:
   //  1. /quiz/share/:token   — resolve the shared ExamSession and its exact questions
@@ -76,15 +79,18 @@ export default function QuizPage() {
 
       const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
       const countFromQuery = Number(searchParams.get("count")) || 25;
-      // questionService.sampleQuiz falls back to the IndexedDB content cache
-      // when the canister is unreachable, so this can succeed offline too.
-      const qs = await questionService.sampleQuiz({
+      const quizFilter = {
         sportId:    "ncaa_basketball",
         articleIds: articleId ? [articleId] : [],
         casebook:   true,
-        difficulty: [],
+        difficulty: [] as [],
         count:      BigInt(countFromQuery),
-      });
+      };
+      // Both fall back to the IndexedDB content cache when the canister is
+      // unreachable, so this can succeed offline too.
+      const qs = isAdaptive && principal
+        ? await questionService.getAdaptiveQuiz(quizFilter)
+        : await questionService.sampleQuiz(quizFilter);
       if (qs.length === 0) { setError("No cached questions available for this article yet — connect once to download content."); return; }
 
       const config: ExamConfig = {
@@ -121,6 +127,13 @@ export default function QuizPage() {
     setTimeLeft(timerSeconds);
   }, [currentIdx, timerSeconds]);
 
+  // Spaced-repetition history for the "Why this question?" explainer — best
+  // effort, only meaningful once the user is signed in.
+  useEffect(() => {
+    if (!principal || questions.length === 0) { setHistory([]); return; }
+    questionService.getMyHistoryBatch(questions.map(q => q.id)).then(setHistory).catch(() => setHistory([]));
+  }, [questions, principal]);
+
   // Countdown timer
   useEffect(() => {
     if (chosen !== null || isComplete || loading) return;
@@ -132,14 +145,22 @@ export default function QuizPage() {
   const handleChoice = useCallback((choiceId: string) => {
     if (chosen !== null || !currentQ) return;
     setChosen(choiceId);
+    const isCorrect = choiceId === currentQ.correctId;
     const ans: AnswerRecord = {
       questionId: currentQ.id,
       chosenId:   choiceId,
-      isCorrect:  choiceId === currentQ.correctId,
+      isCorrect,
       elapsedSec: BigInt(timerSeconds - timeLeft),
     };
     recordAnswer(ans);
-  }, [chosen, currentQ, timeLeft, timerSeconds]);
+
+    if (principal) {
+      const questionId = currentQ.id;
+      questionService.recordAnswer(questionId, isCorrect).catch(() =>
+        enqueuePendingAction({ kind: "recordAnswer", questionId, isCorrect }),
+      );
+    }
+  }, [chosen, currentQ, timeLeft, timerSeconds, principal]);
 
   const handleNext = useCallback(async () => {
     advance();
@@ -288,6 +309,20 @@ export default function QuizPage() {
   const timerPct   = (timeLeft / timerSeconds) * 100;
   const total      = questions.length;
 
+  // repetitions === 0 with a prior attempt means the most recent answer
+  // reset the SM-2 state, which only happens on a wrong answer.
+  const currentHistory = history[currentIdx] ?? null;
+  const explainer = (() => {
+    if (!currentHistory || currentHistory.timesAnswered === 0n) return null;
+    const daysAgo = Math.max(0, Math.floor(
+      (Date.now() - Number(currentHistory.lastAnswered / 1_000_000n)) / 86_400_000,
+    ));
+    const when = daysAgo === 0 ? "today" : daysAgo === 1 ? "1 day ago" : `${daysAgo} days ago`;
+    return currentHistory.repetitions === 0n
+      ? `You last got this wrong ${when}`
+      : `You've answered this correctly ${currentHistory.repetitions} time${currentHistory.repetitions === 1n ? "" : "s"} in a row`;
+  })();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {/* Header */}
@@ -311,7 +346,12 @@ export default function QuizPage() {
         <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>
           {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
-        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
+        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: explainer ? 8 : 20 }}>{currentQ.stem}</p>
+        {explainer && (
+          <div style={{ fontSize: 12, color: T.muted, marginBottom: 20, fontStyle: "italic" }}>
+            💡 {explainer}
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {currentQ.choices.map((c) => {

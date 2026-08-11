@@ -34,6 +34,17 @@ export type QuizFilter = {
   count:      bigint;
 };
 
+export type UserQuestionHistory = {
+  questionId:    string;
+  timesAnswered: bigint;
+  timesCorrect:  bigint;
+  lastAnswered:  bigint;
+  nextDue:       bigint;
+  easiness:      number;
+  repetitions:   bigint;
+  intervalDays:  bigint;
+};
+
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
@@ -48,10 +59,19 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     sportId: I.Text, articleIds: I.Vec(I.Text),
     casebook: I.Bool, difficulty: I.Opt(Diff), count: I.Nat,
   });
+  const History = I.Record({
+    questionId: I.Text, timesAnswered: I.Nat, timesCorrect: I.Nat,
+    lastAnswered: I.Int, nextDue: I.Int, easiness: I.Float64,
+    repetitions: I.Nat, intervalDays: I.Nat,
+  });
   return I.Service({
-    getQuestion: I.Func([I.Text], [I.Opt(Q)],  ["query"]),
-    sampleQuiz:  I.Func([Filter], [I.Vec(Q)],  ["query"]),
-    metrics:     I.Func([],       [I.Record({ questionCount: I.Nat })], ["query"]),
+    getQuestion:       I.Func([I.Text],                     [I.Opt(Q)], ["query"]),
+    sampleQuiz:         I.Func([Filter],                     [I.Vec(Q)], ["query"]),
+    getAdaptiveQuiz:    I.Func([Filter],                     [I.Vec(Q)], ["query"]),
+    getDueCount:        I.Func([I.Text, I.Vec(I.Text), I.Bool], [I.Nat], ["query"]),
+    getMyHistoryBatch:  I.Func([I.Vec(I.Text)],              [I.Vec(I.Opt(History))], ["query"]),
+    recordAnswer:       I.Func([I.Text, I.Bool],              [], []),
+    metrics:            I.Func([],                            [I.Record({ questionCount: I.Nat })], ["query"]),
   });
 };
 
@@ -105,8 +125,12 @@ const CANISTER_ID = typeof CANISTER_ID_QUESTION !== "undefined" ? CANISTER_ID_QU
 
 function actor() {
   return createActor<{
-    sampleQuiz:  (f: QuizFilter) => Promise<Question[]>;
-    getQuestion: (id: string) => Promise<[] | [Question]>;
+    sampleQuiz:        (f: QuizFilter) => Promise<Question[]>;
+    getQuestion:       (id: string) => Promise<[] | [Question]>;
+    getAdaptiveQuiz:   (f: QuizFilter) => Promise<Question[]>;
+    getDueCount:       (sportId: string, articleIds: string[], casebook: boolean) => Promise<bigint>;
+    getMyHistoryBatch: (questionIds: string[]) => Promise<([] | [UserQuestionHistory])[]>;
+    recordAnswer:      (questionId: string, isCorrect: boolean) => Promise<void>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -141,5 +165,42 @@ export const questionService = {
       if (cached) return cached;
       throw e;
     }
+  },
+
+  async getAdaptiveQuiz(filter: QuizFilter): Promise<Question[]> {
+    if (!CANISTER_ID) return questionService.sampleQuiz(filter);
+    try {
+      const qs = await actor().getAdaptiveQuiz(filter);
+      cacheQuestions(qs).catch(() => {});
+      return qs;
+    } catch (e) {
+      const cached = await getCachedQuestionsFor(filter.articleIds, filter.casebook, Number(filter.count));
+      if (cached.length > 0) return cached;
+      throw e;
+    }
+  },
+
+  async getDueCount(sportId: string, articleIds: string[], casebook: boolean): Promise<number> {
+    if (!CANISTER_ID) return 0;
+    try {
+      return Number(await actor().getDueCount(sportId, articleIds, casebook));
+    } catch {
+      return 0;
+    }
+  },
+
+  async getMyHistoryBatch(questionIds: string[]): Promise<(UserQuestionHistory | null)[]> {
+    if (!CANISTER_ID || questionIds.length === 0) return questionIds.map(() => null);
+    try {
+      const res = await actor().getMyHistoryBatch(questionIds);
+      return res.map(r => (r.length ? r[0] : null));
+    } catch {
+      return questionIds.map(() => null);
+    }
+  },
+
+  async recordAnswer(questionId: string, isCorrect: boolean): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().recordAnswer(questionId, isCorrect);
   },
 };

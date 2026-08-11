@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
+import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
 
 export default function StudyPage() {
@@ -12,6 +13,7 @@ export default function StudyPage() {
   const [loading,  setLoading]  = useState(true);
   const [progress, setProgress] = useState<Record<string, ArticleProgress>>({});
   const [overdueIds, setOverdueIds] = useState<Set<string>>(new Set());
+  const [dueCounts, setDueCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -30,6 +32,15 @@ export default function StudyPage() {
           const schedule = await userService.getWeeklySchedule(sorted.map(a => a.id)).catch(() => null);
           if (schedule) setOverdueIds(new Set(schedule.overdue));
         }
+
+        const counts = await Promise.all(sorted.map(async (a) => {
+          const [rules, casebook] = await Promise.all([
+            questionService.getDueCount("ncaa_basketball", [a.id], false),
+            questionService.getDueCount("ncaa_basketball", [a.id], true),
+          ]);
+          return [a.id, rules + casebook] as const;
+        }));
+        setDueCounts(Object.fromEntries(counts));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -64,10 +75,11 @@ export default function StudyPage() {
           const p = progress[a.id];
           const done = !!p && Number(p.timesStudied) > 0;
           const overdue = overdueIds.has(a.id);
+          const due = dueCounts[a.id] ?? 0;
           return (
             <button
               key={a.id}
-              onClick={() => navigate(`/quiz/${a.id}`)}
+              onClick={() => navigate(`/quiz/${a.id}?adaptive=1`)}
               style={{
                 display: "flex", alignItems: "center", gap: 14,
                 padding: "14px 16px",
@@ -93,6 +105,11 @@ export default function StudyPage() {
                   )}
                 </div>
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{a.title}</div>
+                {due > 0 && (
+                  <div style={{ fontSize: 11, color: T.navy, fontWeight: 600, marginTop: 4 }}>
+                    📌 Due today: {due} question{due === 1 ? "" : "s"}
+                  </div>
+                )}
                 {done && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
                     <div style={{ flex: 1, height: 3, background: T.border, borderRadius: 2, overflow: "hidden", maxWidth: 120 }}>

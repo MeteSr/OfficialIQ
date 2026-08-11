@@ -48,6 +48,9 @@ async function replay(action: PendingAction): Promise<void> {
     case "recordArticleStudied":
       await userService.recordArticleStudied(action.articleId, action.score);
       return;
+    case "recordAnswer":
+      await questionService.recordAnswer(action.questionId, action.isCorrect);
+      return;
   }
 }
 

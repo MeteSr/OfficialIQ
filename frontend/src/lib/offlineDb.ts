@@ -24,6 +24,10 @@ export type PendingAction =
   | {
       id: string; kind: "recordArticleStudied"; createdAt: number;
       articleId: string; score: number;
+    }
+  | {
+      id: string; kind: "recordAnswer"; createdAt: number;
+      questionId: string; isCorrect: boolean;
     };
 
 interface OfflineSchema extends DBSchema {
