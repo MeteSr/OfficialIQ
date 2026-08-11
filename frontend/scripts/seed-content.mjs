@@ -39,9 +39,13 @@ const contentIdlFactory = ({ IDL: I }) => {
     id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text,
     audioUrl: I.Opt(I.Text), createdAt: I.Int, updatedAt: I.Int,
   });
-  const PlayInput = I.Record({ articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text });
+  const DiagramPlayer = I.Record({ id: I.Text, x: I.Nat, y: I.Nat, shortLabel: I.Text, role: I.Text });
+  const DiagramArrow = I.Record({ fromId: I.Text, toId: I.Text, style: I.Text });
+  const Diagram = I.Record({ players: I.Vec(DiagramPlayer), arrows: I.Vec(DiagramArrow) });
+  const PlayInput = I.Record({ articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text, diagram: I.Opt(Diagram) });
   const CasebookPlay = I.Record({
-    id: I.Text, articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text),
+    id: I.Text, articleId: I.Text, citation: I.Text, scenario: I.Text, ruling: I.Text,
+    audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram),
   });
   const PoeInput = I.Record({ season: I.Text, title: I.Text, body: I.Text, linkedArticleIds: I.Vec(I.Text) });
   const Poe = I.Record({
@@ -135,8 +139,15 @@ async function main() {
     console.log(`  ✓ Art. ${article.number} "${article.title}" -> ${articleId}`);
 
     for (const play of article.plays) {
+      const diagramCandid = play.diagram
+        ? [{
+            players: play.diagram.players.map(p => ({ ...p, x: BigInt(p.x), y: BigInt(p.y) })),
+            arrows: play.diagram.arrows,
+          }]
+        : [];
       const playRes = await content.upsertPlay({
         articleId, citation: play.citation, scenario: play.scenario, ruling: play.ruling,
+        diagram: diagramCandid,
       });
       if ("err" in playRes) {
         console.error(`    ✗ play "${play.citation}": ${playRes.err}`);

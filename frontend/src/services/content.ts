@@ -16,6 +16,25 @@ export type Article = {
   updatedAt: bigint;
 };
 
+export type DiagramPlayer = {
+  id:         string;
+  x:          bigint;
+  y:          bigint;
+  shortLabel: string;
+  role:       string;
+};
+
+export type DiagramArrow = {
+  fromId: string;
+  toId:   string;
+  style:  string;
+};
+
+export type CourtDiagram = {
+  players: DiagramPlayer[];
+  arrows:  DiagramArrow[];
+};
+
 export type CasebookPlay = {
   id:        string;
   articleId: string;
@@ -23,6 +42,7 @@ export type CasebookPlay = {
   scenario:  string;
   ruling:    string;
   audioUrl:  [] | [string];
+  diagram:   [] | [CourtDiagram];
 };
 
 export type PointOfEmphasis = {
@@ -43,9 +63,14 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     title: I.Text, body: I.Text, audioUrl: I.Opt(I.Text),
     createdAt: I.Int, updatedAt: I.Int,
   });
+  const DiagramPlayer = I.Record({
+    id: I.Text, x: I.Nat, y: I.Nat, shortLabel: I.Text, role: I.Text,
+  });
+  const DiagramArrow = I.Record({ fromId: I.Text, toId: I.Text, style: I.Text });
+  const Diagram = I.Record({ players: I.Vec(DiagramPlayer), arrows: I.Vec(DiagramArrow) });
   const Play = I.Record({
     id: I.Text, articleId: I.Text, citation: I.Text,
-    scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text),
+    scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram),
   });
   const Poe = I.Record({
     id: I.Text, season: I.Text, title: I.Text, body: I.Text,

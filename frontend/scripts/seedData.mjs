@@ -5,6 +5,15 @@
 export const SPORT_ID = "ncaa_basketball";
 export const LEVEL_ID = "varsity";
 
+// players: [[id, x, y, shortLabel, role], ...] — x/y are 0-100 court percentages.
+// arrows: [[fromId, toId, style], ...] — style is "solid" or "dashed".
+function diagram(players, arrows = []) {
+  return {
+    players: players.map(([id, x, y, shortLabel, role]) => ({ id, x, y, shortLabel, role })),
+    arrows: arrows.map(([fromId, toId, style]) => ({ fromId, toId, style })),
+  };
+}
+
 function q(stem, choices, correctId, explanation, difficulty, opts = {}) {
   return {
     stem,
@@ -193,6 +202,10 @@ export const ARTICLES = [
           "A player releases a try for goal from beyond the three-point line just before the shot clock horn sounds, and the ball goes through the basket after the horn.",
         ruling:
           "If the ball left the shooter's hand before the shot clock expired, the goal counts for three points; the shot clock horn alone does not negate a try already released in time.",
+        diagram: diagram([
+          ["O1", 85, 52, "O1", "Shooter — releases from beyond the three-point line just before the horn"],
+          ["D1", 80, 50, "D1", "Defender — closing out on the shooter"],
+        ]),
       },
       {
         citation: "Art. 4-5, Case 1",
@@ -247,6 +260,10 @@ export const ARTICLES = [
           "A defender fouls an opponent a fraction of a second after the ball has already left the shooter's hand on a made basket.",
         ruling:
           "The basket counts because the try was released and the ball was still live at the moment of release; the foul is then administered separately according to normal procedure.",
+        diagram: diagram([
+          ["O1", 63, 15, "O1", "Shooter — releases the try before contact occurs"],
+          ["D1", 60, 17, "D1", "Defender — fouls a fraction of a second after release"],
+        ]),
       },
       {
         citation: "Art. 5-4, Case 1",
@@ -254,6 +271,10 @@ export const ARTICLES = [
           "A player taps a loose ball into the basket after the officials' whistle has already sounded for an unrelated violation.",
         ruling:
           "The basket does not count because the ball was already dead at the moment of the whistle, regardless of what happens afterward.",
+        diagram: diagram([
+          ["O1", 47, 10, "O1", "Offense — taps a loose ball toward the basket after the whistle"],
+          ["D1", 53, 12, "D1", "Defender — involved in the earlier violation that made the ball dead"],
+        ]),
       },
     ],
     questions: [
@@ -301,6 +322,15 @@ export const ARTICLES = [
           "A defender deflects a pass that goes out of bounds off a different defender before leaving the court.",
         ruling:
           "The ball is awarded to the offense for a throw-in because the last team to touch the ball before it went out was the defense.",
+        diagram: diagram([
+          ["O1", 20, 60, "O1", "Passer — throws toward a teammate"],
+          ["O2", 75, 55, "O2", "Intended receiver"],
+          ["D1", 45, 58, "D1", "Defender — first deflection"],
+          ["D2", 65, 50, "D2", "Defender — second deflection; ball goes out of bounds off him"],
+        ], [
+          ["O1", "D1", "solid"],
+          ["D1", "D2", "dashed"],
+        ]),
       },
       {
         citation: "Art. 6-5, Case 1",
@@ -308,6 +338,10 @@ export const ARTICLES = [
           "A player taking a throw-in steps onto the playing court while still holding the ball, then steps back before releasing it.",
         ruling:
           "This is a throw-in violation; the ball is awarded to the opposing team for a throw-in at the same spot.",
+        diagram: diagram([
+          ["O1", 10, 90, "O1", "Thrower — steps onto the court while holding the ball, then steps back"],
+          ["D1", 25, 88, "D1", "Defender — nearest the throw-in spot"],
+        ]),
       },
     ],
     questions: [
@@ -355,6 +389,10 @@ export const ARTICLES = [
           "A defender blocks a try for goal while the ball is still on its way up toward the basket, well below the level of the rim.",
         ruling:
           "This is a legal block, not goaltending, because the ball had not yet reached its highest point or begun a downward path above rim level.",
+        diagram: diagram([
+          ["O1", 50, 20, "O1", "Shooter — try is still rising, well below rim level"],
+          ["D1", 50, 14, "D1", "Defender — legally blocks the shot below rim level"],
+        ]),
       },
       {
         citation: "Art. 7-4, Case 1",
@@ -362,6 +400,11 @@ export const ARTICLES = [
           "An offensive player grabs the rim and pulls it down while a teammate's try is still rolling around the basket.",
         ruling:
           "This is offensive basket interference; the basket is disallowed and the ball is awarded to the defense.",
+        diagram: diagram([
+          ["O1", 55, 6, "O1", "Offense — grabs and pulls down the rim"],
+          ["O2", 45, 10, "O2", "Shooter — try is still rolling around the basket"],
+          ["D1", 40, 14, "D1", "Defender — nearest to the play"],
+        ]),
       },
     ],
     questions: [
@@ -409,6 +452,10 @@ export const ARTICLES = [
           "A defender fouls a three-point shooter whose attempt is unsuccessful.",
         ruling:
           "The shooter is awarded three free throws, corresponding to the value of the attempted shot.",
+        diagram: diagram([
+          ["O1", 15, 50, "O1", "Shooter — releases a three-point try"],
+          ["D1", 22, 48, "D1", "Defender — fouls the shooter during the release"],
+        ]),
       },
       {
         citation: "Art. 8-6, Case 1",
@@ -517,6 +564,13 @@ export const ARTICLES = [
           "A player receives a pass while standing still, establishes a pivot foot, and then lifts that pivot foot before releasing a pass to a teammate.",
         ruling:
           "This is legal as long as the ball is released before the pivot foot returns to the floor; if the pivot foot touches down again before release, it is a traveling violation.",
+        diagram: diagram([
+          ["O1", 40, 55, "O1", "Passer — lifts the pivot foot, then releases before it returns to the floor"],
+          ["O2", 70, 40, "O2", "Teammate — receives the pass"],
+          ["D1", 45, 50, "D1", "Defender — guarding the passer"],
+        ], [
+          ["O1", "O2", "dashed"],
+        ]),
       },
       {
         citation: "Art. 10-6, Case 1",
@@ -524,6 +578,13 @@ export const ARTICLES = [
           "An offensive player is inadvertently knocked into the backcourt while trying to save a ball from going out of bounds, and then returns it to the frontcourt.",
         ruling:
           "This is not a backcourt violation because the player's presence in the backcourt was not a matter of team control being illegally returned; officiating judgment applies to the specific circumstances of incidental contact.",
+        diagram: diagram([
+          ["O1", 50, 92, "O1", "Offense — knocked into the backcourt while saving the ball"],
+          ["O2", 50, 60, "O2", "Teammate — in the frontcourt, receives the ball back"],
+          ["D1", 48, 88, "D1", "Defender — contact that sends O1 into the backcourt"],
+        ], [
+          ["O1", "O2", "solid"],
+        ]),
       },
     ],
     questions: [

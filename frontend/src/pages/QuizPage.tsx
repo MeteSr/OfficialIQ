@@ -5,6 +5,8 @@ import { questionService, type Question, type UserQuestionHistory } from "../ser
 import { examService } from "../services/exam";
 import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
+import { contentService, type CasebookPlay } from "../services/content";
+import CourtDiagram from "../components/CourtDiagram";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
 import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord, ExamConfig } from "../services/exam";
@@ -38,6 +40,7 @@ export default function QuizPage() {
   const [canSubmit,    setCanSubmit]    = useState(true);
   const [offlineExamConfig, setOfflineExamConfig] = useState<ExamConfig | null>(null);
   const [history, setHistory] = useState<(UserQuestionHistory | null)[]>([]);
+  const [playsCache, setPlaysCache] = useState<Record<string, CasebookPlay[]>>({});
 
   const isAdaptive = searchParams.get("adaptive") === "1";
 
@@ -133,6 +136,15 @@ export default function QuizPage() {
     if (!principal || questions.length === 0) { setHistory([]); return; }
     questionService.getMyHistoryBatch(questions.map(q => q.id)).then(setHistory).catch(() => setHistory([]));
   }, [questions, principal]);
+
+  // Casebook plays (scenario/ruling text + optional court diagram) for the
+  // current question's article, fetched once per article and cached.
+  useEffect(() => {
+    if (!currentQ?.isCasebook || playsCache[currentQ.articleId]) return;
+    contentService.listPlays(currentQ.articleId)
+      .then(plays => setPlaysCache(prev => ({ ...prev, [currentQ.articleId]: plays })))
+      .catch(() => {});
+  }, [currentQ?.articleId, currentQ?.isCasebook, playsCache]);
 
   // Countdown timer
   useEffect(() => {
@@ -323,6 +335,11 @@ export default function QuizPage() {
       : `You've answered this correctly ${currentHistory.repetitions} time${currentHistory.repetitions === 1n ? "" : "s"} in a row`;
   })();
 
+  const currentPlay = currentQ.isCasebook
+    ? (playsCache[currentQ.articleId] ?? []).find(p => p.citation === currentQ.citation) ?? null
+    : null;
+  const currentPlayDiagram = currentPlay && currentPlay.diagram.length ? currentPlay.diagram[0] : null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
       {/* Header */}
@@ -346,6 +363,23 @@ export default function QuizPage() {
         <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>
           {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
+
+        {currentPlay && (
+          <div style={{
+            padding: "12px 14px", marginBottom: 14,
+            background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
+              CASEBOOK · {currentPlay.citation}
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 6 }}>{currentPlay.scenario}</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: T.muted }}>
+              <strong style={{ color: T.text }}>Ruling:</strong> {currentPlay.ruling}
+            </div>
+            {currentPlayDiagram && <CourtDiagram diagram={currentPlayDiagram} />}
+          </div>
+        )}
+
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: explainer ? 8 : 20 }}>{currentQ.stem}</p>
         {explainer && (
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 20, fontStyle: "italic" }}>

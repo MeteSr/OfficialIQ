@@ -27,6 +27,25 @@ persistent actor Content {
     updatedAt : Int;
   };
 
+  public type DiagramPlayer = {
+    id         : Text;
+    x          : Nat; // percentage across the court width, 0-100
+    y          : Nat; // percentage from the baseline toward half-court, 0-100
+    shortLabel : Text; // short on-court label, e.g. "O1", "D1"
+    role       : Text; // shown in the tap tooltip, e.g. "Defender — established legal position"
+  };
+
+  public type DiagramArrow = {
+    fromId : Text; // a DiagramPlayer.id
+    toId   : Text; // a DiagramPlayer.id
+    style  : Text; // e.g. "solid", "dashed" — rendering hint for the frontend
+  };
+
+  public type CourtDiagram = {
+    players : [DiagramPlayer];
+    arrows  : [DiagramArrow];
+  };
+
   public type CasebookPlay = {
     id        : Text;
     articleId : ArticleId;
@@ -34,6 +53,7 @@ persistent actor Content {
     scenario  : Text;
     ruling    : Text;
     audioUrl  : ?Text;
+    diagram   : ?CourtDiagram;
   };
 
   public type ArticleInput = {
@@ -49,6 +69,7 @@ persistent actor Content {
     citation  : Text;
     scenario  : Text;
     ruling    : Text;
+    diagram   : ?CourtDiagram;
   };
 
   public type PoeId = Text;
@@ -138,6 +159,7 @@ persistent actor Content {
       scenario  = input.scenario;
       ruling    = input.ruling;
       audioUrl  = null;
+      diagram   = input.diagram;
     };
     Map.add(plays, Text.compare, id, play);
     #ok(play)
@@ -237,7 +259,7 @@ persistent actor Content {
 
   public query func listPlays(articleId : ArticleId) : async [CasebookPlay] {
     let buf = VarArray.repeat<CasebookPlay>({
-      id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null;
+      id = ""; articleId = ""; citation = ""; scenario = ""; ruling = ""; audioUrl = null; diagram = null;
     }, Map.size(plays));
     var i = 0;
     for ((_, p) in Map.entries(plays)) {
