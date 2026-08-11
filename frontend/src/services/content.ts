@@ -1,6 +1,6 @@
 import { IDL } from "@icp-sdk/core/candid";
 import { createActor } from "./actor";
-import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays } from "../lib/offlineDb";
+import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays, getCachedAudioBlob } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,10 +150,15 @@ export const contentService = {
   },
 
   async getArticleAudio(id: string): Promise<Uint8Array | null> {
-    if (!CANISTER_ID) return null;
-    const res = await actor().getArticleAudio(id);
-    if (!res.length) return null;
-    return Uint8Array.from(res[0]);
+    if (!CANISTER_ID) return (await getCachedAudioBlob(id)) ?? null;
+    try {
+      const res = await actor().getArticleAudio(id);
+      return res.length ? Uint8Array.from(res[0]) : null;
+    } catch (e) {
+      const cached = await getCachedAudioBlob(id);
+      if (cached) return cached;
+      throw e;
+    }
   },
 
   async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {

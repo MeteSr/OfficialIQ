@@ -7,6 +7,11 @@ import { rankingService, type UserStats } from "../services/ranking";
 import { userService } from "../services/user";
 import { challengeService } from "../services/challenge";
 import { computeBadges, type Badge } from "../lib/badges";
+import { contentService, type Article } from "../services/content";
+import {
+  getStorageBreakdown, getDownloadedAudioIds, deleteAudioBlob, clearAllDownloads,
+  type StorageBreakdown,
+} from "../lib/offlineDb";
 import { Principal } from "@icp-sdk/core/principal";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
@@ -16,6 +21,10 @@ const LEVELS = ["varsity", "collegiate"] as const;
 // Rough heuristic: ~45 minutes of focused study per rule article.
 function hoursToArticlesPerWeek(hours: number): number {
   return Math.max(1, Math.round(hours / 0.75));
+}
+
+function formatMB(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`;
 }
 
 function ProfileForm({
@@ -103,10 +112,42 @@ export default function MePage() {
   const [copied,         setCopied]         = useState(false);
   const [badges,         setBadges]         = useState<Badge[]>([]);
 
+  const [storage,           setStorage]           = useState<StorageBreakdown | null>(null);
+  const [downloadedArticles, setDownloadedArticles] = useState<Article[]>([]);
+  const [clearingStorage,   setClearingStorage]   = useState(false);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
   }, [isAuthenticated]);
+
+  function loadStorage() {
+    getStorageBreakdown().then(setStorage).catch(() => {});
+    Promise.all([getDownloadedAudioIds(), contentService.listArticles("ncaa_basketball", "varsity")])
+      .then(([ids, articles]) => {
+        const idSet = new Set(ids);
+        setDownloadedArticles(articles.filter(a => idSet.has(a.id)).sort((a, b) => Number(a.number) - Number(b.number)));
+      })
+      .catch(() => {});
+  }
+
+  useEffect(loadStorage, []);
+
+  async function handleDeleteDownload(articleId: string) {
+    await deleteAudioBlob(articleId);
+    loadStorage();
+  }
+
+  async function handleClearAll() {
+    if (!window.confirm("Delete all downloaded offline content (articles, questions, and audio)?")) return;
+    setClearingStorage(true);
+    try {
+      await clearAllDownloads();
+      loadStorage();
+    } finally {
+      setClearingStorage(false);
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated || !principal) return;
@@ -390,6 +431,62 @@ export default function MePage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {storage && (
+        <div style={{ padding: "16px 16px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Offline Storage</div>
+            {storage.totalBytes > 0 && (
+              <button
+                onClick={handleClearAll}
+                disabled={clearingStorage}
+                style={{ fontSize: 12, color: T.wrong, fontWeight: 600, background: "transparent" }}
+              >
+                {clearingStorage ? "Clearing…" : "Clear all"}
+              </button>
+            )}
+          </div>
+
+          <div style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              {formatMB(storage.totalBytes)} of {formatMB(storage.quotaBytes)} used
+            </div>
+            <div style={{ height: 6, background: T.bg, borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
+              <div style={{
+                height: "100%", borderRadius: 3, background: T.navy,
+                width: `${Math.min(100, (storage.totalBytes / storage.quotaBytes) * 100)}%`,
+              }} />
+            </div>
+            <div style={{ display: "flex", gap: 14, fontSize: 11, color: T.muted }}>
+              <span>📄 Articles: {formatMB(storage.articlesBytes)}</span>
+              <span>❓ Questions: {formatMB(storage.questionsBytes)}</span>
+              <span>🎧 Audio: {formatMB(storage.audioBytes)}</span>
+            </div>
+          </div>
+
+          {downloadedArticles.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+              {downloadedArticles.map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "9px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 12 }}>🎧 Art. {Number(a.number)} audio downloaded</span>
+                  <button
+                    onClick={() => handleDeleteDownload(a.id)}
+                    style={{ fontSize: 11, color: T.wrong, fontWeight: 600, background: "transparent" }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

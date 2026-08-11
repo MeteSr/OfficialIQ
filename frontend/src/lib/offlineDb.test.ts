@@ -4,6 +4,8 @@ import {
   cachePlays, getCachedPlays,
   cacheQuestions, getCachedQuestion, getCachedQuestionsFor,
   enqueuePendingAction, getPendingActions, removePendingAction, pendingActionCount,
+  saveAudioBlob, getCachedAudioBlob, isAudioDownloaded, deleteAudioBlob,
+  getDownloadedAudioIds, getStorageBreakdown, clearAllDownloads,
 } from "./offlineDb";
 import type { Article, CasebookPlay } from "../services/content";
 import type { Question } from "../services/question";
@@ -81,6 +83,40 @@ describe("offlineDb: question cache", () => {
     const found = await getCachedQuestion("test:q-single");
     expect(found).toEqual(q);
     expect(await getCachedQuestion("test:does-not-exist")).toBeUndefined();
+  });
+});
+
+describe("offlineDb: downloaded audio", () => {
+  it("round-trips a downloaded audio blob and reports its size", async () => {
+    const id = "test:audio-art1";
+    expect(await isAudioDownloaded(id)).toBe(false);
+
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    await saveAudioBlob(id, bytes);
+
+    expect(await isAudioDownloaded(id)).toBe(true);
+    expect(Array.from((await getCachedAudioBlob(id)) ?? [])).toEqual(Array.from(bytes));
+    expect(await getDownloadedAudioIds()).toContain(id);
+
+    const breakdown = await getStorageBreakdown();
+    expect(breakdown.audioBytes).toBeGreaterThanOrEqual(5);
+    expect(breakdown.totalBytes).toBeGreaterThanOrEqual(breakdown.audioBytes);
+
+    await deleteAudioBlob(id);
+    expect(await isAudioDownloaded(id)).toBe(false);
+    expect(await getCachedAudioBlob(id)).toBeUndefined();
+  });
+
+  it("clearAllDownloads wipes cached content but not the pending queue", async () => {
+    await cacheArticles([makeArticle("test:clear-art", 1n)]);
+    await saveAudioBlob("test:clear-audio", new Uint8Array([9, 9]));
+    await enqueuePendingAction({ kind: "recordArticleStudied", articleId: "test:clear-keep", score: 70 });
+
+    await clearAllDownloads();
+
+    expect((await getCachedArticles()).some(a => a.id === "test:clear-art")).toBe(false);
+    expect(await isAudioDownloaded("test:clear-audio")).toBe(false);
+    expect((await getPendingActions()).some(a => a.kind === "recordArticleStudied" && a.articleId === "test:clear-keep")).toBe(true);
   });
 });
 

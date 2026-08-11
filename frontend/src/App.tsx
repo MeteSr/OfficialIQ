@@ -18,6 +18,7 @@ import AudioModePage from "./pages/AudioModePage";
 import GroupsPage from "./pages/GroupsPage";
 import GroupDetailPage from "./pages/GroupDetailPage";
 import CertExamPage from "./pages/CertExamPage";
+import CommuteModePage from "./pages/CommuteModePage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/groups/:id" element={<GroupDetailPage />} />
             <Route path="/exam-sim" element={<CertExamPage />} />
+            <Route path="/commute" element={<CommuteModePage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

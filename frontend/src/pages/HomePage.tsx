@@ -247,19 +247,20 @@ export default function HomePage() {
         )}
 
         {/* Quick actions */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
           {[
             { label: "Audio Mode", icon: "🎧", path: "/audio" },
+            { label: "Commute", icon: "🚗", path: "/commute" },
             { label: "Quick Drill", icon: "⚡", path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (
             <button
               key={a.label}
               onClick={() => navigate(a.path)}
               style={{
-                padding: "14px 0", background: T.surface,
+                padding: "14px 4px", background: T.surface,
                 border: `1px solid ${T.border}`, borderRadius: 10,
-                fontSize: 14, fontWeight: 600,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                fontSize: 12, fontWeight: 600,
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
               <span style={{ fontSize: 18 }}>{a.icon}</span>

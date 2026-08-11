@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { contentService, type Article, type PointOfEmphasis } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
 import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
+import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/offlineDb";
 
 const CURRENT_SEASON = "2025-26";
 
@@ -21,11 +22,33 @@ export default function StudyPage() {
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     contentService.listPointsOfEmphasis(CURRENT_SEASON).then(setPoes).catch(() => {});
+    getDownloadedAudioIds().then(ids => setDownloadedIds(new Set(ids))).catch(() => {});
     return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
   }, []);
+
+  async function handleDownloadToggle(articleId: string, e: MouseEvent) {
+    e.stopPropagation();
+    if (downloadedIds.has(articleId)) {
+      await deleteAudioBlob(articleId);
+      setDownloadedIds(s => { const next = new Set(s); next.delete(articleId); return next; });
+      return;
+    }
+    setDownloadingId(articleId);
+    try {
+      const bytes = await contentService.getArticleAudio(articleId);
+      if (bytes) {
+        await saveAudioBlob(articleId, bytes);
+        setDownloadedIds(s => new Set(s).add(articleId));
+      }
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   async function togglePoeAudio(poe: PointOfEmphasis) {
     if (playingPoeId === poe.id) {
@@ -179,16 +202,21 @@ export default function StudyPage() {
           const done = !!p && Number(p.timesStudied) > 0;
           const overdue = overdueIds.has(a.id);
           const due = dueCounts[a.id] ?? 0;
+          const hasAudio = a.audioUrl.length > 0;
+          const downloaded = downloadedIds.has(a.id);
+          const downloading = downloadingId === a.id;
           return (
-            <button
+            <div
               key={a.id}
               onClick={() => navigate(`/quiz/${a.id}?adaptive=1`)}
+              role="button"
+              tabIndex={0}
               style={{
                 display: "flex", alignItems: "center", gap: 14,
                 padding: "14px 16px",
                 background: T.surface,
                 border: `1px solid ${overdue ? T.wrong : T.border}`,
-                borderRadius: 10, textAlign: "left",
+                borderRadius: 10, textAlign: "left", cursor: "pointer",
               }}
             >
               <div style={{
@@ -227,8 +255,23 @@ export default function StudyPage() {
                   </div>
                 )}
               </div>
+              {hasAudio && (
+                <button
+                  onClick={(e) => handleDownloadToggle(a.id, e)}
+                  title={downloaded ? "Remove downloaded audio" : "Download audio for offline listening"}
+                  style={{
+                    width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+                    background: downloaded ? "#E6F4EC" : T.bg,
+                    color: downloaded ? T.correct : T.muted,
+                    border: `1px solid ${downloaded ? T.correct : T.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13,
+                  }}
+                >
+                  {downloading ? "…" : downloaded ? "✓" : "⬇"}
+                </button>
+              )}
               <span style={{ color: T.muted, fontSize: 18 }}>›</span>
-            </button>
+            </div>
           );
         })}
       </div>

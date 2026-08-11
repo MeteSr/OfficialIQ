@@ -30,15 +30,18 @@ export type PendingAction =
       questionId: string; isCorrect: boolean;
     };
 
+export type AudioBlobRecord = { id: string; bytes: Uint8Array; sizeBytes: number; downloadedAt: number };
+
 interface OfflineSchema extends DBSchema {
   articles: { key: string; value: Article };
   plays: { key: string; value: CasebookPlay; indexes: { articleId: string } };
   questions: { key: string; value: Question; indexes: { articleId: string } };
+  audioBlobs: { key: string; value: AudioBlobRecord };
   pendingActions: { key: string; value: PendingAction };
 }
 
 const DB_NAME = "officialiq-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<OfflineSchema>> | null = null;
 
@@ -54,6 +57,9 @@ function getDb(): Promise<IDBPDatabase<OfflineSchema>> {
         }
         if (!db.objectStoreNames.contains("questions")) {
           db.createObjectStore("questions", { keyPath: "id" }).createIndex("articleId", "articleId");
+        }
+        if (!db.objectStoreNames.contains("audioBlobs")) {
+          db.createObjectStore("audioBlobs", { keyPath: "id" });
         }
         if (!db.objectStoreNames.contains("pendingActions")) {
           db.createObjectStore("pendingActions", { keyPath: "id" });
@@ -114,6 +120,90 @@ export async function getCachedQuestionsFor(
     ? await db.getAll("questions")
     : (await Promise.all(articleIds.map(id => db.getAllFromIndex("questions", "articleId", id)))).flat();
   return all.filter(q => q.isCasebook === casebook).slice(0, count);
+}
+
+// ─── Downloaded audio ─────────────────────────────────────────────────────────
+// A "download" is an explicit, user-triggered opt-in (per article, from the
+// Study page) — distinct from the automatic text/question sync in
+// syncAllContent(), which is small and always kept warm for basic offline use.
+
+export async function saveAudioBlob(id: string, bytes: Uint8Array): Promise<void> {
+  const db = await getDb();
+  await db.put("audioBlobs", { id, bytes, sizeBytes: bytes.byteLength, downloadedAt: Date.now() });
+}
+
+export async function getCachedAudioBlob(id: string): Promise<Uint8Array | undefined> {
+  const db = await getDb();
+  const rec = await db.get("audioBlobs", id);
+  return rec?.bytes;
+}
+
+export async function isAudioDownloaded(id: string): Promise<boolean> {
+  const db = await getDb();
+  return (await db.getKey("audioBlobs", id)) !== undefined;
+}
+
+export async function getDownloadedAudioIds(): Promise<string[]> {
+  const db = await getDb();
+  return db.getAllKeys("audioBlobs");
+}
+
+export async function deleteAudioBlob(id: string): Promise<void> {
+  const db = await getDb();
+  await db.delete("audioBlobs", id);
+}
+
+export type StorageBreakdown = {
+  articlesBytes:  number;
+  questionsBytes: number;
+  audioBytes:     number;
+  totalBytes:     number;
+  quotaBytes:     number;
+};
+
+const DEFAULT_QUOTA_BYTES = 500 * 1024 * 1024; // shown as "of 500 MB" when the Storage API isn't available
+
+// Article/Question records carry bigint fields, which JSON.stringify can't
+// serialize on its own — stringify them for sizing purposes only.
+function jsonByteSize(value: unknown): number {
+  return new Blob([JSON.stringify(value, (_key, v) => (typeof v === "bigint" ? v.toString() : v))]).size;
+}
+
+export async function getStorageBreakdown(): Promise<StorageBreakdown> {
+  const db = await getDb();
+  const [articles, questions, audioRecords] = await Promise.all([
+    db.getAll("articles"),
+    db.getAll("questions"),
+    db.getAll("audioBlobs"),
+  ]);
+  const articlesBytes  = jsonByteSize(articles);
+  const questionsBytes = jsonByteSize(questions);
+  const audioBytes     = audioRecords.reduce((sum, r) => sum + r.sizeBytes, 0);
+  const totalBytes     = articlesBytes + questionsBytes + audioBytes;
+
+  let quotaBytes = DEFAULT_QUOTA_BYTES;
+  try {
+    const estimate = await navigator.storage?.estimate?.();
+    if (estimate?.quota) quotaBytes = estimate.quota;
+  } catch {
+    // Storage API unavailable — keep the default.
+  }
+
+  return { articlesBytes, questionsBytes, audioBytes, totalBytes, quotaBytes };
+}
+
+// Clears all downloaded/cached content (articles, plays, questions, audio)
+// but leaves the pending-actions queue intact — those still need to sync.
+// Text/question content re-syncs automatically on next login (syncAllContent);
+// audio does not, since it's an explicit per-article opt-in.
+export async function clearAllDownloads(): Promise<void> {
+  const db = await getDb();
+  await Promise.all([
+    db.clear("articles"),
+    db.clear("plays"),
+    db.clear("questions"),
+    db.clear("audioBlobs"),
+  ]);
 }
 
 // ─── Pending actions queue ───────────────────────────────────────────────────

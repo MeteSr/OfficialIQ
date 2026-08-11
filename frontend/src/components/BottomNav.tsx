@@ -13,9 +13,9 @@ export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // The certification exam simulation is a full-screen, distraction-free
-  // mode (see issue #16) — no tab bar while it's in progress.
-  if (location.pathname.startsWith("/exam-sim")) return null;
+  // The certification exam simulation and Commute Mode are full-screen,
+  // distraction-free modes (see issues #16, #17) — no tab bar while active.
+  if (location.pathname.startsWith("/exam-sim") || location.pathname.startsWith("/commute")) return null;
 
   return (
     <nav style={{
