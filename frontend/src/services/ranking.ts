@@ -20,11 +20,14 @@ export type UserStats = {
   state:         string;
   elo:           number;
   streak:        bigint;
+  bestStreak:    bigint;
   accuracy:      number;
   avgElapsedSec: number;
   examCount:     bigint;
   updatedAt:     bigint;
 };
+
+export type EloSnapshot = { elo: number; accuracy: number; timestamp: bigint };
 
 export type SortKey = "Elo" | "Accuracy" | "Speed";
 type SortKeyVariant = { Elo: null } | { Accuracy: null } | { Speed: null };
@@ -34,7 +37,8 @@ const sortKeyToVariant = (key: SortKey): SortKeyVariant => ({ [key]: null } as S
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Entry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
-  const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, accuracy: I.Float64, avgElapsedSec: I.Float64, examCount: I.Nat, updatedAt: I.Int });
+  const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, bestStreak: I.Nat, accuracy: I.Float64, avgElapsedSec: I.Float64, examCount: I.Nat, updatedAt: I.Int });
+  const EloSnapshotRec = I.Record({ elo: I.Float64, accuracy: I.Float64, timestamp: I.Int });
   const SortKeyVariant = I.Variant({ Elo: I.Null, Accuracy: I.Null, Speed: I.Null });
   const ResultU = I.Variant({ ok: I.Null, err: I.Text });
   return I.Service({
@@ -47,6 +51,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     getState:           I.Func([I.Text, I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
     getFriends:         I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
     getMyStats:         I.Func([], [I.Opt(Stats)], ["query"]),
+    getMyEloHistory:    I.Func([], [I.Vec(EloSnapshotRec)], ["query"]),
     metrics:            I.Func([], [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
@@ -86,6 +91,7 @@ function actor() {
     getState:            (sport: string, state: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
     getFriends:          (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
     getMyStats:          () => Promise<[] | [UserStats]>;
+    getMyEloHistory:     () => Promise<EloSnapshot[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -109,6 +115,11 @@ export const rankingService = {
     if (!CANISTER_ID) return null;
     const res = await actor().getMyStats();
     return res.length ? res[0] : null;
+  },
+
+  async getMyEloHistory(): Promise<EloSnapshot[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyEloHistory();
   },
 
   async getStats(p: any): Promise<UserStats | null> {

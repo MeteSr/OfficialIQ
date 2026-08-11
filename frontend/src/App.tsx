@@ -11,6 +11,7 @@ import AddFriendPage from "./pages/AddFriendPage";
 import ChallengePage from "./pages/ChallengePage";
 import WeeklyQuizPage from "./pages/WeeklyQuizPage";
 import MonthlyQuizPage from "./pages/MonthlyQuizPage";
+import ProgressPage from "./pages/ProgressPage";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="/challenge/:id" element={<ChallengePage />} />
             <Route path="/weekly-quiz" element={<WeeklyQuizPage />} />
             <Route path="/monthly-quiz" element={<MonthlyQuizPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

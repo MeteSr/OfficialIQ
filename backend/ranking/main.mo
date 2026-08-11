@@ -21,10 +21,17 @@ persistent actor Ranking {
     state         : Text;
     elo           : Float;
     streak        : Nat;
+    bestStreak    : Nat;
     accuracy      : Float;
     avgElapsedSec : Float;
     examCount     : Nat;
     updatedAt     : Int;
+  };
+
+  public type EloSnapshot = {
+    elo       : Float;
+    accuracy  : Float;
+    timestamp : Int;
   };
 
   public type LeaderboardEntry = {
@@ -44,6 +51,10 @@ persistent actor Ranking {
   var stats : Map.Map<Principal, UserStats> = Map.empty<Principal, UserStats>();
 
   var friends : Map.Map<Principal, [Principal]> = Map.empty<Principal, [Principal]>();
+
+  var examHistory : Map.Map<Principal, [EloSnapshot]> = Map.empty<Principal, [EloSnapshot]>();
+
+  let MAX_HISTORY : Nat = 60;
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -105,7 +116,7 @@ persistent actor Ranking {
       case (?s) s;
       case null {
         { principal = caller; displayName; sport; state;
-          elo = 1000.0; streak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0 }
+          elo = 1000.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0 }
       };
     };
     let acc         = Int.toFloat(score) / 100.0;
@@ -115,6 +126,7 @@ persistent actor Ranking {
     let delta       = (acc - 0.5) * 32.0 * speedMultiplier(avgElapsedSec);
     let newElo      = if (prev.elo + delta < 0.0) 0.0 else prev.elo + delta;
     let newStreak   = if (score >= 80) prev.streak + 1 else 0;
+    let newBest     = if (newStreak > prev.bestStreak) newStreak else prev.bestStreak;
     Map.add(stats, Principal.compare, caller, {
       principal     = caller;
       displayName   = displayName;
@@ -122,11 +134,19 @@ persistent actor Ranking {
       state;
       elo           = newElo;
       streak        = newStreak;
+      bestStreak    = newBest;
       accuracy      = newAcc;
       avgElapsedSec = newAvgTime;
       examCount     = newCount;
       updatedAt     = Time.now();
     });
+
+    let prevHistory = switch (Map.get(examHistory, Principal.compare, caller)) { case (?h) h; case null [] };
+    let appended = Array.concat<EloSnapshot>(prevHistory, [{ elo = newElo; accuracy = newAcc; timestamp = Time.now() }]);
+    let trimmed = if (appended.size() > MAX_HISTORY)
+      Array.sliceToArray<EloSnapshot>(appended, appended.size() - MAX_HISTORY, appended.size())
+      else appended;
+    Map.add(examHistory, Principal.compare, caller, trimmed);
   };
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
@@ -159,7 +179,7 @@ persistent actor Ranking {
   public query func getNational(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
     let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
-      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
+      state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, Map.size(stats));
     var i = 0;
     for ((_, s) in Map.entries(stats)) {
@@ -172,7 +192,7 @@ persistent actor Ranking {
   public query func getState(sport : Text, state : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
     let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
-      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
+      state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, Map.size(stats));
     var i = 0;
     for ((_, s) in Map.entries(stats)) {
@@ -187,7 +207,7 @@ persistent actor Ranking {
     let all = Array.concat<Principal>(myFriends, [caller]);
     let buf = VarArray.repeat<UserStats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
-      state = ""; elo = 0.0; streak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
+      state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, all.size());
     var i = 0;
     for (p in all.vals()) {
@@ -202,6 +222,10 @@ persistent actor Ranking {
 
   public shared query ({ caller }) func getMyStats() : async ?UserStats {
     Map.get(stats, Principal.compare, caller)
+  };
+
+  public shared query ({ caller }) func getMyEloHistory() : async [EloSnapshot] {
+    switch (Map.get(examHistory, Principal.compare, caller)) { case (?h) h; case null [] }
   };
 
   public query func metrics() : async { userCount : Nat } {

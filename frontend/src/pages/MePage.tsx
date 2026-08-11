@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
@@ -83,6 +84,7 @@ function ProfileForm({
 }
 
 export default function MePage() {
+  const navigate = useNavigate();
   const { isAuthenticated, profile, principal, setProfile } = useAuthStore();
   const { login, logout } = useAuth();
   const [stats,      setStats]      = useState<UserStats | null>(null);
@@ -349,6 +351,21 @@ export default function MePage() {
           ))}
         </div>
       )}
+
+      <div style={{ padding: "12px 16px 0" }}>
+        <button
+          onClick={() => navigate("/progress")}
+          style={{
+            width: "100%", padding: "12px 14px", background: T.surface,
+            border: `1px solid ${T.border}`, borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          📈 View Full Progress
+          <span style={{ color: T.muted }}>›</span>
+        </button>
+      </div>
 
       {/* Friends */}
       <div style={{ padding: "16px 16px 0" }}>

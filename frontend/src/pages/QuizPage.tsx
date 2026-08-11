@@ -72,12 +72,13 @@ export default function QuizPage() {
       }
 
       const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
+      const countFromQuery = Number(searchParams.get("count")) || 25;
       const qs = await questionService.sampleQuiz({
         sportId:    "ncaa_basketball",
         articleIds: articleId ? [articleId] : [],
         casebook:   true,
         difficulty: [],
-        count:      BigInt(25),
+        count:      BigInt(countFromQuery),
       });
       const session = await examService.createSession(
         { sportId: "ncaa_basketball", articleIds: articleId ? [articleId] : [], casebook: true,
