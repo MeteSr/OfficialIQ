@@ -6,6 +6,7 @@ import { examService, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecor
 import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
+import ShareWithMentorButton from "../components/ShareWithMentorButton";
 
 const SPORT_ID = "ncaa_basketball";
 
@@ -50,7 +51,7 @@ export default function CertExamPage() {
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [timeLeft, setTimeLeft] = useState(0);
-  const [finalSession, setFinalSession] = useState<{ score: number } | null>(null);
+  const [finalSession, setFinalSession] = useState<{ score: number; avgElapsedSec: number; answers: AnswerRecord[] } | null>(null);
 
   const startedAtRef = useRef<number>(0);
 
@@ -85,19 +86,20 @@ export default function CertExamPage() {
         ))),
       }));
 
+    const avgElapsedSec = answers.length
+      ? Number(answers.reduce((s, a) => s + a.elapsedSec, 0n)) / answers.length
+      : 0;
+
     try {
       if (sessionId) {
         const updated = await examService.submitExam(sessionId, answers);
-        setFinalSession({ score: updated.score.length ? Number(updated.score[0]) : 0 });
+        setFinalSession({ score: updated.score.length ? Number(updated.score[0]) : 0, avgElapsedSec, answers });
       } else {
         const correct = answers.filter(a => a.isCorrect).length;
-        setFinalSession({ score: answers.length ? Math.round((correct / answers.length) * 100) : 0 });
+        setFinalSession({ score: answers.length ? Math.round((correct / answers.length) * 100) : 0, avgElapsedSec, answers });
       }
 
       if (profile) {
-        const avgElapsedSec = answers.length
-          ? Number(answers.reduce((s, a) => s + a.elapsedSec, 0n)) / answers.length
-          : 0;
         const correct = answers.filter(a => a.isCorrect).length;
         const overallScore = answers.length ? Math.round((correct / answers.length) * 100) : 0;
         rankingService.recordExamResult(
@@ -310,9 +312,23 @@ export default function CertExamPage() {
           })}
         </div>
 
+        {sessionId && (
+          <ShareWithMentorButton
+            examId={sessionId}
+            sportId={SPORT_ID}
+            score={finalSession.score}
+            avgElapsedSec={finalSession.avgElapsedSec}
+            answers={finalSession.answers.map(a => ({
+              questionId: a.questionId, chosenId: a.chosenId,
+              correctId: questions.find(q => q.id === a.questionId)?.correctId ?? "",
+              isCorrect: a.isCorrect, elapsedSec: a.elapsedSec,
+            }))}
+          />
+        )}
+
         <button
           onClick={() => navigate("/home")}
-          style={{ width: "100%", padding: "13px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
+          style={{ width: "100%", padding: "13px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginTop: 12 }}
         >
           Back to Home
         </button>

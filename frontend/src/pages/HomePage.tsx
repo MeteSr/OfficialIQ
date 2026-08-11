@@ -7,6 +7,7 @@ import { rankingService, type UserStats, type DailyActivity } from "../services/
 import { userService, type StudyPace, type WeeklySchedule } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
+import { mentorshipService } from "../services/mentorship";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
@@ -17,6 +18,7 @@ export default function HomePage() {
   const [stats,      setStats]      = useState<UserStats | null>(null);
   const [dailyStreak, setDailyStreak] = useState<DailyActivity | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
+  const [unseenNotes, setUnseenNotes] = useState(0);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [names,       setNames]     = useState<Record<string, string>>({});
   const [accepting,   setAccepting] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export default function HomePage() {
         }
       }).catch(() => {});
       refreshChallenges();
+      mentorshipService.getMyUnseenAnnotationCount().then(setUnseenNotes).catch(() => {});
     }
     if (isAuthenticated && profile) refreshSchedule();
   }, [isAuthenticated, principal, !!profile]);
@@ -118,6 +121,17 @@ export default function HomePage() {
           }}
         >
           {milestoneToast}
+        </div>
+      )}
+      {unseenNotes > 0 && (
+        <div
+          onClick={() => navigate("/mentor")}
+          style={{
+            background: T.navy, color: T.white, textAlign: "center",
+            padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+          }}
+        >
+          🧑‍🏫 {unseenNotes} new note{unseenNotes === 1 ? "" : "s"} from your mentor — tap to view
         </div>
       )}
       {/* Header */}

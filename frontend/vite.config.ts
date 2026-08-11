@@ -40,6 +40,7 @@ export default defineConfig({
     CANISTER_ID_EXAM:      JSON.stringify(process.env.CANISTER_ID_EXAM      ?? ""),
     CANISTER_ID_RANKING:   JSON.stringify(process.env.CANISTER_ID_RANKING   ?? ""),
     CANISTER_ID_CHALLENGE: JSON.stringify(process.env.CANISTER_ID_CHALLENGE ?? ""),
+    CANISTER_ID_MENTORSHIP: JSON.stringify(process.env.CANISTER_ID_MENTORSHIP ?? ""),
     DFX_NETWORK:           JSON.stringify(process.env.DFX_NETWORK           ?? "local"),
   },
   server: {

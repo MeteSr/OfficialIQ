@@ -29,10 +29,14 @@
       "type": "motoko",
       "main": "backend/ai_proxy/main.mo"
     },
+    "mentorship": {
+      "type": "motoko",
+      "main": "backend/mentorship/main.mo"
+    },
     "assets": {
       "type": "assets",
       "source": ["frontend/dist"],
-      "dependencies": ["user", "content", "question", "exam", "ranking", "challenge"],
+      "dependencies": ["user", "content", "question", "exam", "ranking", "challenge", "mentorship"],
       "frontend": {
         "entrypoint": "frontend/dist/index.html"
       }

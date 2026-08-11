@@ -11,6 +11,7 @@ import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizS
 import { useAuthStore } from "../store/authStore";
 import type { AnswerRecord, ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
+import ShareWithMentorButton from "../components/ShareWithMentorButton";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
@@ -308,11 +309,24 @@ export default function QuizPage() {
           </div>
         </div>
 
+        {sessionId && !sessionId.startsWith("offline-") && (
+          <ShareWithMentorButton
+            examId={sessionId}
+            sportId="ncaa_basketball"
+            score={finalScore}
+            avgElapsedSec={avgElapsed}
+            answers={answers.map((a, i) => ({
+              questionId: a.questionId, chosenId: a.chosenId,
+              correctId: questions[i]?.correctId ?? "", isCorrect: a.isCorrect, elapsedSec: a.elapsedSec,
+            }))}
+          />
+        )}
+
         <button
           onClick={() => navigate("/home")}
           style={{
             padding: "13px 32px", background: T.navy, color: T.white,
-            borderRadius: 8, fontSize: 15, fontWeight: 700,
+            borderRadius: 8, fontSize: 15, fontWeight: 700, marginTop: 12,
           }}
         >Back to Home</button>
       </div>
