@@ -7,8 +7,7 @@ import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
-
-const SPORT_ID = "ncaa_basketball";
+import { useSport } from "../lib/sport";
 
 type Phase = "intro" | "loading" | "exam" | "review" | "results" | "error";
 
@@ -38,6 +37,7 @@ function shuffle<T>(arr: T[]): T[] {
 export default function CertExamPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile } = useAuthStore();
+  const { sportId: SPORT_ID } = useSport();
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export default function CertExamPage() {
     examService.listExamTemplates(SPORT_ID).then((templates) => {
       if (templates.length > 0) setTemplate(templates[0]);
     }).catch(() => {});
-  }, [isAuthenticated]);
+  }, [isAuthenticated, SPORT_ID]);
 
   // Warn on tab close/refresh while an exam is actively in progress.
   useEffect(() => {

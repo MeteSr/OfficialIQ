@@ -5,6 +5,7 @@ import { initAgent, resetAgent } from "../services/actor";
 import { userService, type UserProfile } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import { syncAllContent } from "../lib/offlineSync";
+import { DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 
 type AuthContextValue = {
   login:    () => Promise<void>;
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Best-effort content sync-down for offline use — never blocks login.
   function completeAuth(principal: string, profile: UserProfile | null) {
     setAuth(principal, profile);
-    syncAllContent().catch(() => {});
+    syncAllContent(profile?.sport || DEFAULT_SPORT_ID, profile?.level || DEFAULT_LEVEL_ID).catch(() => {});
   }
 
   useEffect(() => {

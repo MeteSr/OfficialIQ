@@ -9,6 +9,7 @@ import { contentService, type Article } from "../services/content";
 import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
 import { mentorshipService } from "../services/mentorship";
 import { reportService } from "../services/report";
+import { useSport } from "../lib/sport";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
@@ -16,6 +17,7 @@ const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
 export default function HomePage() {
   const navigate   = useNavigate();
   const { profile, principal, isAuthenticated } = useAuthStore();
+  const { sportId, levelId } = useSport();
   const [stats,      setStats]      = useState<UserStats | null>(null);
   const [dailyStreak, setDailyStreak] = useState<DailyActivity | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export default function HomePage() {
 
   async function refreshSchedule() {
     try {
-      const arts = await contentService.listArticles("ncaa_basketball", "varsity");
+      const arts = await contentService.listArticles(sportId, levelId);
       const sorted = [...arts].sort((a, b) => Number(a.number) - Number(b.number));
       setArticles(sorted);
       const myPace = await userService.getMyStudyPace();
@@ -77,7 +79,7 @@ export default function HomePage() {
       reportService.getMyUnseenShareCount().then(setUnseenReports).catch(() => {});
     }
     if (isAuthenticated && profile) refreshSchedule();
-  }, [isAuthenticated, principal, !!profile]);
+  }, [isAuthenticated, principal, !!profile, sportId, levelId]);
 
   async function handleAccept(id: string) {
     setAccepting(id);

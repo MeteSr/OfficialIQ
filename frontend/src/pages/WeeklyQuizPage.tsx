@@ -6,6 +6,7 @@ import { questionService, type Question } from "../services/question";
 import { userService, type WeeklyQuizResult } from "../services/user";
 import { rankingService } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
+import { useSport } from "../lib/sport";
 
 const SECONDS_PER_Q = 30;
 const TOTAL_QUESTIONS = 10;
@@ -39,6 +40,7 @@ function shuffle<T>(arr: T[]): T[] {
 export default function WeeklyQuizPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile } = useAuthStore();
+  const { sportId, levelId } = useSport();
 
   const [phase,   setPhase]   = useState<"loading" | "preview" | "quiz" | "results" | "error" | "empty">("loading");
   const [error,   setError]   = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function WeeklyQuizPage() {
     if (!isAuthenticated) { setPhase("error"); setError("Sign in to take your weekly quiz."); return; }
 
     (async () => {
-      const arts = await contentService.listArticles("ncaa_basketball", "varsity");
+      const arts = await contentService.listArticles(sportId, levelId);
       const sorted = [...arts].sort((a, b) => Number(a.number) - Number(b.number));
       const [schedule, progress, hist, poes] = await Promise.all([
         userService.getWeeklySchedule(sorted.map(a => a.id)),
@@ -104,7 +106,7 @@ export default function WeeklyQuizPage() {
       });
       setPhase("preview");
     })().catch(() => { setPhase("error"); setError("Couldn't load your weekly quiz."); });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sportId, levelId]);
 
   async function handleStart() {
     if (!plan) return;
@@ -113,20 +115,20 @@ export default function WeeklyQuizPage() {
       const [newQs, retentionQs, poePool] = await Promise.all([
         plan.newCount > 0
           ? questionService.sampleQuiz({
-              sportId: "ncaa_basketball", articleIds: plan.newArticles.map(a => a.id),
+              sportId, articleIds: plan.newArticles.map(a => a.id),
               casebook: false, difficulty: [], count: BigInt(plan.newCount),
             })
           : Promise.resolve([]),
         plan.retentionCount > 0
           ? questionService.sampleQuiz({
-              sportId: "ncaa_basketball", articleIds: plan.retentionArticles.map(a => a.id),
+              sportId, articleIds: plan.retentionArticles.map(a => a.id),
               casebook: false, difficulty: [], count: BigInt(plan.retentionCount),
             })
           : Promise.resolve([]),
         plan.poeCount > 0
           ? Promise.all([
-              questionService.sampleQuiz({ sportId: "ncaa_basketball", articleIds: plan.poeArticleIds, casebook: false, difficulty: [], count: 50n }),
-              questionService.sampleQuiz({ sportId: "ncaa_basketball", articleIds: plan.poeArticleIds, casebook: true,  difficulty: [], count: 50n }),
+              questionService.sampleQuiz({ sportId, articleIds: plan.poeArticleIds, casebook: false, difficulty: [], count: 50n }),
+              questionService.sampleQuiz({ sportId, articleIds: plan.poeArticleIds, casebook: true,  difficulty: [], count: 50n }),
             ]).then(([a, b]) => [...a, ...b])
           : Promise.resolve([]),
       ]);

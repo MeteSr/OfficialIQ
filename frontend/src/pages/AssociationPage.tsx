@@ -4,12 +4,12 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
 import { userService } from "../services/user";
-
-const SPORT_ID = "ncaa_basketball";
+import { useSport } from "../lib/sport";
 
 export default function AssociationPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile, setProfile } = useAuthStore();
+  const { sportId: SPORT_ID } = useSport();
 
   const [mine,        setMine]        = useState<AssociationRec[]>([]);
   const [coordinated, setCoordinated] = useState<AssociationRec[]>([]);

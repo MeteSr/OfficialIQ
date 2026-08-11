@@ -96,6 +96,26 @@ persistent actor Content {
     linkedArticleIds : [Text];
   };
 
+  // Sport registry (issue #23) — the rest of the platform is already keyed
+  // by sportId/levelId everywhere, so adding a sport is meant to be a pure
+  // content-seeding operation (one upsertSport call plus the usual
+  // upsertArticle/addQuestion seeding), not a code change.
+  public type SportLevel = { id : Text; displayName : Text };
+
+  public type Sport = {
+    id           : Text;
+    displayName  : Text;
+    levels       : [SportLevel];
+    rulebookYear : Text;
+  };
+
+  public type SportInput = {
+    id           : Text;
+    displayName  : Text;
+    levels       : [SportLevel];
+    rulebookYear : Text;
+  };
+
   // Tap-to-assign coverage zone for the mechanics "coverage zone" quiz
   // type — a rectangular region on the CourtDiagram grid (same 0-100
   // percentage coordinate system as DiagramPlayer) with the crew role that
@@ -161,6 +181,8 @@ persistent actor Content {
 
   var submissions : Map.Map<Text, VideoSubmission> = Map.empty<Text, VideoSubmission>();
 
+  var sports : Map.Map<Text, Sport> = Map.empty<Text, Sport>();
+
   var nextPlayId : Nat = 0;
   var nextPoeId : Nat = 0;
   var nextScenarioId : Nat = 0;
@@ -207,6 +229,16 @@ persistent actor Content {
     };
     Map.add(articles, Text.compare, id, art);
     #ok(art)
+  };
+
+  public shared ({ caller }) func upsertSport(input : SportInput) : async Result.Result<Sport, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let s : Sport = {
+      id = input.id; displayName = input.displayName;
+      levels = input.levels; rulebookYear = input.rulebookYear;
+    };
+    Map.add(sports, Text.compare, input.id, s);
+    #ok(s)
   };
 
   public shared ({ caller }) func upsertPlay(input : PlayInput) : async Result.Result<CasebookPlay, Text> {
@@ -368,6 +400,13 @@ persistent actor Content {
       if (p.season == season) { buf[i] := p; i += 1 };
     };
     VarArray.sliceToArray<PointOfEmphasis>(buf, 0, i)
+  };
+
+  public query func listSports() : async [Sport] {
+    let buf = VarArray.repeat<Sport>({ id = ""; displayName = ""; levels = []; rulebookYear = "" }, Map.size(sports));
+    var i = 0;
+    for ((_, s) in Map.entries(sports)) { buf[i] := s; i += 1 };
+    VarArray.sliceToArray<Sport>(buf, 0, i)
   };
 
   public query func listArticles(sportId : Text, levelId : Text) : async [Article] {

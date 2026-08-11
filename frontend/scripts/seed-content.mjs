@@ -9,7 +9,7 @@ import path from "node:path";
 import { Actor, HttpAgent } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
-import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS, MECHANICS_ARTICLE_ID, MECHANICS_QUESTIONS, MECHANICS_SCENARIOS } from "./seedData.mjs";
+import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS, MECHANICS_ARTICLE_ID, MECHANICS_QUESTIONS, MECHANICS_SCENARIOS, SPORTS } from "./seedData.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -63,11 +63,15 @@ const contentIdlFactory = ({ IDL: I }) => {
     id: I.Text, crewSize: I.Nat, title: I.Text, description: I.Text,
     players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone), createdAt: I.Int,
   });
+  const SportLevel = I.Record({ id: I.Text, displayName: I.Text });
+  const SportInput = I.Record({ id: I.Text, displayName: I.Text, levels: I.Vec(SportLevel), rulebookYear: I.Text });
+  const SportRec = I.Record({ id: I.Text, displayName: I.Text, levels: I.Vec(SportLevel), rulebookYear: I.Text });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultArticle = I.Variant({ ok: Article, err: I.Text });
   const ResultPlay = I.Variant({ ok: CasebookPlay, err: I.Text });
   const ResultPoe = I.Variant({ ok: Poe, err: I.Text });
   const ResultScenario = I.Variant({ ok: Scenario, err: I.Text });
+  const ResultSport = I.Variant({ ok: SportRec, err: I.Text });
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
     upsertArticle: I.Func([ArticleInput], [ResultArticle], []),
@@ -76,6 +80,8 @@ const contentIdlFactory = ({ IDL: I }) => {
     listPointsOfEmphasis: I.Func([I.Text], [I.Vec(Poe)], ["query"]),
     upsertMechanicsScenario: I.Func([ScenarioInput], [ResultScenario], []),
     listMechanicsScenarios: I.Func([], [I.Vec(Scenario)], ["query"]),
+    upsertSport: I.Func([SportInput], [ResultSport], []),
+    listSports: I.Func([], [I.Vec(SportRec)], ["query"]),
   });
 };
 
@@ -159,6 +165,22 @@ async function main() {
   if (exam) await ensureAdmin("exam", exam, principal);
 
   let articleCount = 0, playCount = 0, questionCount = 0, errorCount = 0;
+
+  // upsertSport is a true id-keyed upsert (unlike plays/POEs/scenarios,
+  // which mint a fresh id every call), so this is naturally idempotent.
+  let sportCount = 0;
+  for (const sport of SPORTS) {
+    const sportRes = await content.upsertSport({
+      id: sport.id, displayName: sport.displayName, rulebookYear: sport.rulebookYear, levels: sport.levels,
+    });
+    if ("err" in sportRes) {
+      console.error(`  ✗ Sport "${sport.displayName}": ${sportRes.err}`);
+      errorCount++;
+    } else {
+      sportCount++;
+      console.log(`  ✓ Sport "${sportRes.ok.displayName}" -> ${sportRes.ok.id}`);
+    }
+  }
 
   for (const article of ARTICLES) {
     const articleRes = await content.upsertArticle({
@@ -310,7 +332,7 @@ async function main() {
   }
 
   console.log("");
-  console.log(`Done. Articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, mechanics questions: ${mechanicsQuestionCount}, mechanics scenarios: ${scenarioCount}, points of emphasis: ${poeCount}, exam templates: ${examTemplateCount}, errors: ${errorCount}`);
+  console.log(`Done. Sports: ${sportCount}, articles: ${articleCount}, casebook plays: ${playCount}, questions: ${questionCount}, mechanics questions: ${mechanicsQuestionCount}, mechanics scenarios: ${scenarioCount}, points of emphasis: ${poeCount}, exam templates: ${examTemplateCount}, errors: ${errorCount}`);
   if (errorCount > 0) process.exit(1);
 }
 

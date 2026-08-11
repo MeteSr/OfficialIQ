@@ -75,6 +75,15 @@ export type MechanicsScenario = {
   createdAt:   bigint;
 };
 
+export type SportLevel = { id: string; displayName: string };
+
+export type Sport = {
+  id:           string;
+  displayName:  string;
+  levels:       SportLevel[];
+  rulebookYear: string;
+};
+
 export type SubmissionStatus = { Pending: null } | { Approved: null } | { Rejected: null };
 
 export type VideoSubmission = {
@@ -124,7 +133,10 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   });
   const ResultSubmission = I.Variant({ ok: Submission, err: I.Text });
   const ResultSubmissions = I.Variant({ ok: I.Vec(Submission), err: I.Text });
+  const SportLevel = I.Record({ id: I.Text, displayName: I.Text });
+  const SportRec = I.Record({ id: I.Text, displayName: I.Text, levels: I.Vec(SportLevel), rulebookYear: I.Text });
   return I.Service({
+    listSports:          I.Func([],               [I.Vec(SportRec)],      ["query"]),
     getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
     getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
     listArticles:        I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
@@ -152,12 +164,20 @@ const MOCK_ARTICLES: Article[] = [
   { id: "ncaa_basketball:art5", sportId: "ncaa_basketball", levelId: "varsity", number: 5n, title: "Violations",           body: "Rule text for Article 5...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
 ];
 
+const MOCK_SPORTS: Sport[] = [
+  {
+    id: "ncaa_basketball", displayName: "NCAA Men's Basketball", rulebookYear: "2025-26",
+    levels: [{ id: "varsity", displayName: "Varsity" }, { id: "collegiate", displayName: "Collegiate" }],
+  },
+];
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = typeof CANISTER_ID_CONTENT !== "undefined" ? CANISTER_ID_CONTENT : "";
 
 function actor() {
   return createActor<{
+    listSports:           () => Promise<Sport[]>;
     getArticle:           (id: string) => Promise<[] | [Article]>;
     getArticleAudio:      (id: string) => Promise<[] | [Uint8Array | number[]]>;
     listArticles:         (sportId: string, levelId: string) => Promise<Article[]>;
@@ -175,6 +195,16 @@ function actor() {
 }
 
 export const contentService = {
+  async listSports(): Promise<Sport[]> {
+    if (!CANISTER_ID) return MOCK_SPORTS;
+    try {
+      const sports = await actor().listSports();
+      return sports.length ? sports : MOCK_SPORTS;
+    } catch {
+      return MOCK_SPORTS;
+    }
+  },
+
   async listArticles(sportId: string, levelId: string): Promise<Article[]> {
     if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && a.levelId === levelId);
     try {

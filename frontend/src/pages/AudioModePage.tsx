@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
+import { useSport } from "../lib/sport";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
 export default function AudioModePage() {
+  const { sportId, levelId } = useSport();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -18,11 +20,11 @@ export default function AudioModePage() {
   const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    contentService.listArticles("ncaa_basketball", "varsity")
+    contentService.listArticles(sportId, levelId)
       .then((arts) => setArticles([...arts].sort((a, b) => Number(a.number) - Number(b.number))))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [sportId, levelId]);
 
   useEffect(() => {
     return () => {

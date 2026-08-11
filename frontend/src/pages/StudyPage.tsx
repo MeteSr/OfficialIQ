@@ -7,15 +7,18 @@ import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
 import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/offlineDb";
 import { associationService, type Assignment } from "../services/association";
+import { useSport, useSportDisplayName } from "../lib/sport";
 
 type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
 const CURRENT_SEASON = "2025-26";
-const MECHANICS_ARTICLE_ID = "ncaa_basketball:mechanics";
 
 export default function StudyPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { sportId, levelId } = useSport();
+  const sportDisplayName = useSportDisplayName();
+  const MECHANICS_ARTICLE_ID = `${sportId}:mechanics`;
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [progress, setProgress] = useState<Record<string, ArticleProgress>>({});
@@ -46,7 +49,7 @@ export default function StudyPage() {
       const m = p.find(x => x.articleId === MECHANICS_ARTICLE_ID);
       setMechanicsMastery(m && Number(m.timesStudied) > 0 ? Number(m.masteryScore) : null);
     }).catch(() => {});
-  }, [isAuthenticated, tab]);
+  }, [isAuthenticated, tab, sportId]);
 
   useEffect(() => {
     if (!isAuthenticated) { setAssignmentRows([]); return; }
@@ -118,7 +121,7 @@ export default function StudyPage() {
 
   useEffect(() => {
     setLoading(true);
-    contentService.listArticles("ncaa_basketball", "varsity")
+    contentService.listArticles(sportId, levelId)
       .then(async (arts) => {
         const sorted = [...arts].sort((a, b) => Number(a.number) - Number(b.number));
         setArticles(sorted);
@@ -136,8 +139,8 @@ export default function StudyPage() {
 
         const counts = await Promise.all(sorted.map(async (a) => {
           const [rules, casebook] = await Promise.all([
-            questionService.getDueCount("ncaa_basketball", [a.id], false),
-            questionService.getDueCount("ncaa_basketball", [a.id], true),
+            questionService.getDueCount(sportId, [a.id], false),
+            questionService.getDueCount(sportId, [a.id], true),
           ]);
           return [a.id, rules + casebook] as const;
         }));
@@ -145,7 +148,7 @@ export default function StudyPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sportId, levelId]);
 
   // Overdue articles surface at the top; everything else stays in article order.
   const ordered = [...articles].sort((a, b) => {
@@ -160,7 +163,7 @@ export default function StudyPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ fontSize: 20, fontWeight: 700 }}>📖 Study</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          NCAA Men's Basketball
+          {sportDisplayName}
         </div>
       </div>
 

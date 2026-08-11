@@ -5,6 +5,22 @@
 export const SPORT_ID = "ncaa_basketball";
 export const LEVEL_ID = "varsity";
 
+// Sport registry (issue #23) — the platform is sport-agnostic end to end;
+// launching a new sport should only ever require an entry here plus its
+// own content, never a code change. NFHS Basketball is registered with no
+// content yet (rulebook licensing/authoring is a separate effort) purely
+// to prove the registry itself supports more than one sport.
+export const SPORTS = [
+  {
+    id: SPORT_ID, displayName: "NCAA Men's Basketball", rulebookYear: "2025-26",
+    levels: [{ id: "varsity", displayName: "Varsity" }, { id: "collegiate", displayName: "Collegiate" }],
+  },
+  {
+    id: "nfhs_basketball", displayName: "NFHS Basketball (High School)", rulebookYear: "2025-26",
+    levels: [{ id: "varsity", displayName: "Varsity" }, { id: "jv", displayName: "Junior Varsity" }],
+  },
+];
+
 // players: [[id, x, y, shortLabel, role], ...] — x/y are 0-100 court percentages.
 // arrows: [[fromId, toId, style], ...] — style is "solid" or "dashed".
 function diagram(players, arrows = []) {

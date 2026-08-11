@@ -5,6 +5,7 @@ import { rankingService, type LeaderboardEntry, type SortKey } from "../services
 import { challengeService } from "../services/challenge";
 import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
+import { useSport } from "../lib/sport";
 
 type Tab = "Friends" | "State" | "National";
 
@@ -20,6 +21,7 @@ export default function RanksPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const { principal, profile } = useAuthStore();
+  const { sportId } = useSport();
   const myState = profile?.state || "TX";
   const navigate = useNavigate();
   const [challenging, setChallenging] = useState(false);
@@ -27,27 +29,27 @@ export default function RanksPage() {
   useEffect(() => {
     setLoading(true);
     const fetch =
-      tab === "Friends"  ? rankingService.getFriends("ncaa_basketball", 25, sortBy) :
-      tab === "State"    ? rankingService.getState("ncaa_basketball", myState, 25, sortBy) :
-                           rankingService.getNational("ncaa_basketball", 25, sortBy);
+      tab === "Friends"  ? rankingService.getFriends(sportId, 25, sortBy) :
+      tab === "State"    ? rankingService.getState(sportId, myState, 25, sortBy) :
+                           rankingService.getNational(sportId, 25, sortBy);
     fetch.then(setEntries).catch(() => {}).finally(() => setLoading(false));
-  }, [tab, sortBy, myState]);
+  }, [tab, sortBy, myState, sportId]);
 
   const top = entries[0];
 
   async function handleChallenge(entry: LeaderboardEntry) {
     setChallenging(true);
     try {
-      const articleIds = ["ncaa_basketball:art4"];
+      const articleIds = [`${sportId}:art4`];
       const qs = await questionService.sampleQuiz({
-        sportId: "ncaa_basketball", articleIds, casebook: true, difficulty: [], count: 10n,
+        sportId, articleIds, casebook: true, difficulty: [], count: 10n,
       });
       if (qs.length === 0) {
         alert("No questions available for this challenge yet.");
         return;
       }
       const challenge = await challengeService.sendChallenge(
-        entry.principal, "ncaa_basketball",
+        entry.principal, sportId,
         articleIds, qs.map(q => q.id), qs.length,
       );
       navigate(`/challenge/${challenge.id}`);

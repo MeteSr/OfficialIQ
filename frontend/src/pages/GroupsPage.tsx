@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { rankingService, type Group } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
-
-const SPORT_ID = "ncaa_basketball";
+import { useSport, useSportDisplayName } from "../lib/sport";
 
 export default function GroupsPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile } = useAuthStore();
+  const { sportId: SPORT_ID } = useSport();
+  const sportDisplayName = useSportDisplayName();
 
   const [myGroups, setMyGroups] = useState<Group[]>([]);
   const [publicGroups, setPublicGroups] = useState<Group[]>([]);
@@ -32,7 +33,7 @@ export default function GroupsPage() {
     }).finally(() => setLoading(false));
   }
 
-  useEffect(refresh, [isAuthenticated]);
+  useEffect(refresh, [isAuthenticated, SPORT_ID]);
 
   const myGroupIds = new Set(myGroups.map(g => g.id));
   const joinable = publicGroups.filter(g => !myGroupIds.has(g.id));
@@ -70,7 +71,7 @@ export default function GroupsPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ fontSize: 20, fontWeight: 700 }}>👥 Study Groups</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          NCAA Men's Basketball
+          {sportDisplayName}
         </div>
       </div>
 

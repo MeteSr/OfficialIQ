@@ -6,8 +6,8 @@ import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import { speak, cancelSpeech, isSpeechRecognitionSupported, isSpeechSynthesisSupported, listenForLetter } from "../lib/speech";
+import { useSport } from "../lib/sport";
 
-const SPORT_ID = "ncaa_basketball";
 const QUESTION_COUNT = 25;
 const LISTEN_TIMEOUT_MS = 12000;
 const AUTO_ADVANCE_MS = 3000;
@@ -18,6 +18,7 @@ type AnsweredRecord = { questionId: string; articleId: string; chosenId: string 
 export default function CommuteModePage() {
   const navigate = useNavigate();
   const { profile } = useAuthStore();
+  const { sportId: SPORT_ID } = useSport();
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [error, setError] = useState<string | null>(null);

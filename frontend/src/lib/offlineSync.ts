@@ -8,24 +8,21 @@ import {
   getPendingActions, removePendingAction, type PendingAction,
 } from "./offlineDb";
 
-const SPORT_ID = "ncaa_basketball";
-const LEVEL_ID = "varsity";
-
 /**
  * Pulls the full content set (articles, casebook plays, questions) into
  * IndexedDB so the app is usable with no network afterward. Called once
  * after login; safe to call repeatedly since every store is keyed by id.
  */
-export async function syncAllContent(): Promise<void> {
-  const articles = await contentService.listArticles(SPORT_ID, LEVEL_ID);
+export async function syncAllContent(sportId: string, levelId: string): Promise<void> {
+  const articles = await contentService.listArticles(sportId, levelId);
   await cacheArticles(articles);
 
   const plays = (await Promise.all(articles.map(a => contentService.listPlays(a.id)))).flat();
   await cachePlays(plays);
 
   const [rules, casebook] = await Promise.all([
-    questionService.sampleQuiz({ sportId: SPORT_ID, articleIds: [], casebook: false, difficulty: [], count: 500n }),
-    questionService.sampleQuiz({ sportId: SPORT_ID, articleIds: [], casebook: true, difficulty: [], count: 500n }),
+    questionService.sampleQuiz({ sportId, articleIds: [], casebook: false, difficulty: [], count: 500n }),
+    questionService.sampleQuiz({ sportId, articleIds: [], casebook: true, difficulty: [], count: 500n }),
   ]);
   await cacheQuestions([...rules, ...casebook]);
 }

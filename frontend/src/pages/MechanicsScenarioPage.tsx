@@ -5,13 +5,14 @@ import { contentService, type MechanicsScenario } from "../services/content";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import CoverageZoneQuiz from "../components/CoverageZoneQuiz";
-
-const MECHANICS_ARTICLE_ID = "ncaa_basketball:mechanics";
+import { useSport } from "../lib/sport";
 
 export default function MechanicsScenarioPage() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { sportId } = useSport();
+  const MECHANICS_ARTICLE_ID = `${sportId}:mechanics`;
 
   const [scenario,  setScenario]  = useState<MechanicsScenario | null>(null);
   const [allIds,    setAllIds]    = useState<string[]>([]);

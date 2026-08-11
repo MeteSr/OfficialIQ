@@ -14,6 +14,7 @@ import type { AnswerRecord, ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
 import { associationService } from "../services/association";
+import { useSport } from "../lib/sport";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
@@ -29,6 +30,7 @@ export default function QuizPage() {
   const navState = location.state as NavState;
   const navigate = useNavigate();
   const { profile, principal } = useAuthStore();
+  const { sportId } = useSport();
 
   const {
     questions, currentIdx, isComplete, answers,
@@ -106,7 +108,7 @@ export default function QuizPage() {
       const effectiveArticleIds = assignedArticleIds ?? (articleId ? [articleId] : []);
       const effectiveCasebook = navState?.casebook ?? true;
       const quizFilter = {
-        sportId:    "ncaa_basketball",
+        sportId,
         articleIds: effectiveArticleIds,
         casebook:   effectiveCasebook,
         difficulty: [] as [],
@@ -120,7 +122,7 @@ export default function QuizPage() {
       if (qs.length === 0) { setError("No cached questions available for this article yet — connect once to download content."); return; }
 
       const config: ExamConfig = {
-        sportId: "ncaa_basketball", articleIds: effectiveArticleIds, casebook: effectiveCasebook,
+        sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
         count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null },
       };
       try {
@@ -145,7 +147,7 @@ export default function QuizPage() {
       .catch(() => setError("Failed to load this quiz."))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articleId, token]);
+  }, [articleId, token, sportId]);
 
   // Reset chosen + timer on question change (or once the real timerSeconds is known)
   useEffect(() => {
@@ -340,7 +342,7 @@ export default function QuizPage() {
         {sessionId && !sessionId.startsWith("offline-") && (
           <ShareWithMentorButton
             examId={sessionId}
-            sportId="ncaa_basketball"
+            sportId={sportId}
             score={finalScore}
             avgElapsedSec={avgElapsed}
             answers={answers.map((a, i) => ({

@@ -4,12 +4,14 @@ import { T } from "../tokens";
 import { examService } from "../services/exam";
 import { questionService } from "../services/question";
 import { contentService, type Article } from "../services/content";
+import { useSport } from "../lib/sport";
 
 const MODES = ["Solo", "Share Link", "Timed"] as const;
 type Mode = typeof MODES[number];
 
 export default function ExamPage() {
   const navigate = useNavigate();
+  const { sportId, levelId } = useSport();
 
   const [articles,  setArticles]  = useState<Article[]>([]);
   const [selected,  setSelected]  = useState<string[]>([]);
@@ -23,25 +25,25 @@ export default function ExamPage() {
 
   // Load real articles for this sport/level once on mount.
   useEffect(() => {
-    contentService.listArticles("ncaa_basketball", "varsity")
+    contentService.listArticles(sportId, levelId)
       .then((arts) => {
         setArticles(arts);
         setSelected(arts.slice(0, 3).map(a => a.id));
       })
       .catch(() => {});
-  }, []);
+  }, [sportId, levelId]);
 
   // Cap the question count to what's actually available for the current
   // article selection + casebook toggle.
   useEffect(() => {
     if (selected.length === 0) { setMaxCount(0); return; }
     questionService.sampleQuiz({
-      sportId: "ncaa_basketball", articleIds: selected, casebook, difficulty: [], count: 500n,
+      sportId, articleIds: selected, casebook, difficulty: [], count: 500n,
     }).then((qs) => {
       setMaxCount(qs.length);
       setCount(c => Math.max(5, Math.min(c, qs.length)));
     }).catch(() => {});
-  }, [selected, casebook]);
+  }, [selected, casebook, sportId]);
 
   const toggle = (id: string) =>
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -59,7 +61,7 @@ export default function ExamPage() {
     setLoading(true);
     try {
       const qs = await questionService.sampleQuiz({
-        sportId:    "ncaa_basketball",
+        sportId,
         articleIds: selected,
         casebook,
         difficulty: [],
@@ -67,7 +69,7 @@ export default function ExamPage() {
       });
       const session = await examService.createSession(
         {
-          sportId:    "ncaa_basketball",
+          sportId,
           articleIds: selected,
           casebook,
           count:      BigInt(qs.length),

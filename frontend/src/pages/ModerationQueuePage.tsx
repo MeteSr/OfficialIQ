@@ -23,11 +23,18 @@ export default function ModerationQueuePage() {
 
   function load() {
     setLoading(true);
+    // Moderators may need to link clips to any sport's plays, not just
+    // their own profile's — so this pulls articles across the whole
+    // sport registry rather than a single hardcoded sport/level.
     Promise.all([
       contentService.listPendingSubmissions(),
-      contentService.listArticles("ncaa_basketball", "varsity"),
-    ]).then(async ([subs, articles]) => {
+      contentService.listSports(),
+    ]).then(async ([subs, sports]) => {
       setPending([...subs].sort((a, b) => Number(a.createdAt - b.createdAt)));
+      const articleLists = await Promise.all(
+        sports.flatMap(sp => sp.levels.map(lv => contentService.listArticles(sp.id, lv.id))),
+      );
+      const articles = articleLists.flat();
       const playLists = await Promise.all(articles.map(a => contentService.listPlays(a.id)));
       setPlays(playLists.flat());
     }).finally(() => setLoading(false));

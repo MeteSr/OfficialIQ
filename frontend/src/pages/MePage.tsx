@@ -7,16 +7,16 @@ import { rankingService, type UserStats } from "../services/ranking";
 import { userService } from "../services/user";
 import { challengeService } from "../services/challenge";
 import { computeBadges, type Badge } from "../lib/badges";
-import { contentService, type Article } from "../services/content";
+import { contentService, type Article, type Sport } from "../services/content";
 import {
   getStorageBreakdown, getDownloadedAudioIds, deleteAudioBlob, clearAllDownloads,
   type StorageBreakdown,
 } from "../lib/offlineDb";
 import { Principal } from "@icp-sdk/core/principal";
+import { useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
+import { syncAllContent } from "../lib/offlineSync";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
-
-const LEVELS = ["varsity", "collegiate"] as const;
 
 // Rough heuristic: ~45 minutes of focused study per rule article.
 function hoursToArticlesPerWeek(hours: number): number {
@@ -28,17 +28,27 @@ function formatMB(bytes: number): string {
 }
 
 function ProfileForm({
-  initial, onSubmit, submitting, submitLabel, extra,
+  initial, sports, onSubmit, submitting, submitLabel, extra,
 }: {
-  initial: { displayName: string; level: string; state: string };
-  onSubmit: (v: { displayName: string; level: string; state: string }) => void;
+  initial: { displayName: string; sport: string; level: string; state: string };
+  sports: Sport[];
+  onSubmit: (v: { displayName: string; sport: string; level: string; state: string }) => void;
   submitting: boolean;
   submitLabel: string;
   extra?: ReactNode;
 }) {
   const [displayName, setDisplayName] = useState(initial.displayName);
-  const [level, setLevel] = useState(initial.level || LEVELS[0]);
+  const [sport, setSport] = useState(initial.sport || sports[0]?.id || DEFAULT_SPORT_ID);
+  const [level, setLevel] = useState(initial.level || DEFAULT_LEVEL_ID);
   const [state, setState] = useState(initial.state);
+
+  const levelsForSport = sports.find(s => s.id === sport)?.levels ?? [{ id: DEFAULT_LEVEL_ID, displayName: "Varsity" }];
+
+  function handleSportChange(newSport: string) {
+    setSport(newSport);
+    const levels = sports.find(s => s.id === newSport)?.levels ?? [];
+    if (levels.length > 0 && !levels.some(l => l.id === level)) setLevel(levels[0].id);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -55,6 +65,19 @@ function ProfileForm({
         />
       </div>
       <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Sport</div>
+        <select
+          value={sport}
+          onChange={e => handleSportChange(e.target.value)}
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 14,
+            border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+          }}
+        >
+          {sports.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
+        </select>
+      </div>
+      <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Level</div>
         <select
           value={level}
@@ -64,7 +87,7 @@ function ProfileForm({
             border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
           }}
         >
-          {LEVELS.map(l => <option key={l} value={l}>{l[0].toUpperCase() + l.slice(1)}</option>)}
+          {levelsForSport.map(l => <option key={l.id} value={l.id}>{l.displayName}</option>)}
         </select>
       </div>
       <div>
@@ -82,7 +105,7 @@ function ProfileForm({
       {extra}
       <button
         disabled={submitting || !displayName.trim() || state.length !== 2}
-        onClick={() => onSubmit({ displayName: displayName.trim(), level, state })}
+        onClick={() => onSubmit({ displayName: displayName.trim(), sport, level, state })}
         style={{
           padding: "13px 0", background: submitting ? T.border : T.navy, color: T.white,
           borderRadius: 8, fontSize: 15, fontWeight: 700,
@@ -98,12 +121,14 @@ export default function MePage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile, principal, setProfile } = useAuthStore();
   const { login, logout } = useAuth();
+  const { sportId, levelId } = useSport();
   const [stats,      setStats]      = useState<UserStats | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [editing,    setEditing]    = useState(false);
   const [formError,  setFormError]  = useState<string | null>(null);
   const [hoursPerWeek, setHoursPerWeek] = useState(3);
+  const [sports,     setSports]     = useState<Sport[]>([]);
 
   const [friends,        setFriends]        = useState<FriendRow[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
@@ -118,6 +143,10 @@ export default function MePage() {
   const [isContentAdmin,   setIsContentAdmin]     = useState(false);
 
   useEffect(() => {
+    contentService.listSports().then(setSports).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     rankingService.getMyStats().then(setStats).catch(() => {});
     contentService.isAdmin().then(setIsContentAdmin).catch(() => {});
@@ -125,7 +154,7 @@ export default function MePage() {
 
   function loadStorage() {
     getStorageBreakdown().then(setStorage).catch(() => {});
-    Promise.all([getDownloadedAudioIds(), contentService.listArticles("ncaa_basketball", "varsity")])
+    Promise.all([getDownloadedAudioIds(), contentService.listArticles(sportId, levelId)])
       .then(([ids, articles]) => {
         const idSet = new Set(ids);
         setDownloadedArticles(articles.filter(a => idSet.has(a.id)).sort((a, b) => Number(a.number) - Number(b.number)));
@@ -133,7 +162,7 @@ export default function MePage() {
       .catch(() => {});
   }
 
-  useEffect(loadStorage, []);
+  useEffect(loadStorage, [sportId, levelId]);
 
   async function handleDeleteDownload(articleId: string) {
     await deleteAudioBlob(articleId);
@@ -269,14 +298,15 @@ export default function MePage() {
             <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
           )}
           <ProfileForm
-            initial={{ displayName: "", level: LEVELS[0], state: "" }}
+            initial={{ displayName: "", sport: sports[0]?.id ?? DEFAULT_SPORT_ID, level: DEFAULT_LEVEL_ID, state: "" }}
+            sports={sports}
             submitting={saving}
             submitLabel="Create Profile"
             onSubmit={async (v) => {
               setSaving(true);
               setFormError(null);
               try {
-                const created = await userService.createProfile({ ...v, sport: "ncaa_basketball" });
+                const created = await userService.createProfile(v);
                 setProfile(created);
                 // Best-effort — a missing pace just means no weekly schedule until
                 // the user sets one later; it shouldn't block onboarding.
@@ -327,16 +357,24 @@ export default function MePage() {
             <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
           )}
           <ProfileForm
-            initial={{ displayName: profile.displayName, level: profile.level, state: profile.state }}
+            initial={{ displayName: profile.displayName, sport: profile.sport, level: profile.level, state: profile.state }}
+            sports={sports}
             submitting={saving}
             submitLabel="Save Changes"
             onSubmit={async (v) => {
               setSaving(true);
               setFormError(null);
               try {
-                const updated = await userService.updateProfile({ ...v, sport: profile.sport });
+                const switchingSport = v.sport !== profile.sport;
+                const updated = await userService.updateProfile(v);
                 setProfile(updated);
                 setEditing(false);
+                if (switchingSport) {
+                  // A new sport means the old sport's cached articles/questions
+                  // no longer apply — clear and re-sync for the new selection.
+                  await clearAllDownloads().catch(() => {});
+                  syncAllContent(v.sport, v.level).catch(() => {});
+                }
               } catch (e: any) {
                 setFormError(e.message ?? "Failed to save profile");
               } finally {

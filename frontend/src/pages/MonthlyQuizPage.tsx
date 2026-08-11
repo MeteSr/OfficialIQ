@@ -6,6 +6,7 @@ import { questionService, type Question } from "../services/question";
 import { userService, type MonthlyQuizResult } from "../services/user";
 import { rankingService } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
+import { useSport } from "../lib/sport";
 
 const TOTAL_QUESTIONS = 50;
 const CASEBOOK_RATIO = 0.4;
@@ -29,11 +30,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-async function sampleProportional(articleIds: string[], casebook: boolean, totalCount: number): Promise<Question[]> {
+async function sampleProportional(sportId: string, articleIds: string[], casebook: boolean, totalCount: number): Promise<Question[]> {
   if (articleIds.length === 0 || totalCount === 0) return [];
   const perArticle = Math.max(1, Math.ceil(totalCount / articleIds.length));
   const results = await Promise.all(articleIds.map(id =>
-    questionService.sampleQuiz({ sportId: "ncaa_basketball", articleIds: [id], casebook, difficulty: [], count: BigInt(perArticle) })
+    questionService.sampleQuiz({ sportId, articleIds: [id], casebook, difficulty: [], count: BigInt(perArticle) })
   ));
   return shuffle(results.flat()).slice(0, totalCount);
 }
@@ -41,6 +42,7 @@ async function sampleProportional(articleIds: string[], casebook: boolean, total
 export default function MonthlyQuizPage() {
   const navigate = useNavigate();
   const { isAuthenticated, profile } = useAuthStore();
+  const { sportId, levelId } = useSport();
 
   const [phase, setPhase] = useState<"loading" | "locked" | "preview" | "quiz" | "results" | "error" | "empty">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export default function MonthlyQuizPage() {
 
     (async () => {
       const [arts, progress, hist] = await Promise.all([
-        contentService.listArticles("ncaa_basketball", "varsity"),
+        contentService.listArticles(sportId, levelId),
         userService.getMyProgress(),
         userService.getMonthlyQuizHistory(),
       ]);
@@ -87,7 +89,7 @@ export default function MonthlyQuizPage() {
       setCoverageIds(coverage);
       setPhase("preview");
     })().catch(() => { setPhase("error"); setError("Couldn't load your monthly exam."); });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sportId, levelId]);
 
   async function handleStart() {
     setPhase("loading");
@@ -95,8 +97,8 @@ export default function MonthlyQuizPage() {
       const casebookCount = Math.round(TOTAL_QUESTIONS * CASEBOOK_RATIO);
       const regularCount = TOTAL_QUESTIONS - casebookCount;
       const [regularQs, casebookQs] = await Promise.all([
-        sampleProportional(coverageIds, false, regularCount),
-        sampleProportional(coverageIds, true, casebookCount),
+        sampleProportional(sportId, coverageIds, false, regularCount),
+        sampleProportional(sportId, coverageIds, true, casebookCount),
       ]);
       const all = shuffle([...regularQs, ...casebookQs]);
       if (all.length === 0) { setPhase("empty"); return; }

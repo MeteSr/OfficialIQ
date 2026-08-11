@@ -5,9 +5,9 @@ import { rankingService, type UserStats, type EloSnapshot } from "../services/ra
 import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { useAuthStore } from "../store/authStore";
+import { useSport } from "../lib/sport";
 
 const THIRTY_DAYS_NS = 30n * 24n * 3600n * 1_000_000_000n;
-const MECHANICS_ARTICLE_ID = "ncaa_basketball:mechanics";
 
 function masteryColor(pct: number): string {
   if (pct >= 80) return T.correct;
@@ -57,6 +57,8 @@ function EloSparkline({ points }: { points: EloSnapshot[] }) {
 export default function ProgressPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { sportId, levelId } = useSport();
+  const MECHANICS_ARTICLE_ID = `${sportId}:mechanics`;
 
   const [loading,  setLoading]  = useState(true);
   const [stats,    setStats]    = useState<UserStats | null>(null);
@@ -71,14 +73,14 @@ export default function ProgressPage() {
       rankingService.getMyStats(),
       rankingService.getMyEloHistory(),
       userService.getMyProgress(),
-      contentService.listArticles("ncaa_basketball", "varsity"),
+      contentService.listArticles(sportId, levelId),
     ]).then(([s, h, p, arts]) => {
       setStats(s);
       setHistory(h);
       setProgress(p);
       setArticles([...arts].sort((a, b) => Number(a.number) - Number(b.number)));
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sportId, levelId]);
 
   if (!isAuthenticated) {
     return (

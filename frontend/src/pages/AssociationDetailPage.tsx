@@ -7,8 +7,7 @@ import { userService, type UserProfile } from "../services/user";
 import { rankingService, type UserStats } from "../services/ranking";
 import { contentService, type Article } from "../services/content";
 import { Principal } from "@icp-sdk/core/principal";
-
-const SPORT_ID = "ncaa_basketball";
+import { useSport } from "../lib/sport";
 
 type RosterRow = { principal: string; displayName: string; accuracy: number; streak: number };
 
@@ -31,6 +30,7 @@ export default function AssociationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, principal } = useAuthStore();
+  const { levelId } = useSport();
 
   const [assoc,       setAssoc]       = useState<AssociationRec | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -63,7 +63,7 @@ export default function AssociationDetailPage() {
       const [assigns, memberPrincipals, arts] = await Promise.all([
         associationService.getAssociationAssignments(id),
         associationService.getAssociationMembers(id),
-        contentService.listArticles(SPORT_ID, "varsity"),
+        contentService.listArticles(rec.sport, levelId),
       ]);
       setAssignments([...assigns].sort((a, b) => Number(b.createdAt - a.createdAt)));
       setArticles([...arts].sort((a, b) => Number(a.number) - Number(b.number)));
