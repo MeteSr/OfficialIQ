@@ -13,7 +13,7 @@ fi
 
 # Deploy backend canisters first (assets needs frontend/dist, which needs
 # these canister IDs, so it must come after the .env write + frontend build)
-BACKEND_CANISTERS=(user content question exam ranking challenge ai_proxy mentorship association)
+BACKEND_CANISTERS=(user content question exam ranking challenge ai_proxy mentorship association report)
 for c in "${BACKEND_CANISTERS[@]}"; do
   echo "--> Deploying $c..."
   dfx deploy "$c" --network "$NETWORK" --yes

@@ -26,6 +26,9 @@ import AssociationDetailPage from "./pages/AssociationDetailPage";
 import MechanicsScenarioPage from "./pages/MechanicsScenarioPage";
 import VideoSubmissionPage from "./pages/VideoSubmissionPage";
 import ModerationQueuePage from "./pages/ModerationQueuePage";
+import ReportCardPage from "./pages/ReportCardPage";
+import PublicReportPage from "./pages/PublicReportPage";
+import SharedReportsPage from "./pages/SharedReportsPage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -58,6 +61,9 @@ export default function App() {
             <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
             <Route path="/submit-clip" element={<VideoSubmissionPage />} />
             <Route path="/moderation" element={<ModerationQueuePage />} />
+            <Route path="/reports" element={<ReportCardPage />} />
+            <Route path="/reports/shared" element={<SharedReportsPage />} />
+            <Route path="/report/:id" element={<PublicReportPage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

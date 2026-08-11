@@ -15,7 +15,13 @@ export default function BottomNav() {
 
   // The certification exam simulation and Commute Mode are full-screen,
   // distraction-free modes (see issues #16, #17) — no tab bar while active.
-  if (location.pathname.startsWith("/exam-sim") || location.pathname.startsWith("/commute")) return null;
+  // "/report/:id" is the public, possibly-unauthenticated report card view
+  // (see issue #22) — no app chrome for external viewers like assignors.
+  if (
+    location.pathname.startsWith("/exam-sim") ||
+    location.pathname.startsWith("/commute") ||
+    location.pathname.startsWith("/report/")
+  ) return null;
 
   return (
     <nav style={{

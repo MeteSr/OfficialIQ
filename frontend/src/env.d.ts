@@ -9,4 +9,5 @@ declare const CANISTER_ID_RANKING:   string;
 declare const CANISTER_ID_CHALLENGE: string;
 declare const CANISTER_ID_MENTORSHIP: string;
 declare const CANISTER_ID_ASSOCIATION: string;
+declare const CANISTER_ID_REPORT:    string;
 declare const DFX_NETWORK:           string;
