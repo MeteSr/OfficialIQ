@@ -220,7 +220,7 @@ export default function HomePage() {
         {/* Quick actions */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           {[
-            { label: "Audio Mode", icon: "🎧", path: "/study" },
+            { label: "Audio Mode", icon: "🎧", path: "/audio" },
             { label: "Quick Drill", icon: "⚡", path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (
             <button

@@ -57,6 +57,13 @@ persistent actor Content {
 
   var plays : Map.Map<Text, CasebookPlay> = Map.empty<Text, CasebookPlay>();
 
+  // Audio bytes are stored separately from the Article record (not inline
+  // in `articles`) so bulk queries like listArticles() stay cheap — an
+  // article's `audioUrl` field is repurposed as a lightweight "has audio"
+  // marker (set to the article id itself) rather than a real fetchable URL,
+  // since audio is served on-chain via getArticleAudio(), not a CDN.
+  var audioStore : Map.Map<Text, Blob> = Map.empty<Text, Blob>();
+
   var nextPlayId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
@@ -114,11 +121,12 @@ persistent actor Content {
     #ok(play)
   };
 
-  public shared ({ caller }) func setArticleAudio(id : ArticleId, url : Text) : async Result.Result<(), Text> {
+  public shared ({ caller }) func setArticleAudio(id : ArticleId, audio : Blob) : async Result.Result<(), Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     switch (Map.get(articles, Text.compare, id)) {
       case null { #err("Article not found") };
       case (?a) {
+        Map.add(audioStore, Text.compare, id, audio);
         Map.add(articles, Text.compare, id, {
           id        = a.id;
           sportId   = a.sportId;
@@ -126,7 +134,7 @@ persistent actor Content {
           number    = a.number;
           title     = a.title;
           body      = a.body;
-          audioUrl  = ?url;
+          audioUrl  = ?id;
           createdAt = a.createdAt;
           updatedAt = Time.now();
         });
@@ -139,6 +147,10 @@ persistent actor Content {
 
   public query func getArticle(id : ArticleId) : async ?Article {
     Map.get(articles, Text.compare, id)
+  };
+
+  public query func getArticleAudio(id : ArticleId) : async ?Blob {
+    Map.get(audioStore, Text.compare, id)
   };
 
   public query func listArticles(sportId : Text, levelId : Text) : async [Article] {

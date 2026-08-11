@@ -28,17 +28,22 @@ persistent actor AiProxy {
     { response with headers = [] }
   };
 
-  // HTTPS outcall — used for ElevenLabs TTS audio generation
-  // Returns raw response body bytes; caller uploads to Cloudflare R2.
+  // HTTPS outcall — used for ElevenLabs TTS audio generation.
+  // Returns raw response body bytes; stored on-chain by the caller.
+  //
+  // `cycles` must cover the IC's http_request fee, which scales with
+  // maxBytes — the caller computes and attaches it since the management
+  // canister traps the whole call if too few cycles are attached.
   public shared ({ caller }) func httpPost(
     url      : Text,
     headers  : [IC.http_header],
     bodyJson : Text,
     maxBytes : Nat64,
+    cycles   : Nat,
   ) : async Result.Result<Blob, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
 
-    let resp = await IC.http_request({
+    let resp = await (with cycles = cycles) IC.http_request({
       url;
       max_response_bytes = ?maxBytes;
       headers;

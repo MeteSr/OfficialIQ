@@ -14,6 +14,7 @@ import ChallengePage from "./pages/ChallengePage";
 import WeeklyQuizPage from "./pages/WeeklyQuizPage";
 import MonthlyQuizPage from "./pages/MonthlyQuizPage";
 import ProgressPage from "./pages/ProgressPage";
+import AudioModePage from "./pages/AudioModePage";
 
 export default function App() {
   useEffect(() => { registerOfflineSync(); }, []);
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/weekly-quiz" element={<WeeklyQuizPage />} />
             <Route path="/monthly-quiz" element={<MonthlyQuizPage />} />
             <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/audio" element={<AudioModePage />} />
             <Route path="/quiz/share/:token" element={<QuizPage />} />
             <Route path="/quiz/:articleId" element={<QuizPage />} />
           </Routes>

@@ -38,10 +38,11 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text),
   });
   return I.Service({
-    getArticle:   I.Func([I.Text],         [I.Opt(Art)],  ["query"]),
-    listArticles: I.Func([I.Text, I.Text], [I.Vec(Art)],  ["query"]),
-    listPlays:    I.Func([I.Text],         [I.Vec(Play)], ["query"]),
-    metrics:      I.Func([],              [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
+    getArticle:      I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
+    getArticleAudio: I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
+    listArticles:    I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
+    listPlays:       I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
+    metrics:         I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
   });
 };
 
@@ -61,9 +62,10 @@ const CANISTER_ID = typeof CANISTER_ID_CONTENT !== "undefined" ? CANISTER_ID_CON
 
 function actor() {
   return createActor<{
-    getArticle:   (id: string) => Promise<[] | [Article]>;
-    listArticles: (sportId: string, levelId: string) => Promise<Article[]>;
-    listPlays:    (articleId: string) => Promise<CasebookPlay[]>;
+    getArticle:      (id: string) => Promise<[] | [Article]>;
+    getArticleAudio: (id: string) => Promise<[] | [Uint8Array | number[]]>;
+    listArticles:    (sportId: string, levelId: string) => Promise<Article[]>;
+    listPlays:       (articleId: string) => Promise<CasebookPlay[]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -104,5 +106,12 @@ export const contentService = {
       if (cached.length > 0) return cached;
       throw e;
     }
+  },
+
+  async getArticleAudio(id: string): Promise<Uint8Array | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getArticleAudio(id);
+    if (!res.length) return null;
+    return Uint8Array.from(res[0]);
   },
 };
