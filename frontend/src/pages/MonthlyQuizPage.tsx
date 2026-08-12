@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { questionService, type Question } from "../services/question";
@@ -41,6 +42,7 @@ async function sampleProportional(sportId: string, articleIds: string[], caseboo
 
 export default function MonthlyQuizPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile } = useAuthStore();
   const { sportId, levelId } = useSport();
 
@@ -60,7 +62,7 @@ export default function MonthlyQuizPage() {
   const [answered,   setAnswered]   = useState<{ q: Question; correct: boolean }[]>([]);
 
   useEffect(() => {
-    if (!isAuthenticated) { setPhase("error"); setError("Sign in to take your monthly exam."); return; }
+    if (!isAuthenticated) { setPhase("error"); setError(t("monthlyQuiz.signInRequired")); return; }
 
     const now = new Date();
     if (!isInLastFiveDaysOfMonth(now)) {
@@ -88,7 +90,7 @@ export default function MonthlyQuizPage() {
 
       setCoverageIds(coverage);
       setPhase("preview");
-    })().catch(() => { setPhase("error"); setError("Couldn't load your monthly exam."); });
+    })().catch(() => { setPhase("error"); setError(t("monthlyQuiz.loadFailed")); });
   }, [isAuthenticated, sportId, levelId]);
 
   async function handleStart() {
@@ -109,7 +111,7 @@ export default function MonthlyQuizPage() {
       setTimeLeft(secPerQ);
       setPhase("quiz");
     } catch {
-      setError("Couldn't build your exam — try again.");
+      setError(t("monthlyQuiz.buildFailed"));
       setPhase("error");
     }
   }
@@ -166,7 +168,7 @@ export default function MonthlyQuizPage() {
   }, [currentQ, chosen, answered, currentIdx, questions.length, secPerQ, profile]);
 
   if (phase === "loading") {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   if (phase === "error") {
@@ -175,7 +177,7 @@ export default function MonthlyQuizPage() {
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error}</div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -185,12 +187,12 @@ export default function MonthlyQuizPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Monthly exam isn't open yet</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("monthlyQuiz.lockedTitle")}</div>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-          It opens in the last 5 days of the month — check back on {opensOn}.
+          {t("monthlyQuiz.lockedDesc", { date: opensOn })}
         </div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -200,12 +202,12 @@ export default function MonthlyQuizPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Nothing to review yet</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("monthlyQuiz.emptyTitle")}</div>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-          Study a few articles this month, then come back for your comprehensive exam.
+          {t("monthlyQuiz.emptyDesc")}
         </div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -215,25 +217,27 @@ export default function MonthlyQuizPage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Monthly Comprehensive Exam</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("monthlyQuiz.title")}</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-            {TOTAL_QUESTIONS} questions across {articleCount} article{articleCount === 1 ? "" : "s"} you've studied
+            {t("monthlyQuiz.subtitle", { count: articleCount, total: TOTAL_QUESTIONS })}
           </div>
         </div>
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ padding: "12px 14px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.muted }}>
-            {Math.round(TOTAL_QUESTIONS * (1 - CASEBOOK_RATIO))} rule questions + {Math.round(TOTAL_QUESTIONS * CASEBOOK_RATIO)} casebook plays,
-            spread proportionally across every article you've studied.
+            {t("monthlyQuiz.formatDesc", {
+              rules: Math.round(TOTAL_QUESTIONS * (1 - CASEBOOK_RATIO)),
+              casebook: Math.round(TOTAL_QUESTIONS * CASEBOOK_RATIO),
+            })}
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 14 }}>Time per question</span>
+            <span style={{ fontSize: 14 }}>{t("monthlyQuiz.timePerQuestion")}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
                 onClick={() => setSecPerQ(s => Math.max(15, s - 15))}
                 style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
               >−</button>
-              <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 60, textAlign: "center" }}>{secPerQ} sec</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 60, textAlign: "center" }}>{secPerQ}{t("exam.secSuffix")}</span>
               <button
                 onClick={() => setSecPerQ(s => Math.min(120, s + 15))}
                 style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
@@ -245,7 +249,7 @@ export default function MonthlyQuizPage() {
             onClick={handleStart}
             style={{ padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
           >
-            Start Exam
+            {t("monthlyQuiz.startExam")}
           </button>
         </div>
       </div>
@@ -276,17 +280,17 @@ export default function MonthlyQuizPage() {
     return (
       <div style={{ padding: "24px 16px", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎓</div>
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Monthly Exam Complete!</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{t("monthlyQuiz.completeTitle")}</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: T.navy, marginBottom: 4 }}>{overallScore}%</div>
         {delta !== null && (
           <div style={{ fontSize: 13, color: delta >= 0 ? T.correct : T.wrong, marginBottom: 20 }}>
-            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)} point{Math.abs(delta) === 1 ? "" : "s"} {delta >= 0 ? "up from" : "down from"} last month
+            {t(delta >= 0 ? "monthlyQuiz.deltaUp" : "monthlyQuiz.deltaDown", { count: Math.abs(delta) })}
           </div>
         )}
-        {delta === null && <div style={{ fontSize: 12, color: T.muted, marginBottom: 20 }}>Trend appears after your second month.</div>}
+        {delta === null && <div style={{ fontSize: 12, color: T.muted, marginBottom: 20 }}>{t("monthlyQuiz.trendHint")}</div>}
 
         <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 8 }}>ARTICLE BREAKDOWN</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 8 }}>{t("monthlyQuiz.articleBreakdown")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
             {breakdown.map(({ id, score, trend }) => {
               const weak = score < 70;
@@ -307,7 +311,7 @@ export default function MonthlyQuizPage() {
                       onClick={() => navigate(`/quiz/${id}`)}
                       style={{ fontSize: 11, fontWeight: 700, color: T.wrong, background: "transparent" }}
                     >
-                      Study now
+                      {t("monthlyQuiz.studyNow")}
                     </button>
                   )}
                 </div>
@@ -319,7 +323,7 @@ export default function MonthlyQuizPage() {
         <button
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -342,7 +346,7 @@ export default function MonthlyQuizPage() {
 
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
         <div style={{ fontSize: 12, color: currentQ.isCasebook ? T.wrong : T.red, fontWeight: 600, marginBottom: 8 }}>
-          {currentQ.isCasebook ? "CASEBOOK" : "RULE"} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
+          {currentQ.isCasebook ? t("quiz.casebook") : t("quiz.rule")} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 
@@ -380,7 +384,7 @@ export default function MonthlyQuizPage() {
             background: "#E6F4EC", border: `1px solid ${T.correct}`,
             borderRadius: 8, fontSize: 13, color: T.correct,
           }}>
-            <strong>Correct</strong> — {currentQ.citation}: {currentQ.explanation}
+            <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
       </div>
@@ -395,7 +399,7 @@ export default function MonthlyQuizPage() {
             color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
           }}
         >
-          {currentIdx + 1 >= questions.length ? "Finish →" : "Next Question →"}
+          {currentIdx + 1 >= questions.length ? t("challenge.finish") : t("challenge.nextQuestion")}
         </button>
       </div>
     </div>

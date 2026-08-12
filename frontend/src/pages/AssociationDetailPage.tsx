@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec, type Assignment, type Completion } from "../services/association";
@@ -29,6 +30,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 export default function AssociationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, principal } = useAuthStore();
   const { levelId } = useSport();
 
@@ -58,7 +60,7 @@ export default function AssociationDetailPage() {
     setLoading(true);
     setError(null);
     associationService.getAssociation(id).then(async (rec) => {
-      if (!rec) { setError("Association not found, or you don't have access."); return; }
+      if (!rec) { setError(t("assocAnalytics.notFound")); return; }
       setAssoc(rec);
       const [assigns, memberPrincipals, arts] = await Promise.all([
         associationService.getAssociationAssignments(id),
@@ -75,7 +77,7 @@ export default function AssociationDetailPage() {
         ]);
         return {
           principal: p.toString(),
-          displayName: prof?.displayName ?? "(unnamed official)",
+          displayName: prof?.displayName ?? t("assocDetail.unnamedOfficial"),
           accuracy: stats ? Math.round(stats.accuracy * 100) : 0,
           streak: stats ? Number(stats.streak) : 0,
         };
@@ -86,7 +88,7 @@ export default function AssociationDetailPage() {
         const comps = await Promise.all(assigns.map(a => associationService.getAssignmentCompletions(a.id)));
         setCompletionsByAssignment(Object.fromEntries(assigns.map((a, i) => [a.id, comps[i]])));
       }
-    }).catch(() => setError("Couldn't load this association."))
+    }).catch(() => setError(t("assocDetail.loadFailed")))
       .finally(() => setLoading(false));
   }
 
@@ -104,7 +106,7 @@ export default function AssociationDetailPage() {
       setShowAssignForm(false);
       load();
     } catch (e: any) {
-      setAssignError(e.message ?? "Couldn't assign this module");
+      setAssignError(e.message ?? t("assocDetail.assignFailed"));
     } finally {
       setAssigning(false);
     }
@@ -124,23 +126,23 @@ export default function AssociationDetailPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to view this association.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("assocDetail.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
   }
 
-  if (loading) return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+  if (loading) return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
 
   if (error || !assoc) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error ?? "Association not found."}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error ?? t("assocDetail.notFound")}</div>
         <button onClick={() => navigate("/association")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Associations
+          {t("assocDetail.backToAssociations")}
         </button>
       </div>
     );
@@ -152,7 +154,7 @@ export default function AssociationDetailPage() {
         <div style={{ fontSize: 20, fontWeight: 700 }}>{assoc.name}</div>
         {isCoordinator && (
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
-            Join code: <strong>{assoc.joinCode}</strong> — share this with officials to invite them
+            {t("assocDetail.joinCodePrefix")} <strong>{assoc.joinCode}</strong> — {t("assocDetail.joinCodeDesc")}
           </div>
         )}
       </div>
@@ -163,12 +165,12 @@ export default function AssociationDetailPage() {
             onClick={() => navigate(`/association/${assoc.id}/analytics`)}
             style={{ width: "100%", padding: "12px 14px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 16 }}
           >
-            📈 View Analytics &amp; Readiness Dashboard
+            📈 {t("assocDetail.viewAnalytics")}
           </button>
         )}
         {/* Roster / leaderboard — visible to coordinator and all members */}
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-          Members ({roster.length})
+          {t("assocDetail.membersCount", { count: roster.length })}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
           {roster.map((r, i) => (
@@ -178,20 +180,20 @@ export default function AssociationDetailPage() {
             }}>
               <span style={{ fontSize: 12, color: T.muted, minWidth: 18 }}>{i + 1}.</span>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{r.displayName}</span>
-              <span style={{ fontSize: 12, color: T.muted }}>{r.accuracy}% acc.{r.streak > 0 && ` · 🔥 ${r.streak}`}</span>
+              <span style={{ fontSize: 12, color: T.muted }}>{t("assocDetail.accPct", { pct: r.accuracy })}{r.streak > 0 && ` · 🔥 ${r.streak}`}</span>
             </div>
           ))}
         </div>
 
         {/* Assignments */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Assigned Modules</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{t("assocDetail.assignedModules")}</div>
           {isCoordinator && (
             <button
               onClick={() => setShowAssignForm(s => !s)}
               style={{ fontSize: 12, color: T.navy, fontWeight: 700, background: "transparent" }}
             >
-              {showAssignForm ? "Cancel" : "+ Assign Module"}
+              {showAssignForm ? t("common.cancel") : t("assocDetail.assignModule")}
             </button>
           )}
         </div>
@@ -201,10 +203,10 @@ export default function AssociationDetailPage() {
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Complete Art. 4-5 quiz by Friday"
+              placeholder={t("assocDetail.titlePlaceholder")}
               style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 6, background: T.surface, color: T.text, marginBottom: 10, boxSizing: "border-box" }}
             />
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Articles</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("exam.ruleArticles")}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
               {articles.map((a) => {
                 const on = selectedArticles.includes(a.id);
@@ -222,10 +224,10 @@ export default function AssociationDetailPage() {
               })}
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ fontSize: 12 }}>Include casebook plays</span>
+              <span style={{ fontSize: 12 }}>{t("exam.includeCasebook")}</span>
               <input type="checkbox" checked={casebook} onChange={e => setCasebook(e.target.checked)} />
             </div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Due date</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("assocDetail.dueDate")}</div>
             <input
               type="date"
               value={dueDate}
@@ -233,7 +235,7 @@ export default function AssociationDetailPage() {
               style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 6, background: T.surface, color: T.text, marginBottom: 10, boxSizing: "border-box" }}
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12 }}>Assign to all members</span>
+              <span style={{ fontSize: 12 }}>{t("assocDetail.assignToAll")}</span>
               <input type="checkbox" checked={targetAll} onChange={e => setTargetAll(e.target.checked)} />
             </div>
             {!targetAll && (
@@ -258,13 +260,13 @@ export default function AssociationDetailPage() {
               disabled={assigning || !title.trim() || selectedArticles.length === 0 || !dueDate}
               style={{ width: "100%", padding: "10px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
             >
-              {assigning ? "Assigning…" : "Assign Module"}
+              {assigning ? t("assocDetail.assigning") : t("assocDetail.assignModuleButton")}
             </button>
           </div>
         )}
 
         {assignments.length === 0 ? (
-          <div style={{ fontSize: 13, color: T.muted }}>No modules assigned yet.</div>
+          <div style={{ fontSize: 13, color: T.muted }}>{t("assocDetail.noModules")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {assignments.map((a) => {
@@ -282,7 +284,7 @@ export default function AssociationDetailPage() {
                 <div key={a.id} style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{a.title}</div>
                   <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
-                    Due {fmtDate(a.dueAt)} · {a.targetMembers.length > 0 ? `${a.targetMembers.length} assigned` : "All members"}
+                    {t("assocDetail.due", { date: fmtDate(a.dueAt) })} · {a.targetMembers.length > 0 ? t("assocDetail.assignedCount", { count: a.targetMembers.length }) : t("assocDetail.allMembers")}
                   </div>
                   {isCoordinator && comps !== undefined && (
                     <>
@@ -290,14 +292,14 @@ export default function AssociationDetailPage() {
                         <div style={{ height: "100%", width: `${pct}%`, background: T.navy, borderRadius: 3 }} />
                       </div>
                       <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
-                        {doneCount}/{targetCount} completed ({pct}%)
-                        {doneCount > 0 && ` · score dist: ${buckets.join("/")}`}
+                        {t("assocDetail.completedCount", { done: doneCount, target: targetCount, pct })}
+                        {doneCount > 0 && ` · ${t("assocDetail.scoreDist", { dist: buckets.join("/") })}`}
                       </div>
                       <button
                         onClick={() => exportCsv(a)}
                         style={{ fontSize: 11, color: T.navy, fontWeight: 700, background: "transparent" }}
                       >
-                        ⬇ Export CSV
+                        ⬇ {t("assocDetail.exportCsv")}
                       </button>
                     </>
                   )}

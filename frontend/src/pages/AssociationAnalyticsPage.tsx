@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
@@ -31,6 +32,7 @@ function seasonOf(ms: number): string {
 export default function AssociationAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated, principal } = useAuthStore();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [assoc, setAssoc] = useState<AssociationRec | null>(null);
@@ -47,7 +49,7 @@ export default function AssociationAnalyticsPage() {
     setLoading(true);
     setError(null);
     associationService.getAssociation(id).then(async (rec) => {
-      if (!rec) { setError("Association not found, or you don't have access."); return; }
+      if (!rec) { setError(t("assocAnalytics.notFound")); return; }
       setAssoc(rec);
       if (rec.coordinator.toString() !== principal) return; // gate below handles messaging
 
@@ -96,30 +98,30 @@ export default function AssociationAnalyticsPage() {
         return { ...m, stem: q?.stem ?? m.questionId, citation: q?.citation ?? "" };
       }));
       setMissedQuestions(withDetails);
-    }).catch(() => setError("Couldn't load analytics for this association."))
+    }).catch(() => setError(t("assocAnalytics.loadFailed")))
       .finally(() => setLoading(false));
-  }, [isAuthenticated, id, principal]);
+  }, [isAuthenticated, id, principal, t]);
 
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📈</div>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>Sign in required</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{t("assocAnalytics.signInRequired")}</div>
       </div>
     );
   }
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
   if (error || !assoc) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.wrong, paddingTop: 80 }}>{error ?? "Not found"}</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.wrong, paddingTop: 80 }}>{error ?? t("common.notFound")}</div>;
   }
   if (!isCoordinator) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Coordinators only</div>
-        <div style={{ fontSize: 13, color: T.muted }}>Association analytics are visible to the coordinator only.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("assocAnalytics.coordinatorsOnly")}</div>
+        <div style={{ fontSize: 13, color: T.muted }}>{t("assocAnalytics.coordinatorsOnlyDesc")}</div>
       </div>
     );
   }
@@ -139,46 +141,46 @@ export default function AssociationAnalyticsPage() {
 
       <div className="no-print" style={{ background: T.navy, padding: "52px 20px 20px", color: T.white, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>📈 {assoc.name} Analytics</div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>Cohort trends and certification readiness</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>📈 {t("assocAnalytics.pageTitle", { name: assoc.name })}</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{t("assocAnalytics.subtitle")}</div>
         </div>
         <button onClick={() => exportOrPrint(`${assoc.name} Analytics`)} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.15)", color: T.white, borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
-          🖨️ Export PDF
+          🖨️ {t("assocAnalytics.exportPdf")}
         </button>
       </div>
 
       <div className="report-card" style={{ padding: 16 }}>
         {/* Certification readiness dashboard */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Certification Readiness</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocAnalytics.readinessTitle")}</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: T.navy, marginBottom: 4 }}>{readinessPct}%</div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>
-            of {readinessBreakdown.total} member(s) on track to pass, based on recent exam trajectory.
+            {t("assocAnalytics.readinessDesc", { count: readinessBreakdown.total })}
           </div>
           <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
-            <span style={{ color: T.correct, fontWeight: 700 }}>{readinessBreakdown.onTrack} on track</span>
-            <span style={{ color: "#D9A400", fontWeight: 700 }}>{readinessBreakdown.borderline} borderline</span>
-            <span style={{ color: T.wrong, fontWeight: 700 }}>{readinessBreakdown.needsWork} needs work</span>
-            <span style={{ color: T.muted, fontWeight: 700 }}>{readinessBreakdown.notEnough} not enough data</span>
+            <span style={{ color: T.correct, fontWeight: 700 }}>{t("assocAnalytics.onTrack", { count: readinessBreakdown.onTrack })}</span>
+            <span style={{ color: "#D9A400", fontWeight: 700 }}>{t("assocAnalytics.borderline", { count: readinessBreakdown.borderline })}</span>
+            <span style={{ color: T.wrong, fontWeight: 700 }}>{t("assocAnalytics.needsWork", { count: readinessBreakdown.needsWork })}</span>
+            <span style={{ color: T.muted, fontWeight: 700 }}>{t("assocAnalytics.notEnoughData", { count: readinessBreakdown.notEnough })}</span>
           </div>
         </div>
 
         {/* Season cohort comparison */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Season Cohort Comparison</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocAnalytics.seasonCompareTitle")}</div>
           {seasonCompare.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.muted }}>Not enough exam history yet to compare seasons.</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("assocAnalytics.notEnoughSeasonHistory")}</div>
           ) : (
             <>
               {seasonCompare.map(s => (
                 <div key={s.season} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
                   <span>{s.season}</span>
-                  <span style={{ fontWeight: 700 }}>{s.avg}% avg <span style={{ color: T.muted, fontWeight: 400 }}>({s.count} exams)</span></span>
+                  <span style={{ fontWeight: 700 }}>{t("assocAnalytics.avgWithCount", { avg: s.avg, count: s.count })}</span>
                 </div>
               ))}
               {trendDelta !== null && (
                 <div style={{ fontSize: 12, marginTop: 6, color: trendDelta >= 0 ? T.correct : T.wrong }}>
-                  {trendDelta >= 0 ? "▲" : "▼"} {Math.abs(trendDelta)}pt vs prior season
+                  {trendDelta >= 0 ? "▲" : "▼"} {t("assocAnalytics.vsPriorSeason", { delta: Math.abs(trendDelta) })}
                 </div>
               )}
             </>
@@ -187,16 +189,16 @@ export default function AssociationAnalyticsPage() {
 
         {/* Most-missed questions */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Most-Missed Questions</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocAnalytics.mostMissedTitle")}</div>
           {missedQuestions.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.muted }}>Not enough answer data yet.</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("assocAnalytics.notEnoughAnswerData")}</div>
           ) : (
             missedQuestions.map(m => (
               <div key={m.questionId} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
                 <div style={{ fontSize: 11, color: T.muted, marginBottom: 2 }}>{m.citation}</div>
                 <div style={{ fontSize: 12 }}>{m.stem}</div>
                 <div style={{ fontSize: 11, color: T.wrong, marginTop: 2 }}>
-                  Missed {m.wrongCount} of {m.totalCount} attempts ({Math.round((m.wrongCount / m.totalCount) * 100)}%)
+                  {t("assocAnalytics.missedOf", { wrong: m.wrongCount, total: m.totalCount, pct: Math.round((m.wrongCount / m.totalCount) * 100) })}
                 </div>
               </div>
             ))

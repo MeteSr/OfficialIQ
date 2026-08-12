@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { questionService, type Question } from "../services/question";
 import { challengeService, type Challenge } from "../services/challenge";
@@ -13,12 +14,13 @@ type ResultView = { me: number; opponent: number | null };
 export default function ChallengePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { principal } = useAuthStore();
 
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [opponentName, setOpponentName] = useState("your opponent");
+  const [opponentName, setOpponentName] = useState(t("challenge.yourOpponent"));
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [chosen,     setChosen]     = useState<string | null>(null);
@@ -40,15 +42,15 @@ export default function ChallengePage() {
     setError(null);
 
     challengeService.getChallenge(id).then(async (ch) => {
-      if (!ch) { setError("This challenge doesn't exist or has expired."); return; }
+      if (!ch) { setError(t("challenge.notFound")); return; }
       if (principal && ch.challenger.toString() !== principal && ch.challenged.toString() !== principal) {
-        setError("This isn't your challenge.");
+        setError(t("challenge.notYours"));
         return;
       }
 
       const opponentPrincipal = ch.challenger.toString() === principal ? ch.challenged : ch.challenger;
       userService.getProfile(opponentPrincipal)
-        .then(p => setOpponentName(p?.displayName ?? "your opponent"))
+        .then(p => setOpponentName(p?.displayName ?? t("challenge.yourOpponent")))
         .catch(() => {});
 
       const alreadyDone = ch.results.some(r => r.principal.toString() === principal);
@@ -59,10 +61,10 @@ export default function ChallengePage() {
 
       const qs = (await Promise.all(ch.questionIds.map(qid => questionService.getQuestion(qid))))
         .filter((q): q is Question => q !== null);
-      if (qs.length === 0) { setError("This challenge has no questions to answer."); return; }
+      if (qs.length === 0) { setError(t("challenge.noQuestions")); return; }
       setQuestions(qs);
     })
-      .catch(() => setError("Failed to load this challenge."))
+      .catch(() => setError(t("challenge.loadFailed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, principal]);
@@ -100,7 +102,7 @@ export default function ChallengePage() {
       const updated = await challengeService.submitResult(id, score);
       setResult(resultFrom(updated));
     } catch (e: any) {
-      setError(e.message ?? "Failed to submit your result.");
+      setError(e.message ?? t("challenge.submitFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -109,7 +111,7 @@ export default function ChallengePage() {
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>
-        Loading challenge…
+        {t("challenge.loadingChallenge")}
       </div>
     );
   }
@@ -122,7 +124,7 @@ export default function ChallengePage() {
         <button
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -136,8 +138,8 @@ export default function ChallengePage() {
         <div style={{ fontSize: 48, marginBottom: 12 }}>{opponentDone ? (iWon ? "🏆" : tied ? "🤝" : "😤") : "⏳"}</div>
         <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>
           {opponentDone
-            ? tied ? "It's a tie!" : iWon ? "You won!" : `${opponentName} won this one`
-            : "Waiting for your opponent…"}
+            ? tied ? t("challenge.tied") : iWon ? t("challenge.youWon") : t("challenge.opponentWon", { name: opponentName })
+            : t("challenge.waitingForOpponent")}
         </div>
 
         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
@@ -145,7 +147,7 @@ export default function ChallengePage() {
             flex: 1, padding: "16px 0", background: T.surface,
             border: `2px solid ${opponentDone && iWon ? T.correct : T.border}`, borderRadius: 10,
           }}>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>You</div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{t("challenge.you")}</div>
             <div style={{ fontSize: 28, fontWeight: 700, color: T.navy }}>{result.me}%</div>
           </div>
           <div style={{
@@ -161,14 +163,14 @@ export default function ChallengePage() {
 
         {!opponentDone && (
           <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-            You'll see the final result once {opponentName} finishes their attempt.
+            {t("challenge.waitingDesc", { name: opponentName })}
           </div>
         )}
 
         <button
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -191,7 +193,7 @@ export default function ChallengePage() {
 
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
         <div style={{ fontSize: 12, color: T.red, fontWeight: 600, marginBottom: 8 }}>
-          vs. {opponentName}
+          {t("challenge.vs", { name: opponentName })}
         </div>
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 
@@ -229,7 +231,7 @@ export default function ChallengePage() {
             background: "#E6F4EC", border: `1px solid ${T.correct}`,
             borderRadius: 8, fontSize: 13, color: T.correct,
           }}>
-            <strong>Correct</strong> — {currentQ.citation}: {currentQ.explanation}
+            <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
       </div>
@@ -246,7 +248,7 @@ export default function ChallengePage() {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
         >
-          {submitting ? "Submitting…" : currentIdx + 1 >= questions.length ? "Finish →" : "Next Question →"}
+          {submitting ? t("challenge.submitting") : currentIdx + 1 >= questions.length ? t("challenge.finish") : t("challenge.nextQuestion")}
         </button>
       </div>
     </div>

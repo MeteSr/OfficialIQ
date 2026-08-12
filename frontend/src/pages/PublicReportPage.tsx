@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { reportService, type ReportSnapshot } from "../services/report";
 import ReportCardView from "../components/ReportCardView";
@@ -10,6 +11,7 @@ import { exportOrPrint } from "../lib/exportPdf";
 export default function PublicReportPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [report,  setReport]  = useState<ReportSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,24 +23,24 @@ export default function PublicReportPage() {
     setError(null);
     reportService.getReport(id)
       .then((r) => {
-        if (!r) { setError("This report card is private or doesn't exist."); return; }
+        if (!r) { setError(t("publicReport.privateOrMissing")); return; }
         setReport(r);
       })
-      .catch(() => setError("Couldn't load this report card."))
+      .catch(() => setError(t("publicReport.loadFailed")))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, t]);
 
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   if (error || !report) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error ?? "Report card not found."}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error ?? t("publicReport.notFound")}</div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to OfficialIQ
+          {t("common.goHome")}
         </button>
       </div>
     );
@@ -58,7 +60,7 @@ export default function PublicReportPage() {
         onClick={() => exportOrPrint("OfficialIQ Report Card")}
         style={{ width: "100%", maxWidth: 430, margin: "16px auto 0", display: "block", padding: "12px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
       >
-        🖨️ Print / Export PDF
+        🖨️ {t("publicReport.printExport")}
       </button>
     </div>
   );

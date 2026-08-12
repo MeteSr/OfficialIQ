@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
@@ -8,6 +9,7 @@ import { useSport } from "../lib/sport";
 
 export default function AssociationPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile, setProfile } = useAuthStore();
   const { sportId: SPORT_ID } = useSport();
 
@@ -49,7 +51,7 @@ export default function AssociationPage() {
       setName("");
       navigate(`/association/${rec.id}`);
     } catch (e: any) {
-      setCreateError(e.message ?? "Couldn't create association");
+      setCreateError(e.message ?? t("association.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -64,7 +66,7 @@ export default function AssociationPage() {
       setJoinCode("");
       navigate(`/association/${rec.id}`);
     } catch (e: any) {
-      setJoinError(e.message ?? "Invalid join code");
+      setJoinError(e.message ?? t("association.invalidJoinCode"));
     } finally {
       setJoining(false);
     }
@@ -73,9 +75,9 @@ export default function AssociationPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to view associations.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("association.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
@@ -86,20 +88,20 @@ export default function AssociationPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>🏛️</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Associations</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("association.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Coordinator dashboards, assigned modules, and private groups
+          {t("association.subtitle")}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>Loading…</div>
+        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>
           {coordinated.length > 0 && (
             <>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Coordinating</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{t("association.coordinating")}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                 {coordinated.map((a) => (
                   <button
@@ -112,7 +114,7 @@ export default function AssociationPage() {
                   >
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</div>
-                      <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>Join code: {a.joinCode}</div>
+                      <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("association.joinCode", { code: a.joinCode })}</div>
                     </div>
                     <span style={{ color: T.muted }}>›</span>
                   </button>
@@ -121,10 +123,10 @@ export default function AssociationPage() {
             </>
           )}
 
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>My Associations</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{t("association.myAssociations")}</div>
           {mine.length === 0 ? (
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-              You haven't joined an association yet — use a join code from your coordinator below.
+              {t("association.notJoinedYet")}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -144,12 +146,12 @@ export default function AssociationPage() {
             </div>
           )}
 
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Join with Code</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{t("association.joinWithCode")}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
             <input
               value={joinCode}
               onChange={e => setJoinCode(e.target.value)}
-              placeholder="e.g. JOIN0"
+              placeholder={t("association.joinCodePlaceholder")}
               style={{ flex: 1, padding: "10px 12px", fontSize: 14, border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text }}
             />
             <button
@@ -157,21 +159,21 @@ export default function AssociationPage() {
               disabled={joining || !joinCode.trim()}
               style={{ padding: "10px 16px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
             >
-              {joining ? "Joining…" : "Join"}
+              {joining ? t("groups.joining") : t("groups.join")}
             </button>
           </div>
           {joinError && <div style={{ color: T.wrong, fontSize: 12, marginBottom: 20 }}>{joinError}</div>}
 
           <div style={{ padding: "16px 0 0", borderTop: `1px solid ${T.border}`, marginTop: joinError ? 0 : 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Coordinate a New Association</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{t("association.coordinateNew")}</div>
             <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>
-              Create a private group for officials under your supervision — assign modules and track completion.
+              {t("association.coordinateDesc")}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="e.g. Metro Basketball Officials Assoc."
+                placeholder={t("association.namePlaceholder")}
                 style={{ flex: 1, padding: "10px 12px", fontSize: 14, border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text }}
               />
               <button
@@ -179,7 +181,7 @@ export default function AssociationPage() {
                 disabled={creating || !name.trim()}
                 style={{ padding: "10px 16px", background: T.red, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
               >
-                {creating ? "Creating…" : "Create"}
+                {creating ? t("groups.creating") : t("association.create")}
               </button>
             </div>
             {createError && <div style={{ color: T.wrong, fontSize: 12, marginTop: 6 }}>{createError}</div>}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -30,6 +31,7 @@ function parseDrills(raw: string): DrillQuestion[] {
 
 export default function AiDrillsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
 
@@ -66,9 +68,9 @@ export default function AiDrillsPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Sign in for personalized AI practice</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("aiDrills.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to Profile
+          {t("addFriend.goToProfile")}
         </button>
       </div>
     );
@@ -87,7 +89,7 @@ export default function AiDrillsPage() {
       setChosen(null);
       setCorrectCount(0);
     } catch (e: any) {
-      setError(e?.message ?? "Couldn't generate practice questions.");
+      setError(e?.message ?? t("aiDrills.generateFailed"));
     } finally {
       setGenerating(false);
     }
@@ -107,9 +109,9 @@ export default function AiDrillsPage() {
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🎯 AI Practice Drills</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>🎯 {t("aiDrills.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Fresh questions targeting the rules you struggle with most.
+          {t("aiDrills.subtitle")}
         </div>
       </div>
 
@@ -117,21 +119,21 @@ export default function AiDrillsPage() {
         {!questions && (
           <>
             {loadingWeak ? (
-              <div style={{ textAlign: "center", color: T.muted, padding: 24 }}>Loading your weak areas…</div>
+              <div style={{ textAlign: "center", color: T.muted, padding: 24 }}>{t("aiDrills.loadingWeak")}</div>
             ) : (
               <>
                 {weakest.length > 0 ? (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Targeting</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("aiDrills.targeting")}</div>
                     {weakest.map(w => (
                       <div key={w.articleId} style={{ padding: "10px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
-                        {w.citation} — {w.title} <span style={{ color: T.muted }}>({w.mastery}% mastery)</span>
+                        {w.citation} — {w.title} <span style={{ color: T.muted }}>({t("aiDrills.masteryPct", { pct: w.mastery })})</span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
-                    Study a few articles first and this page will target the ones you're weakest on. For now, we'll generate a general set.
+                    {t("aiDrills.noWeakAreas")}
                   </div>
                 )}
                 {error && (
@@ -144,7 +146,7 @@ export default function AiDrillsPage() {
                   disabled={generating}
                   style={{ width: "100%", padding: "14px", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, opacity: generating ? 0.6 : 1 }}
                 >
-                  {generating ? "Generating…" : "Generate 5 AI Practice Questions"}
+                  {generating ? t("aiDrills.generating") : t("aiDrills.generateButton")}
                 </button>
               </>
             )}
@@ -155,7 +157,7 @@ export default function AiDrillsPage() {
           const q = questions[index];
           return (
             <div>
-              <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>Question {index + 1} of {questions.length}</div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>{t("aiDrills.questionOf", { current: index + 1, total: questions.length })}</div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, lineHeight: 1.5 }}>{q.stem}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {q.choices.map(c => {
@@ -185,7 +187,7 @@ export default function AiDrillsPage() {
                     onClick={handleNext}
                     style={{ marginTop: 12, width: "100%", padding: "12px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
                   >
-                    {index + 1 < questions.length ? "Next Question" : "See Results"}
+                    {index + 1 < questions.length ? t("aiDrills.nextQuestion") : t("aiDrills.seeResults")}
                   </button>
                 </div>
               )}
@@ -196,13 +198,13 @@ export default function AiDrillsPage() {
         {questions && index >= questions.length && (
           <div style={{ textAlign: "center", padding: "32px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏁</div>
-            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{correctCount}/{questions.length} correct</div>
-            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>This practice set wasn't saved — generate a new one anytime.</div>
+            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{t("aiDrills.correctOf", { correct: correctCount, total: questions.length })}</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>{t("aiDrills.notSaved")}</div>
             <button
               onClick={() => setQuestions(null)}
               style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
             >
-              Generate Another Set
+              {t("aiDrills.generateAnother")}
             </button>
           </div>
         )}

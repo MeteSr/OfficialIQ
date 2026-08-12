@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { questionService, type Question } from "../services/question";
 import { examService, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecord } from "../services/exam";
@@ -36,6 +37,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function CertExamPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile } = useAuthStore();
   const { sportId: SPORT_ID } = useSport();
 
@@ -121,10 +123,10 @@ export default function CertExamPage() {
       }
       setPhase("results");
     } catch {
-      setError("Couldn't submit your exam — your answers are preserved, try again.");
+      setError(t("certExam.submitFailed"));
       setPhase("review");
     }
-  }, [questions, chosen, sessionId, template, timeLeft, profile]);
+  }, [questions, chosen, sessionId, template, timeLeft, profile, t]);
 
   // Overall countdown.
   useEffect(() => {
@@ -154,7 +156,7 @@ export default function CertExamPage() {
       ]));
       const qs = shuffle(pools.flat());
       if (qs.length === 0) {
-        setError("No questions available yet — connect once to download content.");
+        setError(t("certExam.noQuestions"));
         setPhase("error");
         return;
       }
@@ -174,7 +176,7 @@ export default function CertExamPage() {
       startedAtRef.current = Date.now();
       setPhase("exam");
     } catch {
-      setError("Couldn't build the exam — try again.");
+      setError(t("certExam.buildFailed"));
       setPhase("error");
     }
   }
@@ -188,7 +190,7 @@ export default function CertExamPage() {
   }
 
   function handleExit() {
-    if (window.confirm("Exit the exam now? Your progress will be lost.")) {
+    if (window.confirm(t("certExam.exitConfirm"))) {
       navigate("/exam");
     }
   }
@@ -200,9 +202,9 @@ export default function CertExamPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to take the certification simulation.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("certExam.signInRequired")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("certExam.goToSignIn")}
         </button>
       </div>
     );
@@ -212,16 +214,16 @@ export default function CertExamPage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>🎓 Certification Exam Simulation</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("certExam.title")}</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{template.name}</div>
         </div>
         <div style={{ padding: 20 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
             {[
-              { label: "Questions", value: `${Number(template.questionCount)}` },
-              { label: "Time limit", value: `${Math.round(Number(template.timeLimitSec) / 60)} minutes` },
-              { label: "Format", value: `${100 - Number(template.casebookRatioPct)}% rules · ${Number(template.casebookRatioPct)}% casebook` },
-              { label: "Passing score", value: `${Number(template.passThresholdPct)}%` },
+              { label: t("certExam.questionsLabel"), value: `${Number(template.questionCount)}` },
+              { label: t("certExam.timeLimitLabel"), value: t("certExam.minutes", { count: Math.round(Number(template.timeLimitSec) / 60) }) },
+              { label: t("certExam.formatLabel"), value: t("certExam.formatValue", { rulesPct: 100 - Number(template.casebookRatioPct), casebookPct: Number(template.casebookRatioPct) }) },
+              { label: t("certExam.passingScoreLabel"), value: `${Number(template.passThresholdPct)}%` },
             ].map(row => (
               <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8 }}>
                 <span style={{ fontSize: 13, color: T.muted }}>{row.label}</span>
@@ -230,15 +232,13 @@ export default function CertExamPage() {
             ))}
           </div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 20, lineHeight: 1.5 }}>
-            Answers are not revealed until you submit the full exam. You can flag questions to
-            revisit and review your answers before final submission. Once started, the timer
-            runs continuously — leaving this screen forfeits your progress.
+            {t("certExam.introDisclaimer")}
           </div>
           <button
             onClick={handleBegin}
             style={{ width: "100%", padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
           >
-            Begin Exam
+            {t("certExam.beginExam")}
           </button>
         </div>
       </div>
@@ -246,7 +246,7 @@ export default function CertExamPage() {
   }
 
   if (phase === "loading") {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Preparing your exam…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("certExam.preparing")}</div>;
   }
 
   if (phase === "error") {
@@ -255,7 +255,7 @@ export default function CertExamPage() {
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>{error}</div>
         <button onClick={() => navigate("/exam")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Back to Exam
+          {t("certExam.backToExam")}
         </button>
       </div>
     );
@@ -279,17 +279,17 @@ export default function CertExamPage() {
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}>{passed ? "🎉" : "📋"}</div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-            {passed ? "You Passed!" : "Not Quite — Keep Studying"}
+            {passed ? t("certExam.passedTitle") : t("certExam.failedTitle")}
           </div>
           <div style={{ fontSize: 40, fontWeight: 700, color: passed ? T.correct : T.wrong }}>
             {finalSession.score}%
           </div>
           <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>
-            Passing threshold: {Number(template.passThresholdPct)}%
+            {t("certExam.passingThreshold", { pct: Number(template.passThresholdPct) })}
           </div>
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Section Breakdown</div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("certExam.sectionBreakdown")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 24 }}>
           {sections.map((s) => {
             const weak = s.pct < 70;
@@ -304,7 +304,7 @@ export default function CertExamPage() {
               >
                 <span style={{ fontSize: 13 }}>
                   {s.articleId.split(":")[1]?.toUpperCase() ?? s.articleId}
-                  {weak && <span style={{ color: T.wrong, fontWeight: 700 }}> · weak area</span>}
+                  {weak && <span style={{ color: T.wrong, fontWeight: 700 }}> · {t("certExam.weakArea")}</span>}
                 </span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: weak ? T.wrong : T.text }}>{s.pct}%</span>
               </div>
@@ -330,7 +330,7 @@ export default function CertExamPage() {
           onClick={() => navigate("/home")}
           style={{ width: "100%", padding: "13px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginTop: 12 }}
         >
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -341,12 +341,12 @@ export default function CertExamPage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", color: T.white }}>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Review Answers</span>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>{t("certExam.reviewAnswers")}</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: lowTime ? T.red : T.white }}>{mm}:{ss}</span>
         </div>
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>
-            {answeredCount}/{questions.length} answered · {flagged.size} flagged
+            {t("certExam.reviewSummary", { answered: answeredCount, total: questions.length, flagged: flagged.size })}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 20 }}>
             {questions.map((q, i) => {
@@ -371,18 +371,18 @@ export default function CertExamPage() {
           <button
             onClick={() => {
               const unanswered = questions.length - answeredCount;
-              if (unanswered > 0 && !window.confirm(`${unanswered} question${unanswered === 1 ? "" : "s"} unanswered. Submit anyway?`)) return;
+              if (unanswered > 0 && !window.confirm(t("certExam.submitConfirm", { count: unanswered }))) return;
               handleSubmit();
             }}
             style={{ width: "100%", padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginBottom: 10 }}
           >
-            Submit Exam
+            {t("certExam.submitExam")}
           </button>
           <button
             onClick={() => setPhase("exam")}
             style={{ width: "100%", padding: "12px 0", background: "transparent", color: T.muted, fontSize: 13, fontWeight: 600 }}
           >
-            Back to Questions
+            {t("certExam.backToQuestions")}
           </button>
         </div>
       </div>
@@ -398,14 +398,14 @@ export default function CertExamPage() {
     <div style={{ position: "fixed", inset: 0, background: T.bg, zIndex: 200, display: "flex", flexDirection: "column", maxWidth: 430, margin: "0 auto" }}>
       <div style={{ background: T.navy, padding: "16px 16px 12px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <button onClick={handleExit} style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, background: "transparent" }}>Exit</button>
+          <button onClick={handleExit} style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, background: "transparent" }}>{t("certExam.exit")}</button>
           <span style={{ fontSize: 16, fontWeight: 700, color: lowTime ? "#FF8A80" : T.white }}>{mm}:{ss}</span>
           <button onClick={() => setPhase("review")} style={{ color: T.white, fontSize: 12, fontWeight: 700, background: "transparent" }}>
-            Review ›
+            {t("certExam.review")}
           </button>
         </div>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>
-          Question {currentIdx + 1} of {questions.length}
+          {t("certExam.questionOf", { current: currentIdx + 1, total: questions.length })}
         </div>
         <div style={{ height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${((currentIdx + 1) / questions.length) * 100}%`, background: T.red }} />
@@ -424,7 +424,7 @@ export default function CertExamPage() {
               color: isFlagged ? "#B8860B" : T.muted,
             }}
           >
-            {isFlagged ? "🚩 Flagged" : "⚑ Flag for review"}
+            {isFlagged ? t("certExam.flagged") : t("certExam.flagForReview")}
           </button>
         </div>
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{q.stem}</p>
@@ -461,21 +461,21 @@ export default function CertExamPage() {
             background: currentIdx === 0 ? T.border : T.surface, border: `1px solid ${T.border}`, color: T.text,
           }}
         >
-          ‹ Prev
+          {t("certExam.prev")}
         </button>
         {currentIdx + 1 >= questions.length ? (
           <button
             onClick={() => setPhase("review")}
             style={{ flex: 2, padding: "13px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
           >
-            Finish → Review
+            {t("certExam.finishReview")}
           </button>
         ) : (
           <button
             onClick={() => setCurrentIdx(i => Math.min(questions.length - 1, i + 1))}
             style={{ flex: 2, padding: "13px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
           >
-            Next ›
+            {t("certExam.next")}
           </button>
         )}
       </div>

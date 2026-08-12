@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { questionService, type Question, type UserQuestionHistory } from "../services/question";
 import { examService } from "../services/exam";
@@ -29,6 +30,7 @@ export default function QuizPage() {
   const location = useLocation();
   const navState = location.state as NavState;
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile, principal } = useAuthStore();
   const { sportId } = useSport();
 
@@ -81,7 +83,7 @@ export default function QuizPage() {
     async function load() {
       if (token) {
         const session = await examService.getByShareToken(token);
-        if (!session) { setError("This exam link is invalid or has expired."); return; }
+        if (!session) { setError(t("quiz.linkInvalid")); return; }
         const qs = await fetchQuestions(session.questionIds);
         loadQuestions(qs, session.id);
         setSessionId(session.id);
@@ -119,7 +121,7 @@ export default function QuizPage() {
       const qs = isAdaptive && principal
         ? await questionService.getAdaptiveQuiz(quizFilter)
         : await questionService.sampleQuiz(quizFilter);
-      if (qs.length === 0) { setError("No cached questions available for this article yet — connect once to download content."); return; }
+      if (qs.length === 0) { setError(t("quiz.noCachedQuestions")); return; }
 
       const config: ExamConfig = {
         sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
@@ -144,7 +146,7 @@ export default function QuizPage() {
     }
 
     load()
-      .catch(() => setError("Failed to load this quiz."))
+      .catch(() => setError(t("quiz.loadFailed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articleId, token, sportId]);
@@ -271,7 +273,7 @@ export default function QuizPage() {
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>
-        Loading questions…
+        {t("quiz.loadingQuestions")}
       </div>
     );
   }
@@ -287,7 +289,7 @@ export default function QuizPage() {
             padding: "13px 32px", background: T.navy, color: T.white,
             borderRadius: 8, fontSize: 15, fontWeight: 700,
           }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -299,20 +301,20 @@ export default function QuizPage() {
     return (
       <div style={{ padding: "24px 16px", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quiz Complete!</div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t("quiz.complete")}</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: T.navy, marginBottom: 4 }}>
           {finalScore}%
         </div>
         <div style={{ fontSize: 14, color: T.muted, marginBottom: 4 }}>
-          {answers.filter(a => a.isCorrect).length} / {questions.length} correct
+          {t("quiz.correctCount", { correct: answers.filter(a => a.isCorrect).length, total: questions.length })}
         </div>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>
-          Avg. {avgElapsed}s per question
+          {t("quiz.avgTime", { seconds: avgElapsed })}
         </div>
 
         <div style={{ textAlign: "left", marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 8 }}>
-            Per-question breakdown
+            {t("quiz.perQuestionBreakdown")}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {answers.map((a, i) => (
@@ -358,7 +360,7 @@ export default function QuizPage() {
             padding: "13px 32px", background: T.navy, color: T.white,
             borderRadius: 8, fontSize: 15, fontWeight: 700, marginTop: 12,
           }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -377,10 +379,10 @@ export default function QuizPage() {
     const daysAgo = Math.max(0, Math.floor(
       (Date.now() - Number(currentHistory.lastAnswered / 1_000_000n)) / 86_400_000,
     ));
-    const when = daysAgo === 0 ? "today" : daysAgo === 1 ? "1 day ago" : `${daysAgo} days ago`;
+    const when = daysAgo === 0 ? t("quiz.whenToday") : daysAgo === 1 ? t("quiz.whenYesterday") : t("quiz.whenDaysAgo", { count: daysAgo });
     return currentHistory.repetitions === 0n
-      ? `You last got this wrong ${when}`
-      : `You've answered this correctly ${currentHistory.repetitions} time${currentHistory.repetitions === 1n ? "" : "s"} in a row`;
+      ? t("quiz.historyWrong", { when })
+      : t("quiz.historyStreak", { count: Number(currentHistory.repetitions) });
   })();
 
   const currentPlayDiagram = currentPlay && currentPlay.diagram.length ? currentPlay.diagram[0] : null;
@@ -401,7 +403,7 @@ export default function QuizPage() {
       </div>
       {offlineExamConfig && (
         <div style={{ background: "#3A2F00", color: "#FFD666", fontSize: 11, fontWeight: 600, padding: "5px 16px", textAlign: "center" }}>
-          📡 Offline — your result will sync automatically once you're reconnected
+          {t("quiz.offlineBanner")}
         </div>
       )}
 
@@ -424,11 +426,11 @@ export default function QuizPage() {
             background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8,
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-              CASEBOOK · {currentPlay.citation}
+              {t("quiz.casebook")} · {currentPlay.citation}
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 6 }}>{currentPlay.scenario}</div>
             <div style={{ fontSize: 13, lineHeight: 1.5, color: T.muted }}>
-              <strong style={{ color: T.text }}>Ruling:</strong> {currentPlay.ruling}
+              <strong style={{ color: T.text }}>{t("quiz.ruling")}</strong> {currentPlay.ruling}
             </div>
             {currentPlayDiagram && <CourtDiagram diagram={currentPlayDiagram} />}
           </div>
@@ -436,7 +438,7 @@ export default function QuizPage() {
 
         {videoLocked ? (
           <div style={{ padding: "12px 14px", textAlign: "center", color: T.muted, fontSize: 13 }}>
-            Watch the play above — the question unlocks once it's finished.
+            {t("quiz.videoLocked")}
           </div>
         ) : (
           <>
@@ -483,7 +485,7 @@ export default function QuizPage() {
             background: "#E6F4EC", border: `1px solid ${T.correct}`,
             borderRadius: 8, fontSize: 13, color: T.correct,
           }}>
-            <strong>Correct</strong> — {currentQ.citation}: {currentQ.explanation}
+            <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
       </div>
@@ -500,7 +502,7 @@ export default function QuizPage() {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
         >
-          {currentIdx + 1 >= total ? "Finish →" : "Next Question →"}
+          {currentIdx + 1 >= total ? t("challenge.finish") : t("challenge.nextQuestion")}
         </button>
       </div>
     </div>

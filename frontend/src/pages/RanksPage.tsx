@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { rankingService, type LeaderboardEntry, type SortKey } from "../services/ranking";
 import { challengeService } from "../services/challenge";
@@ -9,13 +10,19 @@ import { useSport } from "../lib/sport";
 
 type Tab = "Friends" | "State" | "National";
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "Elo",      label: "ELO" },
-  { key: "Accuracy", label: "Accuracy" },
-  { key: "Speed",    label: "Speed" },
+const SORT_OPTIONS: { key: SortKey; labelKey: string }[] = [
+  { key: "Elo",      labelKey: "ranks.sortElo" },
+  { key: "Accuracy", labelKey: "ranks.sortAccuracy" },
+  { key: "Speed",    labelKey: "ranks.sortSpeed" },
 ];
+const TAB_LABEL_KEYS: Record<Tab, string> = {
+  Friends: "ranks.tabFriends",
+  State: "ranks.tabState",
+  National: "ranks.tabNational",
+};
 
 export default function RanksPage() {
+  const { t } = useTranslation();
   const [tab,     setTab]     = useState<Tab>("Friends");
   const [sortBy,  setSortBy]  = useState<SortKey>("Elo");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -45,7 +52,7 @@ export default function RanksPage() {
         sportId, articleIds, casebook: true, difficulty: [], count: 10n,
       });
       if (qs.length === 0) {
-        alert("No questions available for this challenge yet.");
+        alert(t("ranks.noQuestionsForChallenge"));
         return;
       }
       const challenge = await challengeService.sendChallenge(
@@ -54,7 +61,7 @@ export default function RanksPage() {
       );
       navigate(`/challenge/${challenge.id}`);
     } catch (e: any) {
-      alert(e.message ?? "Failed to send challenge");
+      alert(e.message ?? t("ranks.challengeFailed"));
     } finally {
       setChallenging(false);
     }
@@ -65,38 +72,38 @@ export default function RanksPage() {
       <div style={{ background: T.navy, padding: "52px 20px 0", color: T.white }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 20, fontWeight: 700 }}>
-            🏆 Rankings
+            🏆 {t("ranks.title")}
           </div>
           <button
             onClick={() => navigate("/groups")}
             style={{ fontSize: 13, color: T.white, background: "rgba(255,255,255,0.12)", borderRadius: 12, padding: "5px 10px", fontWeight: 600 }}
           >
-            👥 Groups
+            👥 {t("ranks.groups")}
           </button>
         </div>
 
         <div style={{ display: "flex", gap: 4 }}>
-          {(["Friends", "State", "National"] as Tab[]).map((t) => (
+          {(["Friends", "State", "National"] as Tab[]).map((tb) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tb}
+              onClick={() => setTab(tb)}
               style={{
                 flex: 1, padding: "8px 0",
                 background: "transparent",
-                color: tab === t ? T.white : "rgba(255,255,255,0.5)",
-                fontWeight: tab === t ? 700 : 400,
+                color: tab === tb ? T.white : "rgba(255,255,255,0.5)",
+                fontWeight: tab === tb ? 700 : 400,
                 fontSize: 13,
-                borderBottom: `2px solid ${tab === t ? T.white : "transparent"}`,
+                borderBottom: `2px solid ${tab === tb ? T.white : "transparent"}`,
               }}
             >
-              {t}
+              {t(TAB_LABEL_KEYS[tb])}
             </button>
           ))}
         </div>
       </div>
 
       <div style={{ padding: "12px 16px 0", display: "flex", gap: 6, alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Sort by</span>
+        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{t("ranks.sortBy")}</span>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -109,7 +116,7 @@ export default function RanksPage() {
               fontSize: 12, fontWeight: sortBy === opt.key ? 700 : 400,
             }}
           >
-            {opt.label}
+            {t(opt.labelKey)}
           </button>
         ))}
       </div>
@@ -175,7 +182,7 @@ export default function RanksPage() {
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
-            {challenging ? "Sending…" : `⚡ Challenge ${top.displayName} to a Rematch`}
+            {challenging ? t("ranks.sending") : `⚡ ${t("ranks.challengeToRematch", { name: top.displayName })}`}
           </button>
         </div>
       )}

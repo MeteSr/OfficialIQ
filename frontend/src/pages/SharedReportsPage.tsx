@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { reportService, type ReportShare, type ReportSnapshot } from "../services/report";
@@ -13,6 +14,7 @@ function fmtDate(ns: bigint): string {
 export default function SharedReportsPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { t } = useTranslation();
 
   const [rows,    setRows]    = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,9 +32,9 @@ export default function SharedReportsPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to view shared report cards.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("sharedReports.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
@@ -43,18 +45,18 @@ export default function SharedReportsPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>📋</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Shared Report Cards</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("sharedReports.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Report cards officials have shared with you
+          {t("sharedReports.subtitle")}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
         {loading ? (
-          <div style={{ textAlign: "center", color: T.muted }}>Loading…</div>
+          <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : rows.length === 0 ? (
-          <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>Nothing shared with you yet.</div>
+          <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>{t("sharedReports.empty")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {rows.map(({ share, report }) => (
@@ -70,11 +72,11 @@ export default function SharedReportsPage() {
               >
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {report ? report.displayName : "(report no longer available)"}
+                    {report ? report.displayName : t("sharedReports.unavailable")}
                   </div>
                   <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                    Shared {fmtDate(share.sharedAt)}
-                    {report && ` · ${Number(report.avgScore)}% avg`}
+                    {t("sharedReports.sharedOn", { date: fmtDate(share.sharedAt) })}
+                    {report && ` · ${Number(report.avgScore)}% ${t("sharedReports.avg")}`}
                   </div>
                 </div>
                 <span style={{ color: T.muted }}>›</span>

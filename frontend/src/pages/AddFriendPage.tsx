@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Principal } from "@icp-sdk/core/principal";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
@@ -12,6 +13,7 @@ export default function AddFriendPage() {
   const navigate = useNavigate();
   const { isAuthenticated, principal: myPrincipal } = useAuthStore();
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const [target,  setTarget]  = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,14 +46,14 @@ export default function AddFriendPage() {
       setStatus("added");
     } catch (e: any) {
       setStatus("error");
-      setError(e.message ?? "Failed to add friend");
+      setError(e.message ?? t("addFriend.addFailed"));
     }
   }
 
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>
-        Loading…
+        {t("common.loading")}
       </div>
     );
   }
@@ -61,12 +63,12 @@ export default function AddFriendPage() {
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
-          This link doesn't look right.
+          {t("addFriend.badLink")}
         </div>
         <button
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -76,12 +78,12 @@ export default function AddFriendPage() {
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🛡️</div>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
-          Sign in to add {target?.displayName ?? "this official"} as a friend
+          {t("addFriend.signInToAdd", { name: target?.displayName ?? t("addFriend.thisOfficial") })}
         </div>
         <button
           onClick={() => login()}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginTop: 14 }}
-        >Sign In</button>
+        >{t("addFriend.signIn")}</button>
       </div>
     );
   }
@@ -90,11 +92,11 @@ export default function AddFriendPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🙂</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>That's your own share link!</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("addFriend.ownLink")}</div>
         <button
           onClick={() => navigate("/me")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Go to Profile</button>
+        >{t("addFriend.goToProfile")}</button>
       </div>
     );
   }
@@ -110,7 +112,7 @@ export default function AddFriendPage() {
         {target?.displayName?.[0]?.toUpperCase() ?? "?"}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-        {target?.displayName ?? "Unknown official"}
+        {target?.displayName ?? t("addFriend.unknownOfficial")}
       </div>
       {target && (
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>
@@ -120,7 +122,7 @@ export default function AddFriendPage() {
 
       {status === "added" ? (
         <div style={{ color: T.correct, fontWeight: 700, fontSize: 15, marginBottom: 16 }}>
-          ✓ Added to your friends
+          ✓ {t("addFriend.added")}
         </div>
       ) : (
         <button
@@ -131,7 +133,7 @@ export default function AddFriendPage() {
             color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginBottom: 16,
           }}
         >
-          {status === "adding" ? "Adding…" : "Add as Friend"}
+          {status === "adding" ? t("addFriend.adding") : t("addFriend.addAsFriend")}
         </button>
       )}
       {error && <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -141,7 +143,7 @@ export default function AddFriendPage() {
           onClick={() => navigate("/me")}
           style={{ background: "transparent", color: T.navy, fontSize: 14, fontWeight: 600 }}
         >
-          Go to my profile
+          {t("addFriend.goToMyProfile")}
         </button>
       </div>
     </div>

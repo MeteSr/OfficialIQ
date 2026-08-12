@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -9,13 +10,19 @@ import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { computeReadiness, type Readiness } from "../lib/readiness";
 
-const TIME_BUCKETS = [
-  { label: "Early Morning (5–8am)", start: 5, end: 8 },
-  { label: "Morning (8am–12pm)", start: 8, end: 12 },
-  { label: "Afternoon (12–5pm)", start: 12, end: 17 },
-  { label: "Evening (5–9pm)", start: 17, end: 21 },
-  { label: "Night (9pm–5am)", start: 21, end: 29 }, // wraps past midnight
+const TIME_BUCKET_KEYS = [
+  { key: "earlyMorning", start: 5, end: 8 },
+  { key: "morning", start: 8, end: 12 },
+  { key: "afternoon", start: 12, end: 17 },
+  { key: "evening", start: 17, end: 21 },
+  { key: "night", start: 21, end: 29 }, // wraps past midnight
 ];
+const READINESS_LABEL_KEYS: Record<Readiness["label"], string> = {
+  "On Track": "analytics.readinessOnTrack",
+  "Borderline": "analytics.readinessBorderline",
+  "Needs Work": "analytics.readinessNeedsWork",
+  "Not Enough Data": "analytics.readinessNotEnoughData",
+};
 
 function monthKey(ms: number): string {
   const d = new Date(ms);
@@ -35,8 +42,10 @@ function readinessColor(label: Readiness["label"]): string {
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, principal } = useAuthStore();
   const { sportId, levelId } = useSport();
+  const TIME_BUCKETS = TIME_BUCKET_KEYS.map(b => ({ ...b, label: t(`analytics.timeBucket.${b.key}`) }));
 
   const [loading, setLoading] = useState(true);
   const [exams, setExams] = useState<ExamSession[]>([]);
@@ -75,15 +84,15 @@ export default function AnalyticsPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Sign in to see your analytics</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("analytics.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to Profile
+          {t("addFriend.goToProfile")}
         </button>
       </div>
     );
   }
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   const scoredExams = exams
@@ -130,19 +139,19 @@ export default function AnalyticsPage() {
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>📊 Analytics</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>📊 {t("analytics.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Long-term trends and certification readiness.
+          {t("analytics.subtitle")}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
         {/* Readiness */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Predicted Certification Readiness</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("analytics.readinessTitle")}</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
             <span style={{ fontSize: 32, fontWeight: 700, color: readinessColor(readiness.label) }}>{readiness.score}%</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: readinessColor(readiness.label) }}>{readiness.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: readinessColor(readiness.label) }}>{t(READINESS_LABEL_KEYS[readiness.label])}</span>
             {readiness.trend !== 0 && (
               <span style={{ fontSize: 12, color: readiness.trend > 0 ? T.correct : T.wrong }}>
                 {readiness.trend > 0 ? "▲" : "▼"} {Math.abs(Math.round(readiness.trend))}pt
@@ -150,15 +159,15 @@ export default function AnalyticsPage() {
             )}
           </div>
           <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>
-            Based on your last {Math.min(chronoScores.length, 5)} exam(s), vs a {passThreshold}% pass threshold. Heuristic, not a guarantee.
+            {t("analytics.readinessDesc", { count: Math.min(chronoScores.length, 5), threshold: passThreshold })}
           </div>
         </div>
 
         {/* 12-month trend */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>12-Month Accuracy Trend</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("analytics.trendTitle")}</div>
           {monthlyAverages.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.muted }}>Complete a few exams to see your trend line.</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("analytics.trendEmpty")}</div>
           ) : (
             <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 90 }}>
               {monthlyAverages.map(m => (
@@ -176,14 +185,14 @@ export default function AnalyticsPage() {
 
         {/* Time of day */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Study/Exam Time Pattern</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("analytics.timePatternTitle")}</div>
           {bucketAverages.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.muted }}>Take a few more exams at different times of day to see a pattern.</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("analytics.timePatternEmpty")}</div>
           ) : (
             <>
               {bestBucket && (
                 <div style={{ fontSize: 12, marginBottom: 8 }}>
-                  You perform best in the <strong>{bestBucket.label}</strong> — {Math.round(bestBucket.avg!)}% average.
+                  {t("analytics.performBest", { bucket: bestBucket.label, pct: Math.round(bestBucket.avg!) })}
                 </div>
               )}
               {bucketAverages.map(b => (
@@ -199,18 +208,18 @@ export default function AnalyticsPage() {
         {/* Percentile */}
         {percentile !== null && (
           <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Where You Stand</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{t("analytics.whereYouStand")}</div>
             <div style={{ fontSize: 12 }}>
-              You're in the <strong>top {Math.max(1, 100 - percentile)}%</strong> of {poolSize} ranked officials in your sport (by ELO).
+              {t("analytics.percentileDesc", { top: Math.max(1, 100 - percentile), pool: poolSize })}
             </div>
           </div>
         )}
 
         {/* Article drill-down */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Article Drill-Down (weakest first)</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("analytics.drillDownTitle")}</div>
           {weakestFirst.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.muted }}>No studied articles yet.</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("analytics.noStudiedArticles")}</div>
           ) : (
             weakestFirst.map(p => {
               const a = articles.find(x => x.id === p.articleId);

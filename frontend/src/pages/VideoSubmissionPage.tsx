@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type VideoSubmission } from "../services/content";
 
-function statusLabel(s: VideoSubmission["status"]): string {
-  if ("Approved" in s) return "Approved";
-  if ("Rejected" in s) return "Not used";
-  return "Pending review";
+function statusLabel(s: VideoSubmission["status"], t: TFunction): string {
+  if ("Approved" in s) return t("videoSubmission.statusApproved");
+  if ("Rejected" in s) return t("videoSubmission.statusRejected");
+  return t("videoSubmission.statusPending");
 }
 function statusColor(s: VideoSubmission["status"]): string {
   if ("Approved" in s) return T.correct;
@@ -18,6 +20,7 @@ function statusColor(s: VideoSubmission["status"]): string {
 export default function VideoSubmissionPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { t } = useTranslation();
 
   const [citation, setCitation] = useState("");
   const [clipUrl,  setClipUrl]  = useState("");
@@ -46,7 +49,7 @@ export default function VideoSubmissionPage() {
       setSuccess(true);
       loadMine();
     } catch (e: any) {
-      setError(e.message ?? "Couldn't submit this clip — try again.");
+      setError(e.message ?? t("videoSubmission.submitFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -55,9 +58,9 @@ export default function VideoSubmissionPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to submit a video clip.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("videoSubmission.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
@@ -68,28 +71,27 @@ export default function VideoSubmissionPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>🎬</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Submit a Clip</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("videoSubmission.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Share a public-game clip illustrating a casebook play
+          {t("videoSubmission.subtitle")}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
         <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5, marginBottom: 16 }}>
-          Submissions are reviewed before they're linked to a casebook play. Only submit clips
-          you have the right to share — do not submit copyrighted broadcast footage without permission.
+          {t("videoSubmission.disclaimer")}
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Article / Citation</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("videoSubmission.citationLabel")}</div>
         <input
           value={citation}
           onChange={e => setCitation(e.target.value)}
-          placeholder='e.g. "Art. 4-2, Case 1"'
+          placeholder={t("videoSubmission.citationPlaceholder")}
           style={{ width: "100%", padding: "10px 12px", fontSize: 14, border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text, marginBottom: 12, boxSizing: "border-box" }}
         />
 
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Clip URL</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("videoSubmission.urlLabel")}</div>
         <input
           value={clipUrl}
           onChange={e => setClipUrl(e.target.value)}
@@ -98,7 +100,7 @@ export default function VideoSubmissionPage() {
         />
 
         {error && <div style={{ color: T.wrong, fontSize: 12, marginBottom: 12 }}>{error}</div>}
-        {success && <div style={{ color: T.correct, fontSize: 12, marginBottom: 12 }}>Submitted — thanks! It'll appear below once reviewed.</div>}
+        {success && <div style={{ color: T.correct, fontSize: 12, marginBottom: 12 }}>{t("videoSubmission.submitSuccess")}</div>}
 
         <button
           onClick={handleSubmit}
@@ -109,12 +111,12 @@ export default function VideoSubmissionPage() {
             color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, marginBottom: 24,
           }}
         >
-          {submitting ? "Submitting…" : "Submit Clip"}
+          {submitting ? t("videoSubmission.submitting") : t("videoSubmission.submitClip")}
         </button>
 
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Your Submissions</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{t("videoSubmission.yourSubmissions")}</div>
         {mine.length === 0 ? (
-          <div style={{ fontSize: 13, color: T.muted }}>No submissions yet.</div>
+          <div style={{ fontSize: 13, color: T.muted }}>{t("videoSubmission.noSubmissions")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {mine.map((s) => (
@@ -122,7 +124,7 @@ export default function VideoSubmissionPage() {
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{s.citation}</div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 2, wordBreak: "break-all" }}>{s.clipUrl}</div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: statusColor(s.status), marginTop: 4 }}>
-                  {statusLabel(s.status)}
+                  {statusLabel(s.status, t)}
                 </div>
               </div>
             ))}

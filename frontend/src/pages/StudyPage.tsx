@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { contentService, type Article, type PointOfEmphasis, type MechanicsScenario } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
@@ -15,6 +16,7 @@ const CURRENT_SEASON = "2025-26";
 
 export default function StudyPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
   const sportDisplayName = useSportDisplayName();
@@ -63,12 +65,12 @@ export default function StudyPage() {
           const rec = assocById[id];
           return rec ? userService.getProfile(rec.coordinator).catch(() => null) : Promise.resolve(null);
         }));
-        const coordNameById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, coordinators[i]?.displayName ?? "your coordinator"]));
+        const coordNameById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, coordinators[i]?.displayName ?? t("study.yourCoordinator")]));
         const rows: AssignmentRow[] = assigns
           .map(a => ({
             assignment: a,
             associationName: assocById[a.associationId]?.name ?? "",
-            coordinatorName: coordNameById[a.associationId] ?? "your coordinator",
+            coordinatorName: coordNameById[a.associationId] ?? t("study.yourCoordinator"),
             done: doneIds.has(a.id),
           }))
           .sort((a, b) => Number(a.assignment.dueAt - b.assignment.dueAt));
@@ -161,14 +163,14 @@ export default function StudyPage() {
   return (
     <div>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>📖 Study</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>{t("study.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
           {sportDisplayName}
         </div>
       </div>
 
       <div style={{ display: "flex", padding: "12px 16px 0", gap: 8 }}>
-        {([["rules", "📖 Rules"], ["mechanics", "🏀 Mechanics"]] as const).map(([key, label]) => (
+        {([["rules", t("study.tabRules")], ["mechanics", t("study.tabMechanics")]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -189,7 +191,7 @@ export default function StudyPage() {
       {tab === "mechanics" ? (
         <div style={{ padding: 16 }}>
           <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5, marginBottom: 14 }}>
-            Crew positioning, rotations, and coverage responsibilities for 2-person and 3-person officiating mechanics.
+            {t("study.mechanicsDesc")}
           </div>
 
           {mechanicsMastery !== null && (
@@ -198,7 +200,7 @@ export default function StudyPage() {
               border: `1px solid ${T.border}`, borderRadius: 8,
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Mechanics Mastery</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{t("study.mechanicsMastery")}</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.navy }}>{mechanicsMastery}%</span>
             </div>
           )}
@@ -214,19 +216,19 @@ export default function StudyPage() {
           >
             <span style={{ fontSize: 26 }}>❓</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>Rotation &amp; Communication Quiz</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{t("study.rotationQuizTitle")}</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-                Scenario-based mechanics questions
+                {t("study.rotationQuizDesc")}
               </div>
             </div>
             <span style={{ fontSize: 18 }}>›</span>
           </button>
 
           <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 10 }}>
-            COVERAGE ZONE DRILLS
+            {t("study.coverageZoneDrills")}
           </div>
           {scenarios.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>No coverage-zone drills available yet.</div>
+            <div style={{ fontSize: 13, color: T.muted }}>{t("study.noDrills")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {scenarios.map((s) => (
@@ -240,7 +242,7 @@ export default function StudyPage() {
                 >
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{Number(s.crewSize)}-person crew · {s.zones.length} zones</div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("study.crewZones", { crewSize: Number(s.crewSize), count: s.zones.length })}</div>
                   </div>
                   <span style={{ color: T.muted, fontSize: 18 }}>›</span>
                 </button>
@@ -252,7 +254,7 @@ export default function StudyPage() {
       <>
       {assignmentRows.length > 0 && (
         <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>ASSIGNED MODULES</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>{t("study.assignedModules")}</div>
           {assignmentRows.map(({ assignment: a, coordinatorName, done }) => (
             <div
               key={a.id}
@@ -270,12 +272,12 @@ export default function StudyPage() {
                   fontSize: 10, fontWeight: 700, color: T.white,
                   background: done ? T.correct : T.navy, borderRadius: 6, padding: "2px 6px",
                 }}>
-                  {done ? "DONE" : "ASSIGNED"}
+                  {done ? t("study.done") : t("study.assigned")}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{a.title}</span>
               </div>
               <div style={{ fontSize: 11, color: T.muted }}>
-                Assigned by {coordinatorName} · Due {new Date(Number(a.dueAt / 1_000_000n)).toLocaleDateString()}
+                {t("study.assignedBy", { name: coordinatorName, date: new Date(Number(a.dueAt / 1_000_000n)).toLocaleDateString() })}
               </div>
             </div>
           ))}
@@ -285,7 +287,7 @@ export default function StudyPage() {
       {poes.length > 0 && (
         <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>
-            POINTS OF EMPHASIS — {CURRENT_SEASON}
+            {t("study.pointsOfEmphasis", { season: CURRENT_SEASON })}
           </div>
           {poes.map((poe) => {
             const reviewed = poe.linkedArticleIds.length > 0 &&
@@ -306,10 +308,10 @@ export default function StudyPage() {
                     fontSize: 10, fontWeight: 700, color: T.white, background: T.navy,
                     borderRadius: 6, padding: "2px 6px",
                   }}>
-                    POE
+                    {t("study.poe")}
                   </span>
                   <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{poe.title}</span>
-                  {reviewed && <span style={{ fontSize: 11, fontWeight: 700, color: T.correct }}>✓ Reviewed</span>}
+                  {reviewed && <span style={{ fontSize: 11, fontWeight: 700, color: T.correct }}>{t("study.reviewed")}</span>}
                 </div>
                 <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>{poe.body}</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -389,15 +391,15 @@ export default function StudyPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                  Article {Number(a.number)}
+                  {t("study.article", { number: Number(a.number) })}
                   {overdue && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: T.wrong }}>OVERDUE</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.wrong }}>{t("study.overdue")}</span>
                   )}
                 </div>
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{a.title}</div>
                 {due > 0 && (
                   <div style={{ fontSize: 11, color: T.navy, fontWeight: 600, marginTop: 4 }}>
-                    📌 Due today: {due} question{due === 1 ? "" : "s"}
+                    {t("study.dueToday", { count: due })}
                   </div>
                 )}
                 {done && (
@@ -409,7 +411,7 @@ export default function StudyPage() {
                       }} />
                     </div>
                     <span style={{ fontSize: 10, color: T.muted }}>
-                      {Number(p.masteryScore)}% mastery · studied {Number(p.timesStudied)}×
+                      {t("study.masteryStat", { pct: Number(p.masteryScore), count: Number(p.timesStudied) })}
                     </span>
                   </div>
                 )}
@@ -417,7 +419,7 @@ export default function StudyPage() {
               {hasAudio && (
                 <button
                   onClick={(e) => handleDownloadToggle(a.id, e)}
-                  title={downloaded ? "Remove downloaded audio" : "Download audio for offline listening"}
+                  title={downloaded ? t("study.removeDownload") : t("study.downloadForOffline")}
                   style={{
                     width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
                     background: downloaded ? "#E6F4EC" : T.bg,

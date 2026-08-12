@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { rankingService, type Group } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
@@ -7,6 +8,7 @@ import { useSport, useSportDisplayName } from "../lib/sport";
 
 export default function GroupsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile } = useAuthStore();
   const { sportId: SPORT_ID } = useSport();
   const sportDisplayName = useSportDisplayName();
@@ -48,7 +50,7 @@ export default function GroupsPage() {
       setShowForm(false);
       refresh();
     } catch (e: any) {
-      setError(e.message ?? "Failed to create group");
+      setError(e.message ?? t("groups.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -69,7 +71,7 @@ export default function GroupsPage() {
   return (
     <div>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>👥 Study Groups</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>👥 {t("groups.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
           {sportDisplayName}
         </div>
@@ -77,7 +79,7 @@ export default function GroupsPage() {
 
       {!isAuthenticated ? (
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>
-          Sign in on the Me tab to create or join a group.
+          {t("groups.signInPrompt")}
         </div>
       ) : (
         <div style={{ padding: 16 }}>
@@ -88,7 +90,7 @@ export default function GroupsPage() {
               background: T.red, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700,
             }}
           >
-            {showForm ? "Cancel" : "+ Create a Group"}
+            {showForm ? t("common.cancel") : t("groups.createGroup")}
           </button>
 
           {showForm && (
@@ -97,35 +99,35 @@ export default function GroupsPage() {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="Group name"
+                placeholder={t("groups.namePlaceholder")}
                 style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 8, background: T.bg, color: T.text }}
               />
               <input
                 value={state}
                 onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
-                placeholder="State (e.g. TX)"
+                placeholder={t("groups.statePlaceholder")}
                 style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 8, background: T.bg, color: T.text }}
               />
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.muted, marginBottom: 10 }}>
                 <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} />
-                Private (not listed publicly — join by shared link only)
+                {t("groups.privateLabel")}
               </label>
               <button
                 disabled={creating || !name.trim() || state.trim().length !== 2}
                 onClick={handleCreate}
                 style={{ width: "100%", padding: "11px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
               >
-                {creating ? "Creating…" : "Create Group"}
+                {creating ? t("groups.creating") : t("groups.createGroupButton")}
               </button>
             </div>
           )}
 
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>My Groups</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("groups.myGroups")}</div>
           {loading ? (
-            <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>Loading…</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>{t("common.loading")}</div>
           ) : myGroups.length === 0 ? (
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
-              You haven't joined a group yet.
+              {t("groups.notJoinedYet")}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -142,7 +144,7 @@ export default function GroupsPage() {
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</div>
                     <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                      {g.state} · {Number(g.memberCount)} member{Number(g.memberCount) === 1 ? "" : "s"}{g.isPrivate ? " · private" : ""}
+                      {g.state} · {t("groupDetail.memberCount", { count: Number(g.memberCount) })}{g.isPrivate ? ` · ${t("groupDetail.private")}` : ""}
                     </div>
                   </div>
                   <span style={{ color: T.muted, fontSize: 18 }}>›</span>
@@ -151,9 +153,9 @@ export default function GroupsPage() {
             </div>
           )}
 
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Discover Public Groups</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("groups.discoverPublic")}</div>
           {loading ? null : joinable.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>No other public groups yet — be the first to create one.</div>
+            <div style={{ fontSize: 13, color: T.muted }}>{t("groups.noPublicGroups")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {joinable.map(g => (
@@ -167,7 +169,7 @@ export default function GroupsPage() {
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{g.name}</div>
                     <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                      {g.state} · {Number(g.memberCount)} member{Number(g.memberCount) === 1 ? "" : "s"}
+                      {g.state} · {t("groupDetail.memberCount", { count: Number(g.memberCount) })}
                     </div>
                   </div>
                   <button
@@ -175,7 +177,7 @@ export default function GroupsPage() {
                     disabled={joiningId === g.id}
                     style={{ padding: "7px 14px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}
                   >
-                    {joiningId === g.id ? "Joining…" : "Join"}
+                    {joiningId === g.id ? t("groups.joining") : t("groups.join")}
                   </button>
                 </div>
               ))}

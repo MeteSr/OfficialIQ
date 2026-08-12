@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { examService } from "../services/exam";
 import { questionService } from "../services/question";
@@ -8,9 +9,15 @@ import { useSport } from "../lib/sport";
 
 const MODES = ["Solo", "Share Link", "Timed"] as const;
 type Mode = typeof MODES[number];
+const MODE_LABEL_KEYS: Record<Mode, string> = {
+  "Solo": "exam.modeSolo",
+  "Share Link": "exam.modeShareLink",
+  "Timed": "exam.modeTimed",
+};
 
 export default function ExamPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { sportId, levelId } = useSport();
 
   const [articles,  setArticles]  = useState<Article[]>([]);
@@ -49,7 +56,7 @@ export default function ExamPage() {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
 
   const estMinutes = Math.round((count * secPerQ) / 60);
-  const difficulty = count <= 10 ? "Beginner" : count <= 25 ? "Intermediate" : "Advanced";
+  const difficulty = count <= 10 ? t("exam.difficultyBeginner") : count <= 25 ? t("exam.difficultyIntermediate") : t("exam.difficultyAdvanced");
 
   const modeMap: Record<Mode, { Solo: null } | { ShareLink: null } | { Timed: null }> = {
     "Solo":       { Solo: null },
@@ -101,10 +108,10 @@ export default function ExamPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>📋</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Build Exam</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("exam.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Customize and generate your exam
+          {t("exam.subtitle")}
         </div>
       </div>
 
@@ -119,9 +126,9 @@ export default function ExamPage() {
         >
           <span style={{ fontSize: 26 }}>🎓</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Certification Exam Simulation</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{t("exam.certSimTitle")}</div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-              100 questions · 90 minutes · full certification format
+              {t("exam.certSimDesc")}
             </div>
           </div>
           <span style={{ fontSize: 18 }}>›</span>
@@ -129,7 +136,7 @@ export default function ExamPage() {
 
         {/* Article selector */}
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>Rule Articles</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>{t("exam.ruleArticles")}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {articles.map((a) => {
               const on = selected.includes(a.id);
@@ -152,7 +159,7 @@ export default function ExamPage() {
 
         {/* Casebook toggle */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 14 }}>Include Casebook plays</span>
+          <span style={{ fontSize: 14 }}>{t("exam.includeCasebook")}</span>
           <button
             onClick={() => setCasebook(v => !v)}
             style={{
@@ -173,9 +180,9 @@ export default function ExamPage() {
 
         {/* Count + time steppers */}
         {([
-          { label: "Questions",          value: count,  set: setCount,  min: 5,  max: Math.max(maxCount, 5), step: 5 },
-          { label: "Time per question",  value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: " sec" },
-        ] as const).map((row) => (
+          { label: t("exam.questionsLabel"),          value: count,  set: setCount,  min: 5,  max: Math.max(maxCount, 5), step: 5 },
+          { label: t("exam.timePerQuestionLabel"),  value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: t("exam.secSuffix") },
+        ]).map((row) => (
           <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 14 }}>{row.label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -195,19 +202,19 @@ export default function ExamPage() {
         ))}
         {maxCount < count && (
           <div style={{ fontSize: 12, color: T.muted, marginTop: -12 }}>
-            Only {maxCount} question{maxCount === 1 ? "" : "s"} available for this selection.
+            {t("exam.onlyAvailable", { count: maxCount })}
           </div>
         )}
 
         {/* Mode selector */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 14 }}>Mode</span>
+          <span style={{ fontSize: 14 }}>{t("exam.mode")}</span>
           <select
             value={mode}
             onChange={e => setMode(e.target.value as Mode)}
             style={{ fontSize: 14, fontWeight: 700, color: T.red, background: "transparent", border: "none", cursor: "pointer" }}
           >
-            {MODES.map(m => <option key={m}>{m}</option>)}
+            {MODES.map(m => <option key={m} value={m}>{t(MODE_LABEL_KEYS[m])}</option>)}
           </select>
         </div>
 
@@ -218,8 +225,8 @@ export default function ExamPage() {
           display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: T.muted,
         }}>
           <span style={{ fontSize: 18 }}>📊</span>
-          <span>Est. difficulty: <strong>{difficulty}</strong></span>
-          <span style={{ marginLeft: "auto" }}>~ {estMinutes} min exam</span>
+          <span>{t("exam.estDifficulty")} <strong>{difficulty}</strong></span>
+          <span style={{ marginLeft: "auto" }}>{t("exam.estMinutes", { minutes: estMinutes })}</span>
         </div>
 
         {/* Generate / share link result */}
@@ -233,7 +240,7 @@ export default function ExamPage() {
               color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
             }}
           >
-            {loading ? "Generating…" : "Generate & Copy Link"}
+            {loading ? t("exam.generating") : t("exam.generateAndCopy")}
           </button>
         ) : (
           <div style={{
@@ -241,15 +248,15 @@ export default function ExamPage() {
             border: `1px solid ${T.navy}`, borderRadius: 8, textAlign: "center",
           }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ready!</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{t("exam.ready")}</div>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 14 }}>
-              Link copied to clipboard — share it with your opponent.
+              {t("exam.linkCopied")}
             </div>
             <button
               onClick={() => navigate(`/quiz/share/${shareToken}`)}
               style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
             >
-              Start My Attempt
+              {t("exam.startMyAttempt")}
             </button>
           </div>
         )}

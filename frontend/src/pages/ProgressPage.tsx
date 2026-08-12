@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { T } from "../tokens";
 import { rankingService, type UserStats, type EloSnapshot } from "../services/ranking";
 import { userService, type ArticleProgress } from "../services/user";
@@ -40,11 +42,11 @@ function masteryBg(pct: number): string {
   return "#FDECEA";
 }
 
-function EloSparkline({ points }: { points: EloSnapshot[] }) {
+function EloSparkline({ points, t }: { points: EloSnapshot[]; t: TFunction }) {
   if (points.length < 2) {
     return (
       <div style={{ fontSize: 12, color: T.muted, padding: "16px 0", textAlign: "center" }}>
-        Complete a few more exams to see your trend line.
+        {t("progress.trendEmpty")}
       </div>
     );
   }
@@ -76,6 +78,7 @@ function EloSparkline({ points }: { points: EloSnapshot[] }) {
 
 export default function ProgressPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
   const MECHANICS_ARTICLE_ID = `${sportId}:mechanics`;
@@ -109,16 +112,16 @@ export default function ProgressPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🛡️</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Sign in to see your progress</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("progress.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to Profile
+          {t("addFriend.goToProfile")}
         </button>
       </div>
     );
   }
 
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   const nowNs = BigInt(Date.now()) * 1_000_000n;
@@ -132,10 +135,10 @@ export default function ProgressPage() {
     ? Number(mechanicsProgress.masteryScore) : null;
 
   const statCards = [
-    { label: "Exams Taken",     value: stats ? Number(stats.examCount) : 0 },
-    { label: "Avg Accuracy",    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
-    { label: "Current Streak",  value: stats ? Number(stats.streak) : 0 },
-    { label: "Best Streak",     value: stats ? Number(stats.bestStreak) : 0 },
+    { label: t("progress.examsTaken"),     value: stats ? Number(stats.examCount) : 0 },
+    { label: t("progress.avgAccuracy"),    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
+    { label: t("progress.currentStreak"),  value: stats ? Number(stats.streak) : 0 },
+    { label: t("progress.bestStreak"),     value: stats ? Number(stats.bestStreak) : 0 },
   ];
 
   function handleExportCsv() {
@@ -159,7 +162,7 @@ export default function ProgressPage() {
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>📈 Your Progress</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>📈 {t("progress.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
           NCAA Men's Basketball
         </div>
@@ -171,7 +174,7 @@ export default function ProgressPage() {
             onClick={handleExportCsv}
             style={{ width: "100%", padding: "10px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 16 }}
           >
-            ⬇️ Export Exam History (CSV)
+            ⬇️ {t("progress.exportCsv")}
           </button>
         )}
         {/* Stat cards */}
@@ -186,21 +189,21 @@ export default function ProgressPage() {
 
         {/* ELO trend */}
         <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>ELO Trend (last 30 days)</div>
-          <EloSparkline points={recentHistory} />
-          {stats && <div style={{ fontSize: 12, color: T.muted, textAlign: "right" }}>Current: {Math.round(stats.elo)}</div>}
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.eloTrend")}</div>
+          <EloSparkline points={recentHistory} t={t} />
+          {stats && <div style={{ fontSize: 12, color: T.muted, textAlign: "right" }}>{t("progress.current", { elo: Math.round(stats.elo) })}</div>}
         </div>
 
         {/* Weak areas */}
         {weakest.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>Weakest Areas</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{t("progress.weakestAreas")}</div>
               <button
                 onClick={() => navigate("/ai-drills")}
                 style={{ padding: "6px 12px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 11, fontWeight: 700 }}
               >
-                🎯 AI Practice
+                🎯 {t("progress.aiPractice")}
               </button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -214,13 +217,13 @@ export default function ProgressPage() {
                   }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>Art. {a ? Number(a.number) : "?"}{a ? ` — ${a.title}` : ""}</div>
-                      <div style={{ fontSize: 11, color: masteryColor(pct) }}>{pct}% mastery</div>
+                      <div style={{ fontSize: 11, color: masteryColor(pct) }}>{t("progress.masteryPct", { pct })}</div>
                     </div>
                     <button
                       onClick={() => navigate(`/quiz/${p.articleId}?count=10`)}
                       style={{ padding: "7px 14px", background: T.red, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}
                     >
-                      Drill Now
+                      {t("progress.drillNow")}
                     </button>
                   </div>
                 );
@@ -231,7 +234,7 @@ export default function ProgressPage() {
 
         {/* Mechanics mastery */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Mechanics Mastery</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.mechanicsMastery")}</div>
           <button
             onClick={() => navigate("/study")}
             style={{
@@ -242,8 +245,8 @@ export default function ProgressPage() {
             }}
           >
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>🏀 Crew Positioning &amp; Coverage</div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>2-person and 3-person mechanics</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>🏀 {t("progress.crewPositioning")}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("progress.crewPositioningDesc")}</div>
             </div>
             <span style={{ fontSize: 15, fontWeight: 700, color: mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.muted }}>
               {mechanicsMastery !== null ? `${mechanicsMastery}%` : "—"}
@@ -253,7 +256,7 @@ export default function ProgressPage() {
 
         {/* Mastery grid */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Article Mastery</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.articleMastery")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
             {articles.map(a => {
               const p = progressByArticle[a.id];
@@ -270,7 +273,7 @@ export default function ProgressPage() {
                     border: `1px solid ${pct !== null ? masteryColor(pct) : T.border}`,
                   }}
                 >
-                  <span style={{ fontSize: 11, color: T.muted }}>Art {Number(a.number)}</span>
+                  <span style={{ fontSize: 11, color: T.muted }}>{t("progress.artAbbrev", { number: Number(a.number) })}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: pct !== null ? masteryColor(pct) : T.muted }}>
                     {pct !== null ? `${pct}%` : "—"}
                   </span>

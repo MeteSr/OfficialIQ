@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { questionService, type Question } from "../services/question";
 import { rankingService } from "../services/ranking";
@@ -17,6 +18,7 @@ type AnsweredRecord = { questionId: string; articleId: string; chosenId: string 
 
 export default function CommuteModePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile } = useAuthStore();
   const { sportId: SPORT_ID } = useSport();
 
@@ -121,15 +123,19 @@ export default function CommuteModePage() {
         sportId: SPORT_ID, articleIds: [], casebook: true, difficulty: [], count: BigInt(QUESTION_COUNT),
       });
       if (qs.length === 0) {
-        setError("No cached questions available — connect once to download content before going offline.");
+        setError(t("commute.noCachedQuestions"));
         setPhase("error");
         return;
       }
       setQuestions(qs);
+      // Voice narration stays English-only: listenForLetter()'s
+      // SpeechRecognition is hardcoded to en-US (see lib/speech.ts), so
+      // translating what's spoken here would desync the TTS language from
+      // what STT can actually recognize.
       await speak("Commute Mode starting. Listen to each question, then say or tap the letter of your answer.");
       runQuestion(0, qs);
     } catch {
-      setError("Couldn't start Commute Mode — try again.");
+      setError(t("commute.startFailed"));
       setPhase("error");
     }
   }
@@ -150,25 +156,25 @@ export default function CommuteModePage() {
       <div style={{ position: "fixed", inset: 0, background: T.navy, color: T.white, display: "flex", flexDirection: "column", maxWidth: 430, margin: "0 auto" }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: 24, textAlign: "center" }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎧</div>
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>Commute Mode</div>
+          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>{t("commute.title")}</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 24, lineHeight: 1.5 }}>
-            {QUESTION_COUNT} questions read aloud, hands-free. {micSupported
-              ? "Say “A”, “B”, “C”, or “D” to answer, or tap the screen."
-              : "Voice recognition isn't supported in this browser — tap the screen to answer."}
+            {t("commute.intro", { count: QUESTION_COUNT })} {micSupported
+              ? t("commute.introMicSupported")
+              : t("commute.introMicUnsupported")}
           </div>
           {!ttsSupported && (
             <div style={{ fontSize: 12, color: "#FFD666", marginBottom: 16 }}>
-              ⚠️ Text-to-speech isn't supported in this browser — Commute Mode will run silently with on-screen text only.
+              ⚠️ {t("commute.ttsUnsupported")}
             </div>
           )}
           <button
             onClick={handleBegin}
             style={{ padding: "15px 40px", background: T.red, color: T.white, borderRadius: 10, fontSize: 16, fontWeight: 700 }}
           >
-            ▶ Start Commute Mode
+            ▶ {t("commute.start")}
           </button>
           <button onClick={() => navigate("/home")} style={{ marginTop: 16, color: "rgba(255,255,255,0.6)", fontSize: 13, background: "transparent" }}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -178,7 +184,7 @@ export default function CommuteModePage() {
   if (phase === "loading") {
     return (
       <div style={{ position: "fixed", inset: 0, background: T.navy, color: T.white, display: "flex", alignItems: "center", justifyContent: "center", maxWidth: 430, margin: "0 auto" }}>
-        Preparing your session…
+        {t("commute.preparing")}
       </div>
     );
   }
@@ -189,7 +195,7 @@ export default function CommuteModePage() {
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>{error}</div>
         <button onClick={() => navigate("/home")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -201,7 +207,7 @@ export default function CommuteModePage() {
     return (
       <div style={{ padding: "24px 16px", textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Commute Session Complete</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{t("commute.sessionComplete")}</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: T.navy, marginBottom: 20 }}>
           {correct} / {answers.length}
         </div>
@@ -209,7 +215,7 @@ export default function CommuteModePage() {
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
         >
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -222,9 +228,9 @@ export default function CommuteModePage() {
   return (
     <div style={{ position: "fixed", inset: 0, background: T.navy, color: T.white, display: "flex", flexDirection: "column", maxWidth: 430, margin: "0 auto" }}>
       <div style={{ padding: "52px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>Question {currentIdx + 1} of {questions.length}</span>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{t("aiDrills.questionOf", { current: currentIdx + 1, total: questions.length })}</span>
         <button onClick={handleStop} style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 700, background: "transparent" }}>
-          ■ Stop
+          ■ {t("commute.stop")}
         </button>
       </div>
 
@@ -233,9 +239,9 @@ export default function CommuteModePage() {
           fontSize: 13, fontWeight: 700, marginBottom: 12, textAlign: "center",
           color: phase === "speaking" ? "#A8C4F5" : phase === "listening" ? T.red : lastResult?.isCorrect ? "#7FE3A6" : "#FF8A80",
         }}>
-          {phase === "speaking" && "🔊 Reading question…"}
-          {phase === "listening" && (micSupported ? "🎙️ Listening — say A, B, C, or D" : "👆 Tap your answer")}
-          {phase === "confirming" && (lastResult?.isCorrect ? "✓ Correct" : "✗ " + (lastResult?.letter ? "Incorrect" : "No answer"))}
+          {phase === "speaking" && `🔊 ${t("commute.readingQuestion")}`}
+          {phase === "listening" && (micSupported ? `🎙️ ${t("commute.listening")}` : `👆 ${t("commute.tapAnswer")}`)}
+          {phase === "confirming" && (lastResult?.isCorrect ? `✓ ${t("commute.correct")}` : "✗ " + (lastResult?.letter ? t("commute.incorrect") : t("commute.noAnswer")))}
         </div>
 
         <p style={{ fontSize: 18, fontWeight: 500, lineHeight: 1.5, textAlign: "center", marginBottom: 24 }}>{q.stem}</p>
@@ -272,7 +278,7 @@ export default function CommuteModePage() {
       </div>
 
       <div style={{ padding: 20, textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-        Auto-advances in {phase === "confirming" ? "a few seconds" : "…"}
+        {phase === "confirming" ? t("commute.autoAdvanceSeconds") : t("commute.autoAdvanceEllipsis")}
       </div>
     </div>
   );

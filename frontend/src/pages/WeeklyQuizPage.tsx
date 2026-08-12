@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { questionService, type Question } from "../services/question";
@@ -39,6 +40,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function WeeklyQuizPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile } = useAuthStore();
   const { sportId, levelId } = useSport();
 
@@ -54,7 +56,7 @@ export default function WeeklyQuizPage() {
   const [answered,    setAnswered]    = useState<{ q: TaggedQuestion; correct: boolean }[]>([]);
 
   useEffect(() => {
-    if (!isAuthenticated) { setPhase("error"); setError("Sign in to take your weekly quiz."); return; }
+    if (!isAuthenticated) { setPhase("error"); setError(t("weeklyQuiz.signInRequired")); return; }
 
     (async () => {
       const arts = await contentService.listArticles(sportId, levelId);
@@ -105,7 +107,7 @@ export default function WeeklyQuizPage() {
         poeCount,
       });
       setPhase("preview");
-    })().catch(() => { setPhase("error"); setError("Couldn't load your weekly quiz."); });
+    })().catch(() => { setPhase("error"); setError(t("weeklyQuiz.loadFailed")); });
   }, [isAuthenticated, sportId, levelId]);
 
   async function handleStart() {
@@ -149,7 +151,7 @@ export default function WeeklyQuizPage() {
       setTimeLeft(SECONDS_PER_Q);
       setPhase("quiz");
     } catch {
-      setError("Couldn't build your quiz — try again.");
+      setError(t("weeklyQuiz.buildFailed"));
       setPhase("error");
     }
   }
@@ -213,7 +215,7 @@ export default function WeeklyQuizPage() {
   }, [currentQ, chosen, answered, currentIdx, questions.length, plan, profile]);
 
   if (phase === "loading") {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   if (phase === "error") {
@@ -222,7 +224,7 @@ export default function WeeklyQuizPage() {
         <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error}</div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -232,41 +234,44 @@ export default function WeeklyQuizPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No questions available yet</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("weeklyQuiz.emptyTitle")}</div>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-          Set a study pace or study a few articles first, then check back.
+          {t("weeklyQuiz.emptyDesc")}
         </div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
   }
 
   if (phase === "preview" && plan) {
+    const totalQuestions = plan.newCount + plan.retentionCount + plan.poeCount;
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Week {plan.weekNumber} Retention Quiz</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("weeklyQuiz.weekTitle", { week: plan.weekNumber })}</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-            {plan.newCount} new + {plan.retentionCount} retention{plan.poeCount > 0 ? ` + ${plan.poeCount} points of emphasis` : ""} question{plan.newCount + plan.retentionCount + plan.poeCount === 1 ? "" : "s"}
+            {plan.poeCount > 0
+              ? t("weeklyQuiz.subtitleWithPoe", { new: plan.newCount, retention: plan.retentionCount, poe: plan.poeCount, count: totalQuestions })
+              : t("weeklyQuiz.subtitle", { new: plan.newCount, retention: plan.retentionCount, count: totalQuestions })}
           </div>
         </div>
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
           {plan.poeCount > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.navy, marginBottom: 6 }}>
-                📌 POINTS OF EMPHASIS ({plan.poeCount} questions)
+                {t("weeklyQuiz.poeSectionTitle", { count: plan.poeCount })}
               </div>
               <div style={{ fontSize: 12, color: T.muted }}>
-                Drawn from this season's officiating points of emphasis.
+                {t("weeklyQuiz.poeSectionDesc")}
               </div>
             </div>
           )}
           {plan.newArticles.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-                NEW THIS WEEK ({plan.newCount} questions)
+                {t("weeklyQuiz.newSectionTitle", { count: plan.newCount })}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {plan.newArticles.map(a => (
@@ -280,7 +285,7 @@ export default function WeeklyQuizPage() {
           {plan.retentionArticles.length > 0 && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-                RETENTION — YOUR WEAKEST AREAS ({plan.retentionCount} questions)
+                {t("weeklyQuiz.retentionSectionTitle", { count: plan.retentionCount })}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {plan.retentionArticles.map(a => (
@@ -295,7 +300,7 @@ export default function WeeklyQuizPage() {
             onClick={handleStart}
             style={{ padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
           >
-            Start Quiz
+            {t("weeklyQuiz.startQuiz")}
           </button>
         </div>
       </div>
@@ -312,27 +317,27 @@ export default function WeeklyQuizPage() {
     return (
       <div style={{ padding: "24px 16px", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>Week {plan?.weekNumber} Quiz Complete!</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{t("weeklyQuiz.resultsTitle", { week: plan?.weekNumber })}</div>
 
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           {newScore !== null && (
             <div style={{ flex: 1, padding: "14px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>New Material</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{t("weeklyQuiz.newMaterial")}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: T.navy }}>{newScore}%</div>
               {prior && (
                 <div style={{ fontSize: 11, color: newScore >= prior.newScore ? T.correct : T.wrong, marginTop: 2 }}>
-                  {newScore >= prior.newScore ? "▲" : "▼"} vs {Number(prior.newScore)}% last week
+                  {t(newScore >= prior.newScore ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.newScore) })}
                 </div>
               )}
             </div>
           )}
           {retentionScore !== null && (
             <div style={{ flex: 1, padding: "14px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>Retention</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{t("weeklyQuiz.retention")}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: T.navy }}>{retentionScore}%</div>
               {prior && (
                 <div style={{ fontSize: 11, color: retentionScore >= prior.retentionScore ? T.correct : T.wrong, marginTop: 2 }}>
-                  {retentionScore >= prior.retentionScore ? "▲" : "▼"} vs {Number(prior.retentionScore)}% last week
+                  {t(retentionScore >= prior.retentionScore ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.retentionScore) })}
                 </div>
               )}
             </div>
@@ -340,13 +345,13 @@ export default function WeeklyQuizPage() {
         </div>
 
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>
-          {answered.filter(a => a.correct).length} / {answered.length} correct overall
+          {t("weeklyQuiz.correctOverall", { correct: answered.filter(a => a.correct).length, total: answered.length })}
         </div>
 
         <button
           onClick={() => navigate("/home")}
           style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >Back to Home</button>
+        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
@@ -372,7 +377,7 @@ export default function WeeklyQuizPage() {
           fontSize: 12, fontWeight: 600, marginBottom: 8,
           color: currentQ._source === "new" ? T.red : currentQ._source === "poe" ? T.navy : T.wrong,
         }}>
-          {currentQ._source === "new" ? "NEW" : currentQ._source === "poe" ? "📌 POINT OF EMPHASIS" : "RETENTION"} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
+          {currentQ._source === "new" ? t("weeklyQuiz.sourceNew") : currentQ._source === "poe" ? t("weeklyQuiz.sourcePoe") : t("weeklyQuiz.sourceRetention")} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
         </div>
         <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 
@@ -410,7 +415,7 @@ export default function WeeklyQuizPage() {
             background: "#E6F4EC", border: `1px solid ${T.correct}`,
             borderRadius: 8, fontSize: 13, color: T.correct,
           }}>
-            <strong>Correct</strong> — {currentQ.citation}: {currentQ.explanation}
+            <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
       </div>
@@ -425,7 +430,7 @@ export default function WeeklyQuizPage() {
             color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
           }}
         >
-          {currentIdx + 1 >= questions.length ? "Finish →" : "Next Question →"}
+          {currentIdx + 1 >= questions.length ? t("challenge.finish") : t("challenge.nextQuestion")}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { challengeService, type Challenge } from "../services/challenge";
@@ -16,6 +17,7 @@ const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
 
 export default function HomePage() {
   const navigate   = useNavigate();
+  const { t } = useTranslation();
   const { profile, principal, isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
   const [stats,      setStats]      = useState<UserStats | null>(null);
@@ -39,7 +41,7 @@ export default function HomePage() {
       const resolved = await Promise.all(incoming.map(async (c) => {
         const key = c.challenger.toString();
         const prof = await userService.getProfile(c.challenger).catch(() => null);
-        return [key, prof?.displayName ?? "an official"] as const;
+        return [key, prof?.displayName ?? t("home.anOfficial")] as const;
       }));
       setNames(Object.fromEntries(resolved));
     }).catch(() => {});
@@ -71,7 +73,7 @@ export default function HomePage() {
         const seen = Number(localStorage.getItem(STREAK_MILESTONE_KEY) ?? "0");
         const hit = STREAK_MILESTONES.find(m => current >= m && m > seen);
         if (hit) {
-          setMilestoneToast(`🔥 ${hit}-day streak! Keep it going.`);
+          setMilestoneToast(t("home.streakMilestone", { count: hit }));
           localStorage.setItem(STREAK_MILESTONE_KEY, String(hit));
         }
       }).catch(() => {});
@@ -112,10 +114,10 @@ export default function HomePage() {
   const isCatchingUp = overdueCount > 0;
   const nextArticleId = (isCatchingUp ? schedule?.overdue[0] : schedule?.dueThisWeek[0]) ?? null;
   const continueLabel = !nextArticleId
-    ? "All caught up this week!"
+    ? t("home.allCaughtUp")
     : isCatchingUp
-      ? `▶ Catch Up: ${articleTitle(nextArticleId)}`
-      : `▶ Continue Week ${schedule?.weekNumber ?? 1} Study`;
+      ? `▶ ${t("home.catchUp", { article: articleTitle(nextArticleId) })}`
+      : `▶ ${t("home.continueWeekStudy", { week: schedule?.weekNumber ?? 1 })}`;
 
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -138,7 +140,7 @@ export default function HomePage() {
             padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
         >
-          🧑‍🏫 {unseenNotes} new note{unseenNotes === 1 ? "" : "s"} from your mentor — tap to view
+          🧑‍🏫 {t("home.newNotesFromMentor", { count: unseenNotes })}
         </div>
       )}
       {unseenReports > 0 && (
@@ -149,7 +151,7 @@ export default function HomePage() {
             padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
         >
-          📋 {unseenReports} report card{unseenReports === 1 ? "" : "s"} shared with you — tap to view
+          📋 {t("home.reportCardsShared", { count: unseenReports })}
         </div>
       )}
       {nextGame && (
@@ -160,7 +162,7 @@ export default function HomePage() {
             padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
         >
-          📅 Game vs {nextGame.opponent} on {new Date(Number(nextGame.gameDate) / 1e6).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} — review recommendations
+          📅 {t("home.gameVs", { opponent: nextGame.opponent, date: new Date(Number(nextGame.gameDate) / 1e6).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) })}
         </div>
       )}
       {/* Header */}
@@ -196,12 +198,12 @@ export default function HomePage() {
       {/* Stat row */}
       <div style={{ background: T.navy, display: "flex", padding: "0 20px 20px" }}>
         {[
-          { value: streak.toString(),  label: "Day Streak", icon: "🔥" },
-          { value: "#47",              label: "State Rank",  icon: "📊" },
-          { value: `${accuracy}%`,     label: "Accuracy",    icon: "🎯" },
+          { key: "dayStreak",  value: streak.toString(),  label: t("home.dayStreak"), icon: "🔥" },
+          { key: "stateRank",  value: "#47",              label: t("home.stateRank"),  icon: "📊" },
+          { key: "accuracy",   value: `${accuracy}%`,     label: t("home.accuracy"),    icon: "🎯" },
         ].map((s) => (
-          <div key={s.label} style={{ flex: 1, textAlign: "center", color: T.white }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.label === "State Rank" ? "#A8C4F5" : T.white }}>
+          <div key={s.key} style={{ flex: 1, textAlign: "center", color: T.white }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.key === "stateRank" ? "#A8C4F5" : T.white }}>
               {s.value}
             </div>
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{s.label}</div>
@@ -218,13 +220,13 @@ export default function HomePage() {
             borderRadius: 12, padding: "14px 16px", marginBottom: 12, textAlign: "center",
           }}>
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 10 }}>
-              Set a study pace to get a personalized weekly schedule.
+              {t("home.setStudyPaceDesc")}
             </div>
             <button
               onClick={() => navigate("/me")}
               style={{ padding: "10px 20px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
             >
-              Set Study Pace
+              {t("home.setStudyPace")}
             </button>
           </div>
         ) : (
@@ -234,11 +236,11 @@ export default function HomePage() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>
-                This Week — {schedule && schedule.dueThisWeek.length > 0
+                {t("home.thisWeek")} — {schedule && schedule.dueThisWeek.length > 0
                   ? schedule.dueThisWeek.map(articleTitle).join(", ")
-                  : "All caught up"}
+                  : t("home.allCaughtUpShort")}
               </span>
-              <span style={{ fontSize: 12, color: T.muted }}>{doneThisWeek}/{weekTotal} done</span>
+              <span style={{ fontSize: 12, color: T.muted }}>{t("home.doneCount", { done: doneThisWeek, total: weekTotal })}</span>
             </div>
             <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden", marginBottom: 14 }}>
               <div style={{ height: "100%", width: `${weekProgressPct}%`, background: T.red, borderRadius: 2 }} />
@@ -248,7 +250,7 @@ export default function HomePage() {
                 fontSize: 12, color: T.wrong, marginBottom: 10,
                 display: "flex", alignItems: "center", gap: 6,
               }}>
-                ⚠️ {overdueCount} article{overdueCount === 1 ? "" : "s"} overdue — {schedule!.overdue.map(articleTitle).join(", ")}
+                ⚠️ {t("home.overdueArticles", { count: overdueCount })} — {schedule!.overdue.map(articleTitle).join(", ")}
               </div>
             )}
             <button
@@ -282,8 +284,8 @@ export default function HomePage() {
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>📊 Monthly Comprehensive Exam is open</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>50 questions · trend vs last month</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>📊 {t("home.monthlyExamOpen")}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{t("home.monthlyExamDesc")}</div>
             </div>
             <span style={{ fontSize: 18 }}>›</span>
           </button>
@@ -292,12 +294,12 @@ export default function HomePage() {
         {/* Quick actions */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
           {[
-            { label: "Audio Mode", icon: "🎧", path: "/audio" },
-            { label: "Commute", icon: "🚗", path: "/commute" },
-            { label: "Quick Drill", icon: "⚡", path: "/quiz/ncaa_basketball:art4" },
+            { key: "audio", label: t("home.audioMode"), icon: "🎧", path: "/audio" },
+            { key: "commute", label: t("home.commute"), icon: "🚗", path: "/commute" },
+            { key: "quickDrill", label: t("home.quickDrill"), icon: "⚡", path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (
             <button
-              key={a.label}
+              key={a.key}
               onClick={() => navigate(a.path)}
               style={{
                 padding: "14px 4px", background: T.surface,
@@ -325,14 +327,14 @@ export default function HomePage() {
                 }}
               >
                 <span style={{ fontSize: 14 }}>
-                  Challenge from <strong>{names[c.challenger.toString()] ?? "an official"}</strong>
+                  {t("home.challengeFrom")} <strong>{names[c.challenger.toString()] ?? t("home.anOfficial")}</strong>
                 </span>
                 <button
                   onClick={() => handleAccept(c.id)}
                   disabled={accepting === c.id}
                   style={{ background: "transparent", color: T.red, fontWeight: 700, fontSize: 14 }}
                 >
-                  {accepting === c.id ? "Accepting…" : "Accept ›"}
+                  {accepting === c.id ? t("home.accepting") : t("home.accept")}
                 </button>
               </div>
             ))}

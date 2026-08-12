@@ -138,7 +138,7 @@ function ProfileForm({
           borderRadius: 8, fontSize: 15, fontWeight: 700,
         }}
       >
-        {submitting ? "Saving…" : submitLabel}
+        {submitting ? t("me.saving") : submitLabel}
       </button>
     </div>
   );
@@ -199,7 +199,7 @@ export default function MePage() {
         setPushEnabled(true);
       }
     } catch (e: any) {
-      setPushError(e?.message ?? "Couldn't update notification settings");
+      setPushError(e?.message ?? t("me.pushUpdateFailed"));
     } finally {
       setPushBusy(false);
     }
@@ -223,7 +223,7 @@ export default function MePage() {
   }
 
   async function handleClearAll() {
-    if (!window.confirm("Delete all downloaded offline content (articles, questions, and audio)?")) return;
+    if (!window.confirm(t("me.clearAllConfirm"))) return;
     setClearingStorage(true);
     try {
       await clearAllDownloads();
@@ -257,7 +257,7 @@ export default function MePage() {
         ]);
         return {
           principal:   p.toString(),
-          displayName: prof?.displayName ?? "(unknown official)",
+          displayName: prof?.displayName ?? t("me.unknownOfficial"),
           accuracy:    s?.accuracy ?? 0,
           streak:      s?.streak ?? 0n,
         };
@@ -286,7 +286,7 @@ export default function MePage() {
       setAddFriendInput("");
       await loadFriends();
     } catch (e: any) {
-      setAddFriendError(e.message ?? "Couldn't add that friend — check the ID or link.");
+      setAddFriendError(e.message ?? t("me.addFriendFailed"));
     }
   }
 
@@ -310,7 +310,7 @@ export default function MePage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>👤 Profile</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.profileHeader")}</div>
         </div>
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
@@ -318,7 +318,7 @@ export default function MePage() {
             {t("me.signInPrompt")}
           </div>
           <div style={{ fontSize: 13, marginBottom: 24 }}>
-            Track your progress and compete on the leaderboard.
+            {t("me.trackProgress")}
           </div>
           <button
             onClick={async () => { setLoading(true); await login().catch(() => {}); setLoading(false); }}
@@ -329,7 +329,7 @@ export default function MePage() {
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? "Signing in…" : "Sign In"}
+            {loading ? t("me.signingIn") : t("me.signIn")}
           </button>
         </div>
       </div>
@@ -365,7 +365,7 @@ export default function MePage() {
                 // the user sets one later; it shouldn't block onboarding.
                 await userService.setStudyPace(hoursToArticlesPerWeek(hoursPerWeek)).catch(() => {});
               } catch (e: any) {
-                setFormError(e.message ?? "Failed to create profile");
+                setFormError(e.message ?? t("me.createProfileFailed"));
               } finally {
                 setSaving(false);
               }
@@ -373,7 +373,7 @@ export default function MePage() {
             extra={
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>
-                  How many hours per week can you study?
+                  {t("me.hoursPerWeekLabel")}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <button
@@ -381,7 +381,7 @@ export default function MePage() {
                     style={{ width: 32, height: 32, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
                   >−</button>
                   <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 90, textAlign: "center" }}>
-                    {hoursPerWeek} hr{hoursPerWeek === 1 ? "" : "s"}/week
+                    {t("me.hoursPerWeek", { count: hoursPerWeek })}
                   </span>
                   <button
                     onClick={() => setHoursPerWeek(h => Math.min(20, h + 1))}
@@ -389,7 +389,7 @@ export default function MePage() {
                   >+</button>
                 </div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>
-                  We'll pace you at ~{hoursToArticlesPerWeek(hoursPerWeek)} article{hoursToArticlesPerWeek(hoursPerWeek) === 1 ? "" : "s"}/week to cover the full rulebook every year.
+                  {t("me.paceHint", { count: hoursToArticlesPerWeek(hoursPerWeek) })}
                 </div>
               </div>
             }
@@ -403,7 +403,7 @@ export default function MePage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Edit Profile</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.editProfileHeader")}</div>
         </div>
         <div style={{ padding: 20 }}>
           {formError && (
@@ -429,7 +429,7 @@ export default function MePage() {
                   syncAllContent(v.sport, v.level).catch(() => {});
                 }
               } catch (e: any) {
-                setFormError(e.message ?? "Failed to save profile");
+                setFormError(e.message ?? t("me.saveProfileFailed"));
               } finally {
                 setSaving(false);
               }
@@ -490,9 +490,9 @@ export default function MePage() {
           borderBottom: `1px solid ${T.border}`,
         }}>
           {[
-            { label: "Exams",    value: Number(stats.examCount) },
-            { label: "Streak",   value: Number(stats.streak) },
-            { label: "Accuracy", value: `${Math.round(stats.accuracy * 100)}%` },
+            { label: t("me.exams"),    value: Number(stats.examCount) },
+            { label: t("me.streak"),   value: Number(stats.streak) },
+            { label: t("me.accuracy"), value: `${Math.round(stats.accuracy * 100)}%` },
           ].map(s => (
             <div key={s.label} style={{ flex: 1, textAlign: "center" }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: T.navy }}>{s.value}</div>
@@ -505,7 +505,7 @@ export default function MePage() {
       {badges.length > 0 && (
         <div style={{ padding: "16px 16px 0" }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-            Badges — {badges.filter(b => b.earned).length}/{badges.length}
+            {t("me.badgesEarned", { earned: badges.filter(b => b.earned).length, total: badges.length })}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
             {badges.map((b) => (
@@ -530,21 +530,21 @@ export default function MePage() {
       {storage && (
         <div style={{ padding: "16px 16px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Offline Storage</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{t("me.offlineStorage")}</div>
             {storage.totalBytes > 0 && (
               <button
                 onClick={handleClearAll}
                 disabled={clearingStorage}
                 style={{ fontSize: 12, color: T.wrong, fontWeight: 600, background: "transparent" }}
               >
-                {clearingStorage ? "Clearing…" : "Clear all"}
+                {clearingStorage ? t("me.clearing") : t("me.clearAll")}
               </button>
             )}
           </div>
 
           <div style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-              {formatMB(storage.totalBytes)} of {formatMB(storage.quotaBytes)} used
+              {t("me.storageUsed", { used: formatMB(storage.totalBytes), quota: formatMB(storage.quotaBytes) })}
             </div>
             <div style={{ height: 6, background: T.bg, borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
               <div style={{
@@ -553,9 +553,9 @@ export default function MePage() {
               }} />
             </div>
             <div style={{ display: "flex", gap: 14, fontSize: 11, color: T.muted }}>
-              <span>📄 Articles: {formatMB(storage.articlesBytes)}</span>
-              <span>❓ Questions: {formatMB(storage.questionsBytes)}</span>
-              <span>🎧 Audio: {formatMB(storage.audioBytes)}</span>
+              <span>{t("me.articlesStorage", { size: formatMB(storage.articlesBytes) })}</span>
+              <span>{t("me.questionsStorage", { size: formatMB(storage.questionsBytes) })}</span>
+              <span>{t("me.audioStorage", { size: formatMB(storage.audioBytes) })}</span>
             </div>
           </div>
 
@@ -569,12 +569,12 @@ export default function MePage() {
                     padding: "9px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
                   }}
                 >
-                  <span style={{ fontSize: 12 }}>🎧 Art. {Number(a.number)} audio downloaded</span>
+                  <span style={{ fontSize: 12 }}>{t("me.audioDownloaded", { number: Number(a.number) })}</span>
                   <button
                     onClick={() => handleDeleteDownload(a.id)}
                     style={{ fontSize: 11, color: T.wrong, fontWeight: 600, background: "transparent" }}
                   >
-                    Delete
+                    {t("me.delete")}
                   </button>
                 </div>
               ))}
@@ -589,11 +589,11 @@ export default function MePage() {
           padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>🔔 Streak Milestone Notifications</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t("me.pushTitle")}</div>
             <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
               {Capacitor.isNativePlatform() || isWebPushSupported()
-                ? "Get notified when you hit a 7/30/100-day streak."
-                : "Not supported in this browser."}
+                ? t("me.pushSupported")
+                : t("me.pushUnsupported")}
             </div>
           </div>
           <button
@@ -782,12 +782,12 @@ export default function MePage() {
       {/* Friends */}
       <div style={{ padding: "16px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Friends</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{t("me.friends")}</div>
           <button
             onClick={handleCopyShareLink}
             style={{ fontSize: 12, color: T.navy, fontWeight: 600, background: "transparent" }}
           >
-            {copied ? "Copied!" : "🔗 Copy my share link"}
+            {copied ? t("me.copied") : t("me.copyShareLink")}
           </button>
         </div>
 
@@ -795,7 +795,7 @@ export default function MePage() {
           <input
             value={addFriendInput}
             onChange={e => setAddFriendInput(e.target.value)}
-            placeholder="Paste a share link or principal ID"
+            placeholder={t("me.friendInputPlaceholder")}
             style={{
               flex: 1, padding: "9px 10px", fontSize: 13,
               border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
@@ -805,7 +805,7 @@ export default function MePage() {
             onClick={handleAddFriend}
             style={{ padding: "9px 14px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
           >
-            Add
+            {t("me.add")}
           </button>
         </div>
         {addFriendError && (
@@ -814,10 +814,10 @@ export default function MePage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
           {friendsLoading ? (
-            <div style={{ fontSize: 13, color: T.muted }}>Loading friends…</div>
+            <div style={{ fontSize: 13, color: T.muted }}>{t("me.loadingFriends")}</div>
           ) : friends.length === 0 ? (
             <div style={{ fontSize: 13, color: T.muted }}>
-              No friends yet — share your link to connect with other officials.
+              {t("me.noFriends")}
             </div>
           ) : friends.map((f) => (
             <div
@@ -845,7 +845,7 @@ export default function MePage() {
                 onClick={() => handleRemoveFriend(f.principal)}
                 style={{ fontSize: 12, color: T.wrong, background: "transparent" }}
               >
-                Remove
+                {t("me.remove")}
               </button>
             </div>
           ))}
@@ -861,7 +861,7 @@ export default function MePage() {
             borderRadius: 8, fontSize: 14, color: T.wrong, fontWeight: 600,
           }}
         >
-          Sign Out
+          {t("me.signOut")}
         </button>
       </div>
     </div>

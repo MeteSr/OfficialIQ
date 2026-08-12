@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { useSport } from "../lib/sport";
@@ -6,6 +7,7 @@ import { useSport } from "../lib/sport";
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
 export default function AudioModePage() {
+  const { t } = useTranslation();
   const { sportId, levelId } = useSport();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -54,7 +56,7 @@ export default function AudioModePage() {
         setIsPlaying(true);
       }
     } catch {
-      setError("Couldn't load audio for this article.");
+      setError(t("audioMode.loadFailed"));
     } finally {
       setLoadingAudio(false);
     }
@@ -96,9 +98,9 @@ export default function AudioModePage() {
   return (
     <div style={{ paddingBottom: current ? 96 : 16 }}>
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🎧 Audio Mode</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>🎧 {t("audioMode.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Listen to rule articles narrated
+          {t("audioMode.subtitle")}
         </div>
       </div>
 
@@ -116,7 +118,7 @@ export default function AudioModePage() {
           ))
         ) : articles.length === 0 ? (
           <div style={{ fontSize: 13, color: T.muted, textAlign: "center", padding: 24 }}>
-            No articles available yet.
+            {t("audioMode.noArticles")}
           </div>
         ) : articles.map((a) => {
           const hasAudio = a.audioUrl.length > 0;
@@ -145,9 +147,9 @@ export default function AudioModePage() {
                 {active && loadingAudio ? "…" : active && isPlaying ? "▶" : Number(a.number)}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Article {Number(a.number)}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{t("audioMode.article", { number: Number(a.number) })}</div>
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-                  {hasAudio ? a.title : `${a.title} — no audio yet`}
+                  {hasAudio ? a.title : `${a.title} — ${t("audioMode.noAudioYet")}`}
                 </div>
               </div>
               {hasAudio && <span style={{ color: T.muted, fontSize: 16 }}>🔊</span>}
@@ -174,7 +176,7 @@ export default function AudioModePage() {
           borderTop: `1px solid rgba(255,255,255,0.1)`,
         }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, opacity: 0.85 }}>
-            Article {Number(current.number)} — {current.title}
+            {t("audioMode.article", { number: Number(current.number) })} — {current.title}
           </div>
           <div style={{ height: 3, background: "rgba(255,255,255,0.25)", borderRadius: 2, overflow: "hidden", marginBottom: 12 }}>
             <div style={{ height: "100%", width: `${progress * 100}%`, background: T.red, borderRadius: 2 }} />

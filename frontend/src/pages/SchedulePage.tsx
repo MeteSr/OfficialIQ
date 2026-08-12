@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -24,6 +25,7 @@ function formatDate(gameDateNs: number): string {
 // offer without a real schedule/scouting feed.
 export default function SchedulePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
 
@@ -56,7 +58,7 @@ export default function SchedulePage() {
       if (linkedArticle) {
         const plays = await contentService.listPlays(linkedArticle).catch(() => []);
         setRecommendedPlays(plays.slice(0, 3));
-        setRecommendSource(`this season's points of emphasis`);
+        setRecommendSource(t("schedule.sourcePointsOfEmphasis"));
       } else {
         const progress = await userService.getMyProgress().catch(() => []);
         const studied = progress.filter(p => Number(p.timesStudied) > 0);
@@ -64,7 +66,7 @@ export default function SchedulePage() {
         if (weakest) {
           const plays = await contentService.listPlays(weakest.articleId).catch(() => []);
           setRecommendedPlays(plays.slice(0, 3));
-          setRecommendSource("your weakest article");
+          setRecommendSource(t("schedule.sourceWeakestArticle"));
         }
       }
     } finally {
@@ -76,9 +78,9 @@ export default function SchedulePage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📅</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Sign in to manage your schedule</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("schedule.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to Profile
+          {t("addFriend.goToProfile")}
         </button>
       </div>
     );
@@ -118,20 +120,20 @@ export default function SchedulePage() {
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>📅 My Schedule</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>📅 {t("schedule.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Linked accounts and upcoming games.
+          {t("schedule.subtitle")}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>Loading…</div>
+        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>
           {/* Linked accounts */}
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Assigning Platform Accounts</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("schedule.assigningPlatformAccounts")}</div>
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>
-            ID-based linking only — ArbiterSports/RefTown don't offer a public API yet, so nothing syncs automatically.
+            {t("schedule.idBasedLinkingDesc")}
           </div>
           {PROVIDERS.map(provider => {
             const linked = accounts.find(a => a.provider === provider);
@@ -140,9 +142,9 @@ export default function SchedulePage() {
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{provider}</div>
                 {linked ? (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: T.muted }}>Linked: {linked.externalId}</span>
+                    <span style={{ fontSize: 12, color: T.muted }}>{t("schedule.linked", { id: linked.externalId })}</span>
                     <button onClick={() => handleUnlink(provider)} style={{ padding: "6px 12px", background: T.bg, borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                      Unlink
+                      {t("schedule.unlink")}
                     </button>
                   </div>
                 ) : (
@@ -150,11 +152,11 @@ export default function SchedulePage() {
                     <input
                       value={linkInputs[provider] ?? ""}
                       onChange={e => setLinkInputs(v => ({ ...v, [provider]: e.target.value }))}
-                      placeholder={`Your ${provider} account ID`}
+                      placeholder={t("schedule.accountIdPlaceholder", { provider })}
                       style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: `1px solid ${T.border}`, fontSize: 12 }}
                     />
                     <button onClick={() => handleLink(provider)} style={{ padding: "8px 14px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
-                      Link
+                      {t("schedule.link")}
                     </button>
                   </div>
                 )}
@@ -163,9 +165,9 @@ export default function SchedulePage() {
           })}
 
           {/* Upcoming games */}
-          <div style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>Upcoming Games</div>
+          <div style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>{t("schedule.upcomingGames")}</div>
           {games.length === 0 && (
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>No upcoming games — add one below.</div>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>{t("schedule.noGames")}</div>
           )}
           {games.map(g => (
             <div key={g.id} style={{ padding: 14, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 10 }}>
@@ -176,13 +178,13 @@ export default function SchedulePage() {
                   {g.notes && <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{g.notes}</div>}
                 </div>
                 <button onClick={() => handleRemoveGame(g.id)} style={{ padding: "4px 10px", background: T.bg, borderRadius: 6, fontSize: 11, color: T.muted }}>
-                  Remove
+                  {t("schedule.remove")}
                 </button>
               </div>
               {recommendedPlays.length > 0 && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-                    RECOMMENDED REVIEW — from {recommendSource}
+                    {t("schedule.recommendedReview", { source: recommendSource })}
                   </div>
                   {recommendedPlays.map(p => (
                     <div key={p.id} style={{ fontSize: 12, padding: "4px 0" }}>
@@ -196,11 +198,11 @@ export default function SchedulePage() {
 
           {/* Add game form */}
           <div style={{ padding: 14, background: T.bg, borderRadius: 10, marginTop: 4 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Add a Game</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("schedule.addGame")}</div>
             <input
               value={opponent}
               onChange={e => setOpponent(e.target.value)}
-              placeholder="Opponent / matchup"
+              placeholder={t("schedule.opponentPlaceholder")}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 8 }}
             />
             <input
@@ -212,7 +214,7 @@ export default function SchedulePage() {
             <input
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Notes (optional)"
+              placeholder={t("schedule.notesPlaceholder")}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 10 }}
             />
             <button
@@ -220,7 +222,7 @@ export default function SchedulePage() {
               disabled={saving || !opponent.trim() || !gameDate}
               style={{ width: "100%", padding: "12px", background: T.red, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700, opacity: (saving || !opponent.trim() || !gameDate) ? 0.5 : 1 }}
             >
-              {saving ? "Adding…" : "Add Game"}
+              {saving ? t("schedule.addingGame") : t("schedule.addGameButton")}
             </button>
           </div>
         </div>

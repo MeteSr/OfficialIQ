@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { mentorshipService, type MentorLink, type Annotation } from "../services/mentorship";
@@ -11,6 +12,7 @@ function fmtDate(ns: bigint): string {
 export default function MentorPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { t } = useTranslation();
 
   const [myShares,    setMyShares]    = useState<MentorLink[]>([]);
   const [dashboard,   setDashboard]   = useState<MentorLink[]>([]);
@@ -36,9 +38,9 @@ export default function MentorPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to view mentorship.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("mentor.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
@@ -54,24 +56,24 @@ export default function MentorPage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>🧑‍🏫</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Mentorship</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("mentor.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Share results with a mentor, or review reports shared with you
+          {t("mentor.subtitle")}
         </div>
       </div>
 
       {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>Loading…</div>
+        <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>
           {/* Reports shared with me (mentor role) */}
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-            Reports Shared With Me
+            {t("mentor.sharedWithMe")}
           </div>
           {dashboard.length === 0 ? (
             <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
-              No one has shared a report with you yet.
+              {t("mentor.noneSharedWithYou")}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -86,9 +88,9 @@ export default function MentorPage() {
                 >
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>
-                      {Number(l.score)}% · {l.answers.length} question{l.answers.length === 1 ? "" : "s"}
+                      {Number(l.score)}% · {t("mentor.questionCount", { count: l.answers.length })}
                     </div>
-                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>Shared {fmtDate(l.createdAt)}</div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("mentor.sharedOn", { date: fmtDate(l.createdAt) })}</div>
                   </div>
                   <span style={{ color: T.muted }}>›</span>
                 </button>
@@ -98,11 +100,11 @@ export default function MentorPage() {
 
           {/* Reports I've shared (mentee role) */}
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-            Reports I've Shared
+            {t("mentor.iveShared")}
           </div>
           {myShares.length === 0 ? (
             <div style={{ fontSize: 13, color: T.muted }}>
-              Share an exam result from any results screen to get feedback from a mentor.
+              {t("mentor.noneSharedYet")}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -122,11 +124,11 @@ export default function MentorPage() {
                   >
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>
-                        {Number(l.score)}% · {l.answers.length} question{l.answers.length === 1 ? "" : "s"}
+                        {Number(l.score)}% · {t("mentor.questionCount", { count: l.answers.length })}
                       </div>
                       <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                        {l.revoked ? "Revoked" : expired ? "Expired" : claimed ? "Claimed by mentor" : "Awaiting mentor"}
-                        {notes.length > 0 && ` · ${notes.length} note${notes.length === 1 ? "" : "s"}`}
+                        {l.revoked ? t("mentor.statusRevoked") : expired ? t("mentor.statusExpired") : claimed ? t("mentor.statusClaimed") : t("mentor.statusAwaiting")}
+                        {notes.length > 0 && ` · ${t("mentor.noteCount", { count: notes.length })}`}
                       </div>
                     </div>
                     <span style={{ color: T.muted }}>›</span>

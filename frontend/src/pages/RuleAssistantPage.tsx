@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -15,6 +16,7 @@ export default function RuleAssistantPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
+  const { t } = useTranslation();
 
   const [configured, setConfigured] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -42,9 +44,9 @@ export default function RuleAssistantPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Sign in to ask the rule assistant</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("ruleAssistant.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Go to Profile
+          {t("addFriend.goToProfile")}
         </button>
       </div>
     );
@@ -62,7 +64,7 @@ export default function RuleAssistantPage() {
       const answer = await aiProxyService.askRuleAssistant(question, context);
       setMessages(m => [...m, { role: "assistant", text: answer }]);
     } catch (e: any) {
-      setMessages(m => [...m, { role: "error", text: e?.message ?? "Something went wrong asking the assistant." }]);
+      setMessages(m => [...m, { role: "error", text: e?.message ?? t("ruleAssistant.askFailed") }]);
     } finally {
       setAsking(false);
       aiProxyService.getRateLimitStatus().then(setRateLimit).catch(() => {});
@@ -74,28 +76,28 @@ export default function RuleAssistantPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🤖 Rule Assistant</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>🤖 {t("ruleAssistant.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Ask an officiating question — every answer cites a rule.
+          {t("ruleAssistant.subtitle")}
         </div>
       </div>
 
       {!configured && (
         <div style={{ margin: 16, padding: 12, background: "#FFF6DC", border: "1px solid #D9A400", borderRadius: 8, fontSize: 12, color: "#7A5B00" }}>
-          The AI assistant hasn't been configured by an admin yet — questions will fail until it is.
+          {t("ruleAssistant.notConfigured")}
         </div>
       )}
 
       <div style={{ padding: "12px 16px 0" }}>
         <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>
-          Ground answers in an article (optional)
+          {t("ruleAssistant.groundInArticle")}
         </label>
         <select
           value={articleId}
           onChange={e => setArticleId(e.target.value)}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, background: T.surface }}
         >
-          <option value="">No specific article — general question</option>
+          <option value="">{t("ruleAssistant.noSpecificArticle")}</option>
           {articles.map(a => (
             <option key={a.id} value={a.id}>Art. {Number(a.number)} — {a.title}</option>
           ))}
@@ -105,7 +107,7 @@ export default function RuleAssistantPage() {
       <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" }}>
         {messages.length === 0 && (
           <div style={{ fontSize: 13, color: T.muted, textAlign: "center", marginTop: 24 }}>
-            e.g. "Can an airborne shooter be charged with a player-control foul?"
+            {t("ruleAssistant.examplePrompt")}
           </div>
         )}
         {messages.map((m, i) => (
@@ -126,7 +128,7 @@ export default function RuleAssistantPage() {
         ))}
         {asking && (
           <div style={{ alignSelf: "flex-start", fontSize: 12, color: T.muted, padding: "6px 14px" }}>
-            Thinking…
+            {t("ruleAssistant.thinking")}
           </div>
         )}
         <div ref={bottomRef} />
@@ -135,7 +137,7 @@ export default function RuleAssistantPage() {
       <div style={{ padding: 16, borderTop: `1px solid ${T.border}`, background: T.surface }}>
         {rateLimit && (
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
-            {rateLimit.used}/{rateLimit.limitPerDay} questions used today
+            {t("ruleAssistant.questionsUsedToday", { used: rateLimit.used, limit: rateLimit.limitPerDay })}
           </div>
         )}
         <div style={{ display: "flex", gap: 8 }}>
@@ -143,7 +145,7 @@ export default function RuleAssistantPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") handleAsk(); }}
-            placeholder={outOfQuestions ? "Daily question limit reached" : "Ask a rules question…"}
+            placeholder={outOfQuestions ? t("ruleAssistant.limitReached") : t("ruleAssistant.inputPlaceholder")}
             disabled={asking || outOfQuestions}
             style={{ flex: 1, padding: "12px 14px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13 }}
           />
@@ -155,7 +157,7 @@ export default function RuleAssistantPage() {
               fontSize: 13, fontWeight: 700, opacity: (asking || outOfQuestions || !input.trim()) ? 0.5 : 1,
             }}
           >
-            Ask
+            {t("ruleAssistant.ask")}
           </button>
         </div>
       </div>

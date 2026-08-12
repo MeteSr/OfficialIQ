@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type VideoSubmission, type CasebookPlay } from "../services/content";
@@ -7,6 +8,7 @@ import { contentService, type VideoSubmission, type CasebookPlay } from "../serv
 export default function ModerationQueuePage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { t } = useTranslation();
 
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [isAdmin,       setIsAdmin]       = useState(false);
@@ -71,25 +73,25 @@ export default function ModerationQueuePage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in required.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("moderation.signInRequired")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
   }
 
   if (checkingAdmin) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   if (!isAdmin) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>This page is for content admins only.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("moderation.adminsOnly")}</div>
         <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
-          Back to Home
+          {t("addFriend.backToHome")}
         </button>
       </div>
     );
@@ -100,18 +102,18 @@ export default function ModerationQueuePage() {
       <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>🗂️</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Clip Moderation Queue</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("moderation.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          {pending.length} pending submission{pending.length === 1 ? "" : "s"}
+          {t("moderation.pendingCount", { count: pending.length })}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
         {loading ? (
-          <div style={{ textAlign: "center", color: T.muted }}>Loading…</div>
+          <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : pending.length === 0 ? (
-          <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>Nothing pending review.</div>
+          <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>{t("moderation.nothingPending")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {pending.map((s) => (
@@ -119,13 +121,13 @@ export default function ModerationQueuePage() {
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{s.citation}</div>
                 <div style={{ fontSize: 11, color: T.muted, marginBottom: 10, wordBreak: "break-all" }}>{s.clipUrl}</div>
 
-                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Link to casebook play</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("moderation.linkToPlay")}</div>
                 <select
                   value={selectedPlay[s.id] ?? ""}
                   onChange={e => setSelectedPlay(m => ({ ...m, [s.id]: e.target.value }))}
                   style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 6, background: T.bg, color: T.text, marginBottom: 10 }}
                 >
-                  <option value="">Select a play…</option>
+                  <option value="">{t("moderation.selectPlay")}</option>
                   {plays.map(p => (
                     <option key={p.id} value={p.id}>{p.citation} — {p.scenario.slice(0, 50)}…</option>
                   ))}
@@ -141,14 +143,14 @@ export default function ModerationQueuePage() {
                       color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700,
                     }}
                   >
-                    {busyId === s.id ? "…" : "Approve"}
+                    {busyId === s.id ? "…" : t("moderation.approve")}
                   </button>
                   <button
                     onClick={() => handleReject(s)}
                     disabled={busyId === s.id}
                     style={{ flex: 1, padding: "10px 0", background: T.surface, border: `1px solid ${T.wrong}`, color: T.wrong, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
                   >
-                    Reject
+                    {t("moderation.reject")}
                   </button>
                 </div>
               </div>

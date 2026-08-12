@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type Article, type Sport } from "../services/content";
@@ -24,6 +25,7 @@ function toDifficulty(d: string): Difficulty {
 
 export default function ScenarioGeneratorPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
 
   const [checkingAdmin, setCheckingAdmin] = useState(true);
@@ -65,19 +67,19 @@ export default function ScenarioGeneratorPage() {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🧪</div>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>Sign in required</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{t("moderation.signInRequired")}</div>
       </div>
     );
   }
   if (checkingAdmin) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Checking access…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("scenarioGen.checkingAccess")}</div>;
   }
   if (!isAdmin) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Admins only</div>
-        <div style={{ fontSize: 13, color: T.muted }}>Scenario generation is restricted to content admins.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("scenarioGen.adminsOnly")}</div>
+        <div style={{ fontSize: 13, color: T.muted }}>{t("scenarioGen.adminsOnlyDesc")}</div>
       </div>
     );
   }
@@ -94,7 +96,7 @@ export default function ScenarioGeneratorPage() {
       setRawResponse(raw);
       tryParse(raw);
     } catch (e: any) {
-      setError(e?.message ?? "Generation failed.");
+      setError(e?.message ?? t("scenarioGen.generationFailed"));
     } finally {
       setGenerating(false);
     }
@@ -111,7 +113,7 @@ export default function ScenarioGeneratorPage() {
       setError("");
     } catch (e: any) {
       setParsed(null);
-      setError(`Couldn't parse response as JSON: ${e?.message ?? e}`);
+      setError(t("scenarioGen.parseFailed", { message: e?.message ?? e }));
     }
   }
 
@@ -141,33 +143,33 @@ export default function ScenarioGeneratorPage() {
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🧪 AI Scenario Generator</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>🧪 {t("scenarioGen.title")}</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          Generate, review, then approve into the question bank.
+          {t("scenarioGen.subtitle")}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>Sport</label>
+        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.sportLabel")}</label>
         <select value={sportId} onChange={e => setSportId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12 }}>
           {sports.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
         </select>
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>Article to ground questions in</label>
+        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.articleLabel")}</label>
         <select value={articleId} onChange={e => setArticleId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12 }}>
           {articles.map(a => <option key={a.id} value={a.id}>Art. {Number(a.number)} — {a.title}</option>)}
         </select>
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>Instructions</label>
+        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.instructionsLabel")}</label>
         <textarea
           value={instructions}
           onChange={e => setInstructions(e.target.value)}
-          placeholder='e.g. "5 novel foul scenarios, difficulty: Advanced, focus on player-control fouls vs blocking fouls"'
+          placeholder={t("scenarioGen.instructionsPlaceholder")}
           rows={3}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12, fontFamily: T.font }}
         />
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>Count</label>
+        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.countLabel")}</label>
         <input
           type="number" min={1} max={10} value={count}
           onChange={e => setCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
@@ -179,7 +181,7 @@ export default function ScenarioGeneratorPage() {
           disabled={generating || !articleId}
           style={{ width: "100%", padding: "14px", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, opacity: generating ? 0.6 : 1, marginBottom: 16 }}
         >
-          {generating ? "Generating…" : "Generate with Claude"}
+          {generating ? t("scenarioGen.generating") : t("scenarioGen.generateButton")}
         </button>
 
         {error && (
@@ -190,7 +192,7 @@ export default function ScenarioGeneratorPage() {
 
         {rawResponse && !parsed && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>Raw response (edit then re-parse if needed)</div>
+            <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>{t("scenarioGen.rawResponseLabel")}</div>
             <textarea
               value={rawResponse}
               onChange={e => setRawResponse(e.target.value)}
@@ -198,14 +200,14 @@ export default function ScenarioGeneratorPage() {
               style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 11, fontFamily: "monospace", marginBottom: 8 }}
             />
             <button onClick={() => tryParse(rawResponse)} style={{ padding: "10px 16px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
-              Parse & Preview
+              {t("scenarioGen.parsePreview")}
             </button>
           </div>
         )}
 
         {parsed && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{parsed.length} question(s) generated</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("scenarioGen.questionsGenerated", { count: parsed.length })}</div>
             {parsed.map((q, i) => {
               const state = approvals[i] ?? "idle";
               return (
@@ -227,13 +229,13 @@ export default function ScenarioGeneratorPage() {
                       color: state === "saved" ? T.correct : state === "error" ? T.wrong : T.white,
                     }}
                   >
-                    {state === "saving" ? "Saving…" : state === "saved" ? "✓ Added to question bank" : state === "error" ? "Failed — retry" : "Approve & Add to Question Bank"}
+                    {state === "saving" ? t("scenarioGen.saving") : state === "saved" ? t("scenarioGen.saved") : state === "error" ? t("scenarioGen.retryFailed") : t("scenarioGen.approve")}
                   </button>
                 </div>
               );
             })}
             <button onClick={() => navigate("/me")} style={{ width: "100%", padding: "12px", background: T.bg, color: T.text, borderRadius: 8, fontSize: 13, fontWeight: 600, marginTop: 4 }}>
-              Done
+              {t("scenarioGen.done")}
             </button>
           </div>
         )}

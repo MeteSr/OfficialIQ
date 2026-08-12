@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { reportService, type ReportSnapshot, type ArticleStat } from "../services/report";
@@ -14,6 +15,7 @@ const MS_PER_MONTH = 30 * 24 * 3600 * 1000;
 
 export default function ReportCardPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile, principal } = useAuthStore();
 
   const [current,    setCurrent]    = useState<ReportSnapshot | null>(null);
@@ -97,7 +99,7 @@ export default function ReportCardPage() {
       setCurrent(report);
       setHistory(h => [report, ...h]);
     } catch (e: any) {
-      setError(e.message ?? "Couldn't generate your report card — try again.");
+      setError(e.message ?? t("reportCard.generateFailed"));
     } finally {
       setGenerating(false);
     }
@@ -140,9 +142,9 @@ export default function ReportCardPage() {
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Sign in to generate a report card.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("reportCard.signInPrompt")}</div>
         <button onClick={() => navigate("/me")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Go to Sign In
+          {t("sharedReports.goToSignIn")}
         </button>
       </div>
     );
@@ -161,16 +163,16 @@ export default function ReportCardPage() {
       <div className="no-print" style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <span style={{ fontSize: 20 }}>📋</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Report Card</span>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("reportCard.title")}</span>
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          Share your progress with an assignor or coordinator
+          {t("reportCard.subtitle")}
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
         {loading ? (
-          <div style={{ textAlign: "center", color: T.muted }}>Loading…</div>
+          <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : (
           <>
             {current && (
@@ -191,7 +193,7 @@ export default function ReportCardPage() {
                   borderRadius: 8, fontSize: 15, fontWeight: 700,
                 }}
               >
-                {generating ? "Generating…" : current ? "Regenerate Report Card" : "Generate Report Card"}
+                {generating ? t("reportCard.generating") : current ? t("reportCard.regenerate") : t("reportCard.generate")}
               </button>
 
               {current && (
@@ -200,7 +202,7 @@ export default function ReportCardPage() {
                     onClick={handlePrint}
                     style={{ width: "100%", padding: "12px 0", marginBottom: 10, background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
                   >
-                    🖨️ Print / Export PDF
+                    🖨️ {t("publicReport.printExport")}
                   </button>
 
                   <div style={{
@@ -208,9 +210,9 @@ export default function ReportCardPage() {
                     padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 16,
                   }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>Public Profile</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t("reportCard.publicProfile")}</div>
                       <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                        {current.isPublic ? "Anyone with the link can view" : "Only you (and anyone you share it with) can view"}
+                        {current.isPublic ? t("reportCard.publicDesc") : t("reportCard.privateDesc")}
                       </div>
                     </div>
                     <button
@@ -236,20 +238,20 @@ export default function ReportCardPage() {
                         }}
                         style={{ width: "100%", padding: "10px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.navy }}
                       >
-                        🔗 Copy Public Link
+                        🔗 {t("reportCard.copyPublicLink")}
                       </button>
                     </div>
                   )}
 
                   {associations.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Share with Coordinator</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("reportCard.shareWithCoordinator")}</div>
                       <select
                         value={shareTarget}
                         onChange={e => { setShareTarget(e.target.value); setShared(false); }}
                         style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 6, background: T.surface, color: T.text, marginBottom: 8 }}
                       >
-                        <option value="">Select an association…</option>
+                        <option value="">{t("reportCard.selectAssociation")}</option>
                         {associations.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>
                       <button
@@ -257,7 +259,7 @@ export default function ReportCardPage() {
                         disabled={!shareTarget || sharing}
                         style={{ width: "100%", padding: "10px 0", background: !shareTarget ? T.border : T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
                       >
-                        {sharing ? "Sending…" : shared ? "Sent ✓" : "Send to Coordinator"}
+                        {sharing ? t("reportCard.sending") : shared ? t("reportCard.sent") : t("reportCard.sendToCoordinator")}
                       </button>
                     </div>
                   )}
@@ -266,7 +268,7 @@ export default function ReportCardPage() {
 
               {history.length > 1 && (
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Past Report Cards</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("reportCard.pastReportCards")}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {history.slice(1).map(r => (
                       <button
@@ -277,7 +279,7 @@ export default function ReportCardPage() {
                           borderRadius: 8, textAlign: "left", fontSize: 12, color: T.muted,
                         }}
                       >
-                        {new Date(Number(r.generatedAt / 1_000_000n)).toLocaleDateString()} — {Number(r.avgScore)}% avg
+                        {t("reportCard.historyRow", { date: new Date(Number(r.generatedAt / 1_000_000n)).toLocaleDateString(), avg: Number(r.avgScore) })}
                       </button>
                     ))}
                   </div>

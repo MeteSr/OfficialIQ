@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { rankingService, type Group, type GroupChallenge, type GroupLeaderboardEntry } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
@@ -8,6 +9,7 @@ export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { principal } = useAuthStore();
+  const { t } = useTranslation();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [leaderboard, setLeaderboard] = useState<GroupLeaderboardEntry[]>([]);
@@ -65,15 +67,15 @@ export default function GroupDetailPage() {
   }
 
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>Loading…</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
   if (!group) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Group not found</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{t("groupDetail.notFound")}</div>
         <button onClick={() => navigate("/groups")} style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontWeight: 700 }}>
-          Back to Groups
+          {t("groupDetail.backToGroups")}
         </button>
       </div>
     );
@@ -86,16 +88,16 @@ export default function GroupDetailPage() {
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{group.name}</div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-            {group.state} · {Number(group.memberCount)} member{Number(group.memberCount) === 1 ? "" : "s"}{group.isPrivate ? " · private" : ""}
+            {group.state} · {t("groupDetail.memberCount", { count: Number(group.memberCount) })}{group.isPrivate ? ` · ${t("groupDetail.private")}` : ""}
           </div>
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Weekly Accuracy Leaderboard</div>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("groupDetail.leaderboardTitle")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
           {leaderboard.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>No members with exam activity yet.</div>
+            <div style={{ fontSize: 13, color: T.muted }}>{t("groupDetail.noActivity")}</div>
           ) : leaderboard.map((e) => {
             const isYou = principal && e.principal.toString() === principal;
             return (
@@ -116,13 +118,13 @@ export default function GroupDetailPage() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Group Challenges</div>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>{t("groupDetail.challengesTitle")}</div>
           {isOwner && (
             <button
               onClick={() => setShowChallengeForm(s => !s)}
               style={{ fontSize: 12, color: T.navy, fontWeight: 700, background: "transparent" }}
             >
-              {showChallengeForm ? "Cancel" : "+ Post Challenge"}
+              {showChallengeForm ? t("common.cancel") : t("groupDetail.postChallenge")}
             </button>
           )}
         </div>
@@ -132,13 +134,13 @@ export default function GroupDetailPage() {
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Complete Article 8 quiz this week"
+              placeholder={t("groupDetail.challengeTitlePlaceholder")}
               style={{ width: "100%", padding: "9px 10px", fontSize: 13, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 8, background: T.bg, color: T.text }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 12, color: T.muted }}>Deadline:</span>
+              <span style={{ fontSize: 12, color: T.muted }}>{t("groupDetail.deadline")}</span>
               <button onClick={() => setDays(d => Math.max(1, d - 1))} style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}` }}>−</button>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>{days} day{days === 1 ? "" : "s"}</span>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{t("groupDetail.dayCount", { count: days })}</span>
               <button onClick={() => setDays(d => Math.min(30, d + 1))} style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}` }}>+</button>
             </div>
             <button
@@ -146,19 +148,19 @@ export default function GroupDetailPage() {
               onClick={handlePostChallenge}
               style={{ width: "100%", padding: "11px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
             >
-              {posting ? "Posting…" : "Post to Group"}
+              {posting ? t("groupDetail.posting") : t("groupDetail.postToGroup")}
             </button>
           </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
           {challenges.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>No group challenges posted yet.</div>
+            <div style={{ fontSize: 13, color: T.muted }}>{t("groupDetail.noChallenges")}</div>
           ) : [...challenges].reverse().map((c) => (
             <div key={c.id} style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{c.title}</div>
               <div style={{ fontSize: 11, color: T.muted }}>
-                Due {new Date(Number(c.deadline / 1_000_000n)).toLocaleDateString()}
+                {t("groupDetail.due", { date: new Date(Number(c.deadline / 1_000_000n)).toLocaleDateString() })}
               </div>
             </div>
           ))}
@@ -172,7 +174,7 @@ export default function GroupDetailPage() {
             border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, color: T.wrong, fontWeight: 600,
           }}
         >
-          {leaving ? "Leaving…" : "Leave Group"}
+          {leaving ? t("groupDetail.leaving") : t("groupDetail.leaveGroup")}
         </button>
       </div>
     </div>
