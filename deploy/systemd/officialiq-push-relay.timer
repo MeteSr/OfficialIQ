@@ -1,0 +1,13 @@
+# Fires officialiq-push-relay.service every 15 minutes — matches the
+# schedule in .github/workflows/push-relay.yml, just without GitHub.
+
+[Unit]
+Description=Run the OfficialIQ push relay every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

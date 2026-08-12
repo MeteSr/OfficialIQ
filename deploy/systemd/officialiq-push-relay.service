@@ -1,0 +1,24 @@
+# Runs the push relay once, then exits — the .timer unit is what makes it
+# recurring. Fully GitHub-free alternative to .github/workflows/push-relay.yml
+# for a self-hosted box/VPS. See docs/DEPLOYMENT.md's "Deploying without
+# GitHub" section for install steps.
+#
+# Install:
+#   sudo cp deploy/systemd/officialiq-push-relay.* /etc/systemd/system/
+#   sudo cp deploy/systemd/officialiq-push-relay.env.example /etc/officialiq-push-relay.env
+#   sudo $EDITOR /etc/officialiq-push-relay.env   # fill in real secrets
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now officialiq-push-relay.timer
+
+[Unit]
+Description=OfficialIQ push relay (streak milestone notifications)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=officialiq
+WorkingDirectory=/opt/officialiq
+EnvironmentFile=/etc/officialiq-push-relay.env
+ExecStart=/usr/bin/env bash scripts/write-env.sh ic
+ExecStart=/usr/bin/env bash scripts/send-push.sh ic

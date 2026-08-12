@@ -33,19 +33,10 @@ jobs:
           node-version: "20"
 
       - name: Install dfx
-        run: |
-          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-          echo "$HOME/.local/share/dfx/bin" >> "$GITHUB_PATH"
+        run: bash scripts/install-dfx.sh
 
       - name: Import CI identity
-        run: |
-          if [ -z "${DFX_IDENTITY_PEM:-}" ]; then
-            echo "::error::DFX_IDENTITY_PEM secret is not set — see docs/DEPLOYMENT.md" && exit 1
-          fi
-          echo "$DFX_IDENTITY_PEM" > /tmp/ci-identity.pem
-          dfx identity import ci /tmp/ci-identity.pem --storage-mode plaintext
-          rm -f /tmp/ci-identity.pem
-          dfx identity use ci
+        run: bash scripts/import-identity.sh
         env:
           DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
 

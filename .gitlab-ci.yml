@@ -1,0 +1,50 @@
+# Optional — only relevant if this repo is mirrored to or migrated onto
+# GitLab. Not required for GitHub-hosted use (see .github/workflows/
+# instead); this file exists to prove and document that the pipeline
+# doesn't actually depend on GitHub — every job below just calls the same
+# scripts/*.sh used everywhere else. See docs/DEPLOYMENT.md's "Deploying
+# without GitHub" section.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables, masked + protected):
+#   DFX_IDENTITY_PEM, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT
+
+image: node:20-bookworm-slim
+
+.dfx-setup:
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git bash xz-utils
+    - bash scripts/install-dfx.sh
+    - export PATH="$HOME/.local/share/dfx/bin:$PATH"
+    - bash scripts/import-identity.sh
+
+deploy-staging:
+  extends: .dfx-setup
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - bash scripts/deploy.sh staging
+    - bash scripts/commit-canister-ids.sh main
+  variables:
+    GIT_AUTHOR_NAME: "gitlab-ci"
+    GIT_AUTHOR_EMAIL: "gitlab-ci@localhost"
+
+deploy-production:
+  extends: .dfx-setup
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+      when: manual   # GitLab's equivalent of a required-reviewer gate
+  script:
+    - bash scripts/deploy.sh ic
+    - bash scripts/commit-canister-ids.sh main --warn-only || echo "canister_ids.json changed — commit it via a normal MR to main."
+
+push-relay:
+  extends: .dfx-setup
+  stage: deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  script:
+    - bash scripts/write-env.sh ic
+    - npm install --prefix frontend
+    - bash scripts/send-push.sh ic

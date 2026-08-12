@@ -59,6 +59,12 @@ cycles wallet first; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
 one-time identity/wallet setup, the CI pipeline (`.github/workflows/`), and
 canister-upgrade safety notes.
 
+None of this is tied to GitHub specifically — `scripts/*.sh` hold all the
+actual logic, and the GitHub Actions workflows are thin wrappers around
+them. See [docs/DEPLOYMENT.md § Deploying without GitHub](docs/DEPLOYMENT.md#deploying-without-github)
+for a Docker image, a GitLab CI example, and self-hosted systemd units that
+do the same thing with no GitHub involvement at all.
+
 ## Repo layout
 
 ```
@@ -68,6 +74,8 @@ scripts/    deploy, content seeding, audio generation, push relay
 tests/      end-to-end / integration tests
 docs/       deployment and other operational docs
 .github/    CI workflows (staging/production deploy, push relay)
+docker/     portable deploy container (GitHub-free CI/hosts)
+deploy/     self-hosted systemd units (GitHub-free push relay)
 dfx.json    canister definitions
 Makefile    common dev commands
 ```

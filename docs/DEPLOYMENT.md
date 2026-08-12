@@ -116,6 +116,115 @@ change that **removes or changes the type of** a stable variable:
    (`scripts/deploy.sh <network> assets-only`) without touching backend
    canister state, for frontend-only fixes.
 
+## Deploying without GitHub
+
+Every piece of actual deploy logic lives in `scripts/*.sh` — plain bash,
+called with plain environment variables. `.github/workflows/*.yml` are thin
+wrappers that install dfx, set an env var from a GitHub Secret, and call
+those scripts; **nothing about the deploy process itself depends on
+GitHub.** This section covers the alternatives, for anyone who wants to
+self-host CI, avoid GitHub Actions specifically, or just deploy by hand.
+
+| I want to... | Use |
+|---|---|
+| Deploy once, right now, from my own machine | The manual path below — no extra tooling |
+| Run CI on GitLab instead of GitHub | `.gitlab-ci.yml` (repo root) |
+| Run CI/deploys identically on any Docker-capable host | `docker/deploy.Dockerfile` |
+| Run the push relay on a self-hosted box, no CI at all | `deploy/systemd/officialiq-push-relay.{service,timer}` |
+
+### Manual (no CI, no Docker, no GitHub)
+
+This is the simplest GitHub-free path and doesn't require setting up
+anything beyond dfx itself:
+
+```bash
+dfx identity use ci-deploy       # or whichever identity holds the wallet
+bash scripts/deploy.sh staging   # or: ic
+bash scripts/check-cycles.sh staging
+```
+
+The identity's private key stays in dfx's own local keyring
+(`~/.config/dfx/identity/`, optionally password-protected via
+`--storage-mode password-protected` when you create it) — no external
+secret store required. This is a perfectly reasonable permanent workflow,
+not just a fallback, if deploys are infrequent enough that automating the
+trigger isn't worth it.
+
+### Docker (any CI provider, any self-hosted runner)
+
+`docker/deploy.Dockerfile` bakes in dfx + Node so the deploy runs
+identically anywhere Docker does:
+
+```bash
+docker build -f docker/deploy.Dockerfile -t officialiq-deploy .
+
+# Deploy:
+docker run --rm -e DFX_IDENTITY_PEM="$(cat ci-deploy.pem)" officialiq-deploy staging
+
+# Push relay (override the entrypoint to run a different script):
+docker run --rm --entrypoint bash \
+  -e DFX_IDENTITY_PEM="$(cat ci-deploy.pem)" \
+  -e VAPID_PRIVATE_KEY=... -e VAPID_PUBLIC_KEY=... -e VAPID_SUBJECT=mailto:you@example.com \
+  officialiq-deploy -c 'bash scripts/import-identity.sh && bash scripts/write-env.sh ic && bash scripts/send-push.sh ic'
+```
+
+The image bakes in the source present at `docker build` time — rebuild it
+(or bind-mount a fresh checkout over `/app`) before deploying newer code.
+Point any CI system's "run a Docker image" step at this and you have a
+working pipeline without writing provider-specific YAML at all.
+
+### GitLab CI
+
+`.gitlab-ci.yml` at the repo root mirrors the two GitHub workflows
+(`deploy-staging` on push to `main`, `deploy-production` manually-gated on
+a version tag) plus a `push-relay` job meant to run off a GitLab **Scheduled
+Pipeline** (CI/CD → Schedules in the GitLab UI — GitLab doesn't read cron
+syntax from the YAML itself the way GitHub Actions does). Set the same
+`DFX_IDENTITY_PEM`/`VAPID_*` values as masked, protected CI/CD variables
+instead of GitHub Secrets. This file is only useful if the repo is mirrored
+to or migrated onto GitLab — its real purpose is proving (and documenting)
+that the pipeline isn't GitHub-locked, not adding a second CI system to
+maintain in parallel for no reason.
+
+### Self-hosted push relay (systemd)
+
+For running the push relay on a VPS/box you control, with no CI system —
+GitHub Actions or otherwise — in the loop at all:
+
+```bash
+git clone <repo-url> /opt/officialiq && cd /opt/officialiq
+npm install --prefix frontend
+bash scripts/install-dfx.sh
+dfx identity import ci /path/to/ci-deploy.pem --storage-mode plaintext
+dfx identity use ci
+
+sudo cp deploy/systemd/officialiq-push-relay.* /etc/systemd/system/
+sudo install -m 600 deploy/systemd/officialiq-push-relay.env.example /etc/officialiq-push-relay.env
+sudo $EDITOR /etc/officialiq-push-relay.env   # fill in real VAPID_* values
+sudo systemctl daemon-reload
+sudo systemctl enable --now officialiq-push-relay.timer
+```
+
+See `deploy/systemd/officialiq-push-relay.service` for what it actually
+runs — it's the same `write-env.sh` + `send-push.sh` combination as
+everywhere else, just triggered by a systemd timer instead of a GitHub
+Actions schedule.
+
+### Secrets without GitHub Secrets
+
+Every script here reads plain environment variables
+(`DFX_IDENTITY_PEM`, `VAPID_PRIVATE_KEY`, etc.) — nothing is coupled to
+GitHub's secret-storage API specifically. Options that work equally well:
+
+- A gitignored local file (e.g. `.env.deploy`) sourced before running a
+  script (`source .env.deploy && bash scripts/deploy.sh ic`) — fine for a
+  single operator on a trusted machine.
+- A secrets manager (Vault, 1Password CLI, `sops`, AWS/GCP secret managers,
+  etc.) that exports the same variable names into the shell before the
+  script runs — nothing in `scripts/*.sh` needs to know or care which one.
+- GitLab CI/CD variables, or whatever equivalent your CI provider calls it,
+  the same way GitHub Secrets are used in `.github/workflows/`.
+
 ## Custom domain
 
 Not yet decided — this needs a domain name choice (business decision, not

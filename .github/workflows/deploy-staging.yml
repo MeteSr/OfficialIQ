@@ -40,19 +40,10 @@ jobs:
           node-version: "20"
 
       - name: Install dfx
-        run: |
-          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-          echo "$HOME/.local/share/dfx/bin" >> "$GITHUB_PATH"
+        run: bash scripts/install-dfx.sh
 
       - name: Import CI identity
-        run: |
-          if [ -z "${DFX_IDENTITY_PEM:-}" ]; then
-            echo "::error::DFX_IDENTITY_PEM secret is not set — see docs/DEPLOYMENT.md" && exit 1
-          fi
-          echo "$DFX_IDENTITY_PEM" > /tmp/ci-identity.pem
-          dfx identity import ci /tmp/ci-identity.pem --storage-mode plaintext
-          rm -f /tmp/ci-identity.pem
-          dfx identity use ci
+        run: bash scripts/import-identity.sh
         env:
           DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
 
@@ -60,13 +51,7 @@ jobs:
         run: bash scripts/deploy.sh staging
 
       - name: Commit canister_ids.json if it changed
-        run: |
-          if ! git diff --quiet -- canister_ids.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add canister_ids.json
-            git commit -m "chore: update staging canister_ids.json [skip ci]"
-            git push origin HEAD:main
-          else
-            echo "canister_ids.json unchanged."
-          fi
+        run: bash scripts/commit-canister-ids.sh main
+        env:
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
