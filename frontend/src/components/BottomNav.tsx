@@ -1,17 +1,19 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 
 const tabs = [
-  { path: "/home",  label: "Home",  icon: "⊞" },
-  { path: "/study", label: "Study", icon: "📖" },
-  { path: "/exam",  label: "Exam",  icon: "✏️" },
-  { path: "/ranks", label: "Ranks", icon: "🏆" },
-  { path: "/me",    label: "Me",    icon: "👤" },
-];
+  { path: "/home",  key: "home",  icon: "⊞" },
+  { path: "/study", key: "study", icon: "📖" },
+  { path: "/exam",  key: "exam",  icon: "✏️" },
+  { path: "/ranks", key: "ranks", icon: "🏆" },
+  { path: "/me",    key: "me",    icon: "👤" },
+] as const;
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // The certification exam simulation and Commute Mode are full-screen,
   // distraction-free modes (see issues #16, #17) — no tab bar while active.
@@ -46,7 +48,7 @@ export default function BottomNav() {
             }}
           >
             <span style={{ fontSize: 20 }}>{tab.icon}</span>
-            {tab.label}
+            {t(`nav.${tab.key}`)}
           </button>
         );
       })}

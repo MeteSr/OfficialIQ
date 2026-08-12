@@ -1,0 +1,41 @@
+{
+  "nav": {
+    "home": "Home",
+    "study": "Study",
+    "exam": "Exam",
+    "ranks": "Ranks",
+    "me": "Me"
+  },
+  "me": {
+    "signInPrompt": "Sign in with Internet Identity",
+    "welcomeTitle": "👋 Welcome",
+    "welcomeSubtitle": "Set up your profile to start tracking progress",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "e.g. J. Rodriguez",
+    "sportLabel": "Sport",
+    "levelLabel": "Level",
+    "stateLabel": "State",
+    "languageLabel": "Language",
+    "createProfile": "Create Profile",
+    "saveChanges": "Save Changes",
+    "editProfile": "Edit",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "add": "Add",
+    "remove": "Remove",
+    "signOut": "Sign Out",
+    "studyGroups": "👥 Study Groups",
+    "viewFullProgress": "📈 View Full Progress",
+    "mentorship": "🧑‍🏫 Mentorship",
+    "associations": "🏛️ Associations",
+    "submitClip": "🎬 Submit a Video Clip",
+    "analyticsReadiness": "📊 Analytics & Readiness",
+    "scheduleAccounts": "📅 My Schedule & Assigning Accounts",
+    "askRuleAssistant": "🤖 Ask the Rule Assistant",
+    "aiPracticeDrills": "🎯 AI Practice Drills",
+    "aiScenarioGenerator": "🧪 AI Scenario Generator",
+    "reportCard": "📋 Report Card",
+    "reportCardsShared": "📥 Report Cards Shared With Me",
+    "clipModerationQueue": "🗂️ Clip Moderation Queue"
+  }
+}

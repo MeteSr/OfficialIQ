@@ -5,8 +5,8 @@ import { createActor } from "./actor";
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null, Coordinator: I.Null });
-  const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, createdAt: I.Int });
-  const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });
+  const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text, createdAt: I.Int });
+  const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text });
   const ResultP     = I.Variant({ ok: Profile, err: I.Text });
   const StudyPace   = I.Record({ articlesPerWeek: I.Nat, startDate: I.Int });
   const ResultPace  = I.Variant({ ok: StudyPace, err: I.Text });
@@ -48,15 +48,16 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
 
 export type UserRole = { Official: null } | { Assessor: null } | { Admin: null } | { Coordinator: null };
 export type UserProfile = {
-  principal:   import("@icp-sdk/core/principal").Principal;
-  displayName: string;
-  role:        UserRole;
-  sport:       string;
-  level:       string;
-  state:       string;
-  createdAt:   bigint;
+  principal:         import("@icp-sdk/core/principal").Principal;
+  displayName:       string;
+  role:              UserRole;
+  sport:             string;
+  level:             string;
+  state:             string;
+  preferredLanguage: string;
+  createdAt:         bigint;
 };
-export type ProfileUpdate = { displayName: string; sport: string; level: string; state: string };
+export type ProfileUpdate = { displayName: string; sport: string; level: string; state: string; preferredLanguage: string };
 
 export type StudyPace = { articlesPerWeek: bigint; startDate: bigint };
 export type ArticleProgress = { articleId: string; lastStudied: bigint; timesStudied: bigint; masteryScore: bigint };
@@ -71,13 +72,14 @@ export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: s
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
 const MOCK_PROFILE: UserProfile = {
-  principal:   { toString: () => "2vxsx-fae" } as any,
-  displayName: "Demo Official",
-  role:        { Official: null },
-  sport:       "ncaa_basketball",
-  level:       "varsity",
-  state:       "TX",
-  createdAt:   BigInt(Date.now()) * BigInt(1_000_000),
+  principal:         { toString: () => "2vxsx-fae" } as any,
+  displayName:       "Demo Official",
+  role:              { Official: null },
+  sport:             "ncaa_basketball",
+  level:             "varsity",
+  state:             "TX",
+  preferredLanguage: "en",
+  createdAt:         BigInt(Date.now()) * BigInt(1_000_000),
 };
 
 // ─── Service ──────────────────────────────────────────────────────────────────

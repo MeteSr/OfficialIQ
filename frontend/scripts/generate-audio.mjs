@@ -50,13 +50,13 @@ function readEnvFile() {
 
 const contentIdlFactory = ({ IDL: I }) => {
   const Article = I.Record({
-    id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text,
+    id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text, language: I.Text,
     audioUrl: I.Opt(I.Text), createdAt: I.Int, updatedAt: I.Int,
   });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
-    listArticles: I.Func([I.Text, I.Text], [I.Vec(Article)], ["query"]),
+    listArticles: I.Func([I.Text, I.Text, I.Text], [I.Vec(Article)], ["query"]),
     getArticleAudio: I.Func([I.Text], [I.Opt(I.Vec(I.Nat8))], ["query"]),
     setArticleAudio: I.Func([I.Text, I.Vec(I.Nat8)], [ResultUnit], []),
   });
@@ -109,7 +109,7 @@ async function main() {
   await ensureAdmin("content", content, principal);
   await ensureAdmin("ai_proxy", aiProxy, principal);
 
-  const remoteArticles = await content.listArticles(SPORT_ID, LEVEL_ID);
+  const remoteArticles = await content.listArticles(SPORT_ID, LEVEL_ID, "en");
   const remoteById = new Map(remoteArticles.map((a) => [a.number, a]));
 
   let generated = 0, skipped = 0, errorCount = 0;

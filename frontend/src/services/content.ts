@@ -11,6 +11,7 @@ export type Article = {
   number:    bigint;
   title:     string;
   body:      string;
+  language:  string;
   audioUrl:  [] | [string];
   createdAt: bigint;
   updatedAt: bigint;
@@ -102,7 +103,7 @@ export type VideoSubmission = {
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Art = I.Record({
     id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat,
-    title: I.Text, body: I.Text, audioUrl: I.Opt(I.Text),
+    title: I.Text, body: I.Text, language: I.Text, audioUrl: I.Opt(I.Text),
     createdAt: I.Int, updatedAt: I.Int,
   });
   const DiagramPlayer = I.Record({
@@ -139,7 +140,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     listSports:          I.Func([],               [I.Vec(SportRec)],      ["query"]),
     getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
     getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
-    listArticles:        I.Func([I.Text, I.Text], [I.Vec(Art)],           ["query"]),
+    listArticles:        I.Func([I.Text, I.Text, I.Text], [I.Vec(Art)],   ["query"]),
     listPlays:           I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
     listPointsOfEmphasis: I.Func([I.Text],        [I.Vec(Poe)],           ["query"]),
     listMechanicsScenarios: I.Func([],            [I.Vec(Scenario)],      ["query"]),
@@ -157,11 +158,11 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const MOCK_ARTICLES: Article[] = [
-  { id: "ncaa_basketball:art1", sportId: "ncaa_basketball", levelId: "varsity", number: 1n, title: "Court and Equipment",  body: "Rule text for Article 1...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
-  { id: "ncaa_basketball:art2", sportId: "ncaa_basketball", levelId: "varsity", number: 2n, title: "Players and Rosters",  body: "Rule text for Article 2...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
-  { id: "ncaa_basketball:art3", sportId: "ncaa_basketball", levelId: "varsity", number: 3n, title: "Officials",            body: "Rule text for Article 3...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
-  { id: "ncaa_basketball:art4", sportId: "ncaa_basketball", levelId: "varsity", number: 4n, title: "Fouls",                body: "Rule text for Article 4...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
-  { id: "ncaa_basketball:art5", sportId: "ncaa_basketball", levelId: "varsity", number: 5n, title: "Violations",           body: "Rule text for Article 5...", audioUrl: [], createdAt: 0n, updatedAt: 0n },
+  { id: "ncaa_basketball:art1", sportId: "ncaa_basketball", levelId: "varsity", number: 1n, title: "Court and Equipment",  body: "Rule text for Article 1...", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n },
+  { id: "ncaa_basketball:art2", sportId: "ncaa_basketball", levelId: "varsity", number: 2n, title: "Players and Rosters",  body: "Rule text for Article 2...", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n },
+  { id: "ncaa_basketball:art3", sportId: "ncaa_basketball", levelId: "varsity", number: 3n, title: "Officials",            body: "Rule text for Article 3...", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n },
+  { id: "ncaa_basketball:art4", sportId: "ncaa_basketball", levelId: "varsity", number: 4n, title: "Fouls",                body: "Rule text for Article 4...", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n },
+  { id: "ncaa_basketball:art5", sportId: "ncaa_basketball", levelId: "varsity", number: 5n, title: "Violations",           body: "Rule text for Article 5...", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n },
 ];
 
 const MOCK_SPORTS: Sport[] = [
@@ -180,7 +181,7 @@ function actor() {
     listSports:           () => Promise<Sport[]>;
     getArticle:           (id: string) => Promise<[] | [Article]>;
     getArticleAudio:      (id: string) => Promise<[] | [Uint8Array | number[]]>;
-    listArticles:         (sportId: string, levelId: string) => Promise<Article[]>;
+    listArticles:         (sportId: string, levelId: string, language: string) => Promise<Article[]>;
     listPlays:            (articleId: string) => Promise<CasebookPlay[]>;
     listPointsOfEmphasis: (season: string) => Promise<PointOfEmphasis[]>;
     listMechanicsScenarios: () => Promise<MechanicsScenario[]>;
@@ -205,14 +206,17 @@ export const contentService = {
     }
   },
 
-  async listArticles(sportId: string, levelId: string): Promise<Article[]> {
-    if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && a.levelId === levelId);
+  // language defaults to "en" so every existing call site (there are many)
+  // keeps working unchanged — only pages that actually need translated
+  // content pass it explicitly.
+  async listArticles(sportId: string, levelId: string, language: string = "en"): Promise<Article[]> {
+    if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && a.levelId === levelId && a.language === language);
     try {
-      const articles = await actor().listArticles(sportId, levelId);
+      const articles = await actor().listArticles(sportId, levelId, language);
       cacheArticles(articles).catch(() => {});
       return articles;
     } catch (e) {
-      const cached = (await getCachedArticles()).filter(a => a.sportId === sportId && a.levelId === levelId);
+      const cached = (await getCachedArticles()).filter(a => a.sportId === sportId && a.levelId === levelId && a.language === language);
       if (cached.length > 0) return cached;
       throw e;
     }

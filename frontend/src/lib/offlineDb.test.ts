@@ -11,7 +11,7 @@ import type { Article, CasebookPlay } from "../services/content";
 import type { Question } from "../services/question";
 
 function makeArticle(id: string, number: bigint): Article {
-  return { id, sportId: "ncaa_basketball", levelId: "varsity", number, title: `Article ${number}`, body: "body text", audioUrl: [], createdAt: 0n, updatedAt: 0n };
+  return { id, sportId: "ncaa_basketball", levelId: "varsity", number, title: `Article ${number}`, body: "body text", language: "en", audioUrl: [], createdAt: 0n, updatedAt: 0n };
 }
 
 function makeQuestion(id: string, articleId: string, isCasebook: boolean): Question {

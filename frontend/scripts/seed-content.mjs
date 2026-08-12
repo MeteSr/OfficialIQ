@@ -34,9 +34,9 @@ function readEnvFile() {
 }
 
 const contentIdlFactory = ({ IDL: I }) => {
-  const ArticleInput = I.Record({ sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text });
+  const ArticleInput = I.Record({ sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text, language: I.Text });
   const Article = I.Record({
-    id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text,
+    id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text, language: I.Text,
     audioUrl: I.Opt(I.Text), createdAt: I.Int, updatedAt: I.Int,
   });
   const DiagramPlayer = I.Record({ id: I.Text, x: I.Nat, y: I.Nat, shortLabel: I.Text, role: I.Text });
@@ -185,7 +185,7 @@ async function main() {
   for (const article of ARTICLES) {
     const articleRes = await content.upsertArticle({
       sportId: SPORT_ID, levelId: LEVEL_ID, number: BigInt(article.number),
-      title: article.title, body: article.body,
+      title: article.title, body: article.body, language: "en",
     });
     if ("err" in articleRes) {
       console.error(`  ✗ Art. ${article.number} upsertArticle: ${articleRes.err}`);

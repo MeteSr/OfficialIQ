@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
@@ -28,12 +29,20 @@ function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`;
 }
 
+// Only languages with real, verified UI translations are offered — listing
+// a language with no translation file would silently fall back to English
+// and look broken. See the filed follow-up issue for French/Portuguese.
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+];
+
 function ProfileForm({
   initial, sports, onSubmit, submitting, submitLabel, extra,
 }: {
-  initial: { displayName: string; sport: string; level: string; state: string };
+  initial: { displayName: string; sport: string; level: string; state: string; preferredLanguage: string };
   sports: Sport[];
-  onSubmit: (v: { displayName: string; sport: string; level: string; state: string }) => void;
+  onSubmit: (v: { displayName: string; sport: string; level: string; state: string; preferredLanguage: string }) => void;
   submitting: boolean;
   submitLabel: string;
   extra?: ReactNode;
@@ -42,6 +51,8 @@ function ProfileForm({
   const [sport, setSport] = useState(initial.sport || sports[0]?.id || DEFAULT_SPORT_ID);
   const [level, setLevel] = useState(initial.level || DEFAULT_LEVEL_ID);
   const [state, setState] = useState(initial.state);
+  const [preferredLanguage, setPreferredLanguage] = useState(initial.preferredLanguage || "en");
+  const { t } = useTranslation();
 
   const levelsForSport = sports.find(s => s.id === sport)?.levels ?? [{ id: DEFAULT_LEVEL_ID, displayName: "Varsity" }];
 
@@ -54,11 +65,11 @@ function ProfileForm({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Display name</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.displayNameLabel")}</div>
         <input
           value={displayName}
           onChange={e => setDisplayName(e.target.value)}
-          placeholder="e.g. J. Rodriguez"
+          placeholder={t("me.displayNamePlaceholder")}
           style={{
             width: "100%", padding: "10px 12px", fontSize: 14,
             border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
@@ -66,7 +77,7 @@ function ProfileForm({
         />
       </div>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Sport</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.sportLabel")}</div>
         <select
           value={sport}
           onChange={e => handleSportChange(e.target.value)}
@@ -79,7 +90,7 @@ function ProfileForm({
         </select>
       </div>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>Level</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.levelLabel")}</div>
         <select
           value={level}
           onChange={e => setLevel(e.target.value)}
@@ -92,7 +103,7 @@ function ProfileForm({
         </select>
       </div>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>State</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.stateLabel")}</div>
         <input
           value={state}
           onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
@@ -103,10 +114,23 @@ function ProfileForm({
           }}
         />
       </div>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.languageLabel")}</div>
+        <select
+          value={preferredLanguage}
+          onChange={e => setPreferredLanguage(e.target.value)}
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 14,
+            border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+          }}
+        >
+          {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+        </select>
+      </div>
       {extra}
       <button
         disabled={submitting || !displayName.trim() || state.length !== 2}
-        onClick={() => onSubmit({ displayName: displayName.trim(), sport, level, state })}
+        onClick={() => onSubmit({ displayName: displayName.trim(), sport, level, state, preferredLanguage })}
         style={{
           padding: "13px 0", background: submitting ? T.border : T.navy, color: T.white,
           borderRadius: 8, fontSize: 15, fontWeight: 700,
@@ -120,6 +144,7 @@ function ProfileForm({
 
 export default function MePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isAuthenticated, profile, principal, setProfile } = useAuthStore();
   const { login, logout } = useAuth();
   const { sportId, levelId } = useSport();
@@ -265,7 +290,7 @@ export default function MePage() {
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6, color: T.text }}>
-            Sign in with Internet Identity
+            {t("me.signInPrompt")}
           </div>
           <div style={{ fontSize: 13, marginBottom: 24 }}>
             Track your progress and compete on the leaderboard.
@@ -291,9 +316,9 @@ export default function MePage() {
     return (
       <div>
         <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>👋 Welcome</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.welcomeTitle")}</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-            Set up your profile to start tracking progress
+            {t("me.welcomeSubtitle")}
           </div>
         </div>
         <div style={{ padding: 20 }}>
@@ -301,10 +326,10 @@ export default function MePage() {
             <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
           )}
           <ProfileForm
-            initial={{ displayName: "", sport: sports[0]?.id ?? DEFAULT_SPORT_ID, level: DEFAULT_LEVEL_ID, state: "" }}
+            initial={{ displayName: "", sport: sports[0]?.id ?? DEFAULT_SPORT_ID, level: DEFAULT_LEVEL_ID, state: "", preferredLanguage: "en" }}
             sports={sports}
             submitting={saving}
-            submitLabel="Create Profile"
+            submitLabel={t("me.createProfile")}
             onSubmit={async (v) => {
               setSaving(true);
               setFormError(null);
@@ -360,10 +385,10 @@ export default function MePage() {
             <div style={{ color: T.wrong, fontSize: 13, marginBottom: 12 }}>{formError}</div>
           )}
           <ProfileForm
-            initial={{ displayName: profile.displayName, sport: profile.sport, level: profile.level, state: profile.state }}
+            initial={{ displayName: profile.displayName, sport: profile.sport, level: profile.level, state: profile.state, preferredLanguage: profile.preferredLanguage || "en" }}
             sports={sports}
             submitting={saving}
-            submitLabel="Save Changes"
+            submitLabel={t("me.saveChanges")}
             onSubmit={async (v) => {
               setSaving(true);
               setFormError(null);
@@ -392,7 +417,7 @@ export default function MePage() {
               background: "transparent", color: T.muted, fontSize: 14, fontWeight: 600,
             }}
           >
-            Cancel
+            {t("me.cancel")}
           </button>
         </div>
       </div>
@@ -426,7 +451,7 @@ export default function MePage() {
               color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 600,
             }}
           >
-            Edit
+            {t("me.editProfile")}
           </button>
         </div>
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 8, wordBreak: "break-all" }}>
@@ -543,7 +568,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          👥 Study Groups
+          {t("me.studyGroups")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -555,7 +580,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          📈 View Full Progress
+          {t("me.viewFullProgress")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -567,7 +592,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          🧑‍🏫 Mentorship
+          {t("me.mentorship")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -579,7 +604,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          🏛️ Associations
+          {t("me.associations")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -591,7 +616,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          🎬 Submit a Video Clip
+          {t("me.submitClip")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -603,7 +628,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          📊 Analytics &amp; Readiness
+          {t("me.analyticsReadiness")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -615,7 +640,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          📅 My Schedule &amp; Assigning Accounts
+          {t("me.scheduleAccounts")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -627,7 +652,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          🤖 Ask the Rule Assistant
+          {t("me.askRuleAssistant")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -639,7 +664,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          🎯 AI Practice Drills
+          {t("me.aiPracticeDrills")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         {isAiAdmin && (
@@ -652,7 +677,7 @@ export default function MePage() {
               fontSize: 13, fontWeight: 600,
             }}
           >
-            🧪 AI Scenario Generator
+            {t("me.aiScenarioGenerator")}
             <span style={{ color: T.muted }}>›</span>
           </button>
         )}
@@ -665,7 +690,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          📋 Report Card
+          {t("me.reportCard")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         <button
@@ -677,7 +702,7 @@ export default function MePage() {
             fontSize: 13, fontWeight: 600,
           }}
         >
-          📥 Report Cards Shared With Me
+          {t("me.reportCardsShared")}
           <span style={{ color: T.muted }}>›</span>
         </button>
         {isContentAdmin && (
@@ -690,7 +715,7 @@ export default function MePage() {
               fontSize: 13, fontWeight: 600,
             }}
           >
-            🗂️ Clip Moderation Queue
+            {t("me.clipModerationQueue")}
             <span style={{ color: T.muted }}>›</span>
           </button>
         )}

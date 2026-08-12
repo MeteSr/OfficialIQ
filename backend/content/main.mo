@@ -23,6 +23,7 @@ persistent actor Content {
     number    : Nat;
     title     : Text;
     body      : Text;
+    language  : Text; // ISO 639-1, e.g. "en", "es" — issue #27
     audioUrl  : ?Text;
     createdAt : Int;
     updatedAt : Int;
@@ -62,11 +63,12 @@ persistent actor Content {
   };
 
   public type ArticleInput = {
-    sportId : Text;
-    levelId : Text;
-    number  : Nat;
-    title   : Text;
-    body    : Text;
+    sportId  : Text;
+    levelId  : Text;
+    number   : Nat;
+    title    : Text;
+    body     : Text;
+    language : Text;
   };
 
   public type PlayInput = {
@@ -211,9 +213,16 @@ persistent actor Content {
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
+  // English keeps the original bare "sportId:artN" id — every other
+  // canister/page in this app treats that as the stable articleId (quiz
+  // history, exam configs, association assignments, mechanics pseudo-ids),
+  // so changing it for the default language would be a breaking migration.
+  // Non-English translations of the same article get a suffixed id instead,
+  // as a genuinely separate Article record.
   public shared ({ caller }) func upsertArticle(input : ArticleInput) : async Result.Result<Article, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
-    let id  = input.sportId # ":art" # Nat.toText(input.number);
+    let baseId = input.sportId # ":art" # Nat.toText(input.number);
+    let id = if (input.language == "en" or input.language == "") baseId else baseId # ":" # input.language;
     let now = Time.now();
     let existing = Map.get(articles, Text.compare, id);
     let art : Article = {
@@ -223,6 +232,7 @@ persistent actor Content {
       number    = input.number;
       title     = input.title;
       body      = input.body;
+      language  = if (input.language == "") "en" else input.language;
       audioUrl  = switch existing { case (?e) e.audioUrl; case null null };
       createdAt = switch existing { case (?e) e.createdAt; case null now };
       updatedAt = now;
@@ -372,6 +382,7 @@ persistent actor Content {
           number    = a.number;
           title     = a.title;
           body      = a.body;
+          language  = a.language;
           audioUrl  = ?id;
           createdAt = a.createdAt;
           updatedAt = Time.now();
@@ -409,14 +420,14 @@ persistent actor Content {
     VarArray.sliceToArray<Sport>(buf, 0, i)
   };
 
-  public query func listArticles(sportId : Text, levelId : Text) : async [Article] {
+  public query func listArticles(sportId : Text, levelId : Text, language : Text) : async [Article] {
     let buf = VarArray.repeat<Article>({
-      id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = "";
+      id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = ""; language = "";
       audioUrl = null; createdAt = 0; updatedAt = 0;
     }, Map.size(articles));
     var i = 0;
     for ((_, art) in Map.entries(articles)) {
-      if (art.sportId == sportId and art.levelId == levelId) {
+      if (art.sportId == sportId and art.levelId == levelId and art.language == language) {
         buf[i] := art;
         i += 1;
       };

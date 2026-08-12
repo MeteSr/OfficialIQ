@@ -6,6 +6,7 @@ import { userService, type UserProfile } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import { syncAllContent } from "../lib/offlineSync";
 import { DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
+import { setLanguage } from "../i18n";
 
 type AuthContextValue = {
   login:    () => Promise<void>;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function completeAuth(principal: string, profile: UserProfile | null) {
     setAuth(principal, profile);
     syncAllContent(profile?.sport || DEFAULT_SPORT_ID, profile?.level || DEFAULT_LEVEL_ID).catch(() => {});
+    if (profile?.preferredLanguage) setLanguage(profile.preferredLanguage);
   }
 
   useEffect(() => {

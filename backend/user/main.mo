@@ -20,20 +20,22 @@ persistent actor User {
   };
 
   public type Profile = {
-    principal   : Principal;
-    displayName : Text;
-    role        : Role;
-    sport       : Text;
-    level       : Text;
-    state       : Text;
-    createdAt   : Int;
+    principal        : Principal;
+    displayName      : Text;
+    role             : Role;
+    sport            : Text;
+    level            : Text;
+    state            : Text;
+    preferredLanguage : Text; // ISO 639-1, e.g. "en", "es" — issue #27
+    createdAt        : Int;
   };
 
   public type ProfileUpdate = {
-    displayName : Text;
-    sport       : Text;
-    level       : Text;
-    state       : Text;
+    displayName       : Text;
+    sport             : Text;
+    level             : Text;
+    state             : Text;
+    preferredLanguage : Text;
   };
 
   public type StudyPace = {
@@ -121,13 +123,14 @@ persistent actor User {
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
 
     let p : Profile = {
-      principal   = caller;
-      displayName = req.displayName;
-      role        = #Official;
-      sport       = req.sport;
-      level       = req.level;
-      state       = req.state;
-      createdAt   = Time.now();
+      principal         = caller;
+      displayName       = req.displayName;
+      role              = #Official;
+      sport             = req.sport;
+      level             = req.level;
+      state             = req.state;
+      preferredLanguage = if (req.preferredLanguage == "") "en" else req.preferredLanguage;
+      createdAt         = Time.now();
     };
     Map.add(profiles, Principal.compare, caller, p);
     #ok(p)
@@ -138,13 +141,14 @@ persistent actor User {
       case null { #err("Profile not found") };
       case (?existing) {
         let updated : Profile = {
-          principal   = existing.principal;
-          displayName = req.displayName;
-          role        = existing.role;
-          sport       = req.sport;
-          level       = req.level;
-          state       = req.state;
-          createdAt   = existing.createdAt;
+          principal         = existing.principal;
+          displayName       = req.displayName;
+          role              = existing.role;
+          sport             = req.sport;
+          level             = req.level;
+          state             = req.state;
+          preferredLanguage = if (req.preferredLanguage == "") "en" else req.preferredLanguage;
+          createdAt         = existing.createdAt;
         };
         Map.add(profiles, Principal.compare, caller, updated);
         #ok(updated)

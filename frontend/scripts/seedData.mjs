@@ -10,6 +10,12 @@ export const LEVEL_ID = "varsity";
 // own content, never a code change. NFHS Basketball is registered with no
 // content yet (rulebook licensing/authoring is a separate effort) purely
 // to prove the registry itself supports more than one sport.
+// FIBA/FIFA/World Rugby (issue #27) are registered the same way NFHS was in
+// issue #23: registry entry only, zero content. Real rulebook text for these
+// bodies requires licensing/authoring from primary sources this session has
+// no access to — see the filed follow-up issue. Registering them here still
+// proves the sport-agnostic architecture genuinely extends to sports other
+// than basketball, not just basketball rule variants.
 export const SPORTS = [
   {
     id: SPORT_ID, displayName: "NCAA Men's Basketball", rulebookYear: "2025-26",
@@ -18,6 +24,18 @@ export const SPORTS = [
   {
     id: "nfhs_basketball", displayName: "NFHS Basketball (High School)", rulebookYear: "2025-26",
     levels: [{ id: "varsity", displayName: "Varsity" }, { id: "jv", displayName: "Junior Varsity" }],
+  },
+  {
+    id: "fiba_basketball", displayName: "FIBA Basketball", rulebookYear: "2024",
+    levels: [{ id: "senior", displayName: "Senior" }],
+  },
+  {
+    id: "fifa_football", displayName: "FIFA Football (Soccer)", rulebookYear: "2025-26",
+    levels: [{ id: "senior", displayName: "Senior" }],
+  },
+  {
+    id: "world_rugby", displayName: "World Rugby", rulebookYear: "2025",
+    levels: [{ id: "senior", displayName: "Senior" }],
   },
 ];
 

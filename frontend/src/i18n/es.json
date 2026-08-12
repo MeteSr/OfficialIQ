@@ -1,0 +1,41 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "study": "Estudiar",
+    "exam": "Examen",
+    "ranks": "Clasificación",
+    "me": "Perfil"
+  },
+  "me": {
+    "signInPrompt": "Iniciar sesión con Internet Identity",
+    "welcomeTitle": "👋 Bienvenido",
+    "welcomeSubtitle": "Configura tu perfil para empezar a seguir tu progreso",
+    "displayNameLabel": "Nombre para mostrar",
+    "displayNamePlaceholder": "ej. J. Rodríguez",
+    "sportLabel": "Deporte",
+    "levelLabel": "Nivel",
+    "stateLabel": "Estado",
+    "languageLabel": "Idioma",
+    "createProfile": "Crear Perfil",
+    "saveChanges": "Guardar Cambios",
+    "editProfile": "Editar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "add": "Añadir",
+    "remove": "Quitar",
+    "signOut": "Cerrar Sesión",
+    "studyGroups": "👥 Grupos de Estudio",
+    "viewFullProgress": "📈 Ver Progreso Completo",
+    "mentorship": "🧑‍🏫 Mentoría",
+    "associations": "🏛️ Asociaciones",
+    "submitClip": "🎬 Enviar un Video",
+    "analyticsReadiness": "📊 Análisis y Preparación",
+    "scheduleAccounts": "📅 Mi Calendario y Cuentas de Asignación",
+    "askRuleAssistant": "🤖 Preguntar al Asistente de Reglas",
+    "aiPracticeDrills": "🎯 Práctica con IA",
+    "aiScenarioGenerator": "🧪 Generador de Escenarios IA",
+    "reportCard": "📋 Boletín de Progreso",
+    "reportCardsShared": "📥 Boletines Compartidos Conmigo",
+    "clipModerationQueue": "🗂️ Cola de Moderación de Videos"
+  }
+}
