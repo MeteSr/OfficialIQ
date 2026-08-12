@@ -17,6 +17,8 @@ import { Principal } from "@icp-sdk/core/principal";
 import { useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { syncAllContent } from "../lib/offlineSync";
 import { aiProxyService } from "../services/aiProxy";
+import { enablePush, disablePush, isPushConfigured, isWebPushSupported } from "../lib/pushNotifications";
+import { Capacitor } from "@capacitor/core";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
 
@@ -169,6 +171,10 @@ export default function MePage() {
   const [isContentAdmin,   setIsContentAdmin]     = useState(false);
   const [isAiAdmin,        setIsAiAdmin]          = useState(false);
 
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy,    setPushBusy]    = useState(false);
+  const [pushError,   setPushError]   = useState<string | null>(null);
+
   useEffect(() => {
     contentService.listSports().then(setSports).catch(() => {});
   }, []);
@@ -178,7 +184,26 @@ export default function MePage() {
     rankingService.getMyStats().then(setStats).catch(() => {});
     contentService.isAdmin().then(setIsContentAdmin).catch(() => {});
     aiProxyService.isAdmin().then(setIsAiAdmin).catch(() => {});
+    isPushConfigured().then(setPushEnabled).catch(() => {});
   }, [isAuthenticated]);
+
+  async function handleTogglePush() {
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (pushEnabled) {
+        await disablePush();
+        setPushEnabled(false);
+      } else {
+        await enablePush();
+        setPushEnabled(true);
+      }
+    } catch (e: any) {
+      setPushError(e?.message ?? "Couldn't update notification settings");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   function loadStorage() {
     getStorageBreakdown().then(setStorage).catch(() => {});
@@ -557,6 +582,39 @@ export default function MePage() {
           )}
         </div>
       )}
+
+      <div style={{ padding: "16px 16px 0" }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>🔔 Streak Milestone Notifications</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+              {Capacitor.isNativePlatform() || isWebPushSupported()
+                ? "Get notified when you hit a 7/30/100-day streak."
+                : "Not supported in this browser."}
+            </div>
+          </div>
+          <button
+            onClick={handleTogglePush}
+            disabled={pushBusy || (!Capacitor.isNativePlatform() && !isWebPushSupported())}
+            style={{
+              width: 44, height: 26, borderRadius: 13, position: "relative", flexShrink: 0,
+              background: pushEnabled ? T.navy : T.border, opacity: pushBusy ? 0.6 : 1,
+            }}
+          >
+            <span style={{
+              position: "absolute", top: 3, left: pushEnabled ? 21 : 3,
+              width: 20, height: 20, borderRadius: "50%", background: T.white,
+              transition: "left 0.15s",
+            }} />
+          </button>
+        </div>
+        {pushError && (
+          <div style={{ fontSize: 11, color: T.wrong, marginTop: 6 }}>{pushError}</div>
+        )}
+      </div>
 
       <div style={{ padding: "12px 16px 0" }}>
         <button

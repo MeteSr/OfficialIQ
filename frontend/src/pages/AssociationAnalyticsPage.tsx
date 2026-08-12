@@ -6,6 +6,7 @@ import { associationService, type AssociationRec } from "../services/association
 import { questionService } from "../services/question";
 import { computeReadiness } from "../lib/readiness";
 import { DEFAULT_CERT_TEMPLATE, examService, type ExamSession } from "../services/exam";
+import { exportOrPrint } from "../lib/exportPdf";
 
 // Per-exam score, extracted from a finished ExamSession. Deliberately NOT
 // ranking.EloSnapshot.accuracy — that field is a cumulative career-running
@@ -141,7 +142,7 @@ export default function AssociationAnalyticsPage() {
           <div style={{ fontSize: 20, fontWeight: 700 }}>📈 {assoc.name} Analytics</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>Cohort trends and certification readiness</div>
         </div>
-        <button onClick={() => window.print()} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.15)", color: T.white, borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
+        <button onClick={() => exportOrPrint(`${assoc.name} Analytics`)} style={{ padding: "8px 14px", background: "rgba(255,255,255,0.15)", color: T.white, borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
           🖨️ Export PDF
         </button>
       </div>

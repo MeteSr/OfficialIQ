@@ -102,6 +102,15 @@ persistent actor User {
     notes    : Text;
   };
 
+  // Web Push (browser/PWA) and native (Capacitor push-notifications plugin
+  // on iOS/Android — issue #31) both funnel into the same subscription slot
+  // per user, so the send relay (scripts/send-pending-push.mjs) doesn't need
+  // to know which path registered it.
+  public type PushSubscription = {
+    #WebPush : { endpoint : Text; p256dh : Text; auth : Text };
+    #Native  : { token : Text; platform : Text }; // platform: "ios" | "android"
+  };
+
   // ─── State ────────────────────────────────────────────────────────────────
 
   var profiles           : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
@@ -111,10 +120,29 @@ persistent actor User {
   var monthlyQuizHistory  : Map.Map<Principal, [MonthlyQuizResult]> = Map.empty<Principal, [MonthlyQuizResult]>();
   var linkedAccounts     : Map.Map<Principal, [LinkedAccount]> = Map.empty<Principal, [LinkedAccount]>();
   var upcomingGames      : Map.Map<Principal, [UpcomingGame]> = Map.empty<Principal, [UpcomingGame]>();
+  var pushSubscriptions  : Map.Map<Principal, PushSubscription> = Map.empty<Principal, PushSubscription>();
 
   var nextGameId : Nat = 0;
+  var adminPrincipal : ?Principal = null;
 
   let WEEK_NS : Nat = 7 * 24 * 3600 * 1_000_000_000;
+
+  // ─── Admin guard ──────────────────────────────────────────────────────────
+  // Existing mutations here are all self-service (caller-scoped) — this is
+  // only needed for getSubscriptionFor(p), which the push relay script uses
+  // and which is sensitive enough (a live push endpoint, unlike public
+  // leaderboard stats) that it shouldn't be a public-by-principal query.
+
+  public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
+    switch adminPrincipal {
+      case null { adminPrincipal := ?p; #ok(()) };
+      case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
+    }
+  };
+
+  func isAdmin(p : Principal) : Bool {
+    switch adminPrincipal { case (?a) a == p; case null false }
+  };
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -253,6 +281,17 @@ persistent actor User {
     #ok(())
   };
 
+  public shared ({ caller }) func registerPushSubscription(sub : PushSubscription) : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    Map.add(pushSubscriptions, Principal.compare, caller, sub);
+    #ok(())
+  };
+
+  public shared ({ caller }) func unregisterPushSubscription() : async Result.Result<(), Text> {
+    Map.remove(pushSubscriptions, Principal.compare, caller);
+    #ok(())
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -277,6 +316,18 @@ persistent actor User {
 
   public shared query ({ caller }) func getMonthlyQuizHistory() : async [MonthlyQuizResult] {
     switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] }
+  };
+
+  public shared query ({ caller }) func getMyPushSubscription() : async ?PushSubscription {
+    Map.get(pushSubscriptions, Principal.compare, caller)
+  };
+
+  // Admin-only (unlike getProfile(p)/getStats(p) elsewhere) — a push
+  // endpoint is sensitive delivery infrastructure, not public profile data.
+  // Used by scripts/send-pending-push.mjs to resolve who to actually push to.
+  public shared query ({ caller }) func getSubscriptionFor(p : Principal) : async Result.Result<?PushSubscription, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    #ok(Map.get(pushSubscriptions, Principal.compare, p))
   };
 
   public shared query ({ caller }) func getMyLinkedAccounts() : async [LinkedAccount] {

@@ -12,3 +12,4 @@ declare const CANISTER_ID_ASSOCIATION: string;
 declare const CANISTER_ID_REPORT:    string;
 declare const CANISTER_ID_AI_PROXY:  string;
 declare const DFX_NETWORK:           string;
+declare const VITE_VAPID_PUBLIC_KEY: string;

@@ -113,6 +113,21 @@ persistent actor Ranking {
   let MAX_HISTORY : Nat = 60;
   let DAY_NS : Int = 86_400_000_000_000;
 
+  var adminPrincipal : ?Principal = null;
+
+  // ─── Admin guard ──────────────────────────────────────────────────────────
+
+  public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
+    switch adminPrincipal {
+      case null { adminPrincipal := ?p; #ok(()) };
+      case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
+    }
+  };
+
+  func isAdmin(p : Principal) : Bool {
+    switch adminPrincipal { case (?a) a == p; case null false }
+  };
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   func sortByKey(pool : [UserStats], key : SortKey) : [UserStats] {
@@ -229,6 +244,22 @@ persistent actor Ranking {
     { currentStreak = 0; longestStreak = 0; activityDay = 0; answeredToday = 0; lastQualifyingDay = -1 }
   };
 
+  // Server-side mirror of HomePage.tsx's STREAK_MILESTONES — the frontend
+  // toast is detected client-side against a localStorage watermark (fast,
+  // but only fires if the app happens to be open); this queue is what lets
+  // a real push notification (issue #28) fire even when it isn't, via
+  // scripts/send-pending-push.mjs polling getPendingPushEvents().
+  let PUSH_MILESTONES : [Nat] = [7, 30, 100];
+
+  var pendingPushEvents : Map.Map<Principal, [Nat]> = Map.empty<Principal, [Nat]>();
+
+  func queuePushEvent(p : Principal, milestone : Nat) {
+    let existing = switch (Map.get(pendingPushEvents, Principal.compare, p)) { case (?e) e; case null [] };
+    if (Array.find<Nat>(existing, func(m) { m == milestone }) == null) {
+      Map.add(pendingPushEvents, Principal.compare, p, Array.concat<Nat>(existing, [milestone]));
+    };
+  };
+
   // Called once per quiz completion with that session's answered-question
   // count. A day first crosses the >=5 threshold exactly once; from then on
   // extra answers that day just accumulate in answeredToday for display.
@@ -242,6 +273,9 @@ persistent actor Ranking {
     if (answeredToday >= 5 and prev.lastQualifyingDay != today) {
       currentStreak := if (prev.lastQualifyingDay == today - 1) prev.currentStreak + 1 else 1;
       lastQualifyingDay := today;
+      if (Array.find<Nat>(PUSH_MILESTONES, func(m) { m == currentStreak }) != null) {
+        queuePushEvent(caller, currentStreak);
+      };
     };
     let longestStreak = if (currentStreak > prev.longestStreak) currentStreak else prev.longestStreak;
 
@@ -455,6 +489,32 @@ persistent actor Ranking {
       if (a.weeklyAccuracy > b.weeklyAccuracy) #less else if (a.weeklyAccuracy < b.weeklyAccuracy) #greater else #equal
     });
     Array.mapEntries<GroupLeaderboardEntry, GroupLeaderboardEntry>(sorted, func(e, i) { ({ e with rank = i + 1 }) })
+  };
+
+  // ─── Push notification relay support (issue #28) ───────────────────────────
+  //
+  // Motoko/the IC has no ECDSA-P256 signing primitive usable for Web Push's
+  // VAPID JWTs (threshold ECDSA is secp256k1, a different curve) — real
+  // encrypted, signed sends have to happen off-chain, via the well-tested
+  // `web-push` npm library. This queue is the handoff point: the canister
+  // decides *when* a push is due (server-side, tamper-proof, fires even if
+  // the app is closed for days), scripts/send-pending-push.mjs decides *how*
+  // to actually deliver it.
+
+  public shared ({ caller }) func getPendingPushEvents() : async Result.Result<[(Principal, [Nat])], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let buf = List.empty<(Principal, [Nat])>();
+    for ((p, events) in Map.entries(pendingPushEvents)) {
+      if (events.size() > 0) List.add(buf, (p, events));
+    };
+    #ok(List.toArray(buf))
+  };
+
+  public shared ({ caller }) func ackPushEvent(p : Principal, milestone : Nat) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let existing = switch (Map.get(pendingPushEvents, Principal.compare, p)) { case (?e) e; case null [] };
+    Map.add(pendingPushEvents, Principal.compare, p, Array.filter<Nat>(existing, func(m) { m != milestone }));
+    #ok(())
   };
 
   public query func metrics() : async { userCount : Nat } {

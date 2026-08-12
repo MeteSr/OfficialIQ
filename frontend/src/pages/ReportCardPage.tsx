@@ -8,6 +8,7 @@ import { userService } from "../services/user";
 import { contentService } from "../services/content";
 import { associationService, type AssociationRec } from "../services/association";
 import ReportCardView from "../components/ReportCardView";
+import { exportOrPrint } from "../lib/exportPdf";
 
 const MS_PER_MONTH = 30 * 24 * 3600 * 1000;
 
@@ -133,7 +134,7 @@ export default function ReportCardPage() {
   }
 
   function handlePrint() {
-    window.print();
+    exportOrPrint("OfficialIQ Report Card");
   }
 
   if (!isAuthenticated) {

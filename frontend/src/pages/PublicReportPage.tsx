@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { reportService, type ReportSnapshot } from "../services/report";
 import ReportCardView from "../components/ReportCardView";
+import { exportOrPrint } from "../lib/exportPdf";
 
 // Public, no-auth-required view — an assignor or coordinator clicking a
 // shared link lands here without ever needing to sign in.
@@ -54,7 +55,7 @@ export default function PublicReportPage() {
       `}</style>
       <ReportCardView report={report} />
       <button
-        onClick={() => window.print()}
+        onClick={() => exportOrPrint("OfficialIQ Report Card")}
         style={{ width: "100%", maxWidth: 430, margin: "16px auto 0", display: "block", padding: "12px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
       >
         🖨️ Print / Export PDF

@@ -17,6 +17,11 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const LinkedAccount = I.Record({ provider: I.Text, externalId: I.Text, linkedAt: I.Int });
   const UpcomingGame = I.Record({ id: I.Text, opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text, createdAt: I.Int });
   const UpcomingGameInput = I.Record({ opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text });
+  const PushSubscription = I.Variant({
+    WebPush: I.Record({ endpoint: I.Text, p256dh: I.Text, auth: I.Text }),
+    Native: I.Record({ token: I.Text, platform: I.Text }),
+  });
+  const ResultSub = I.Variant({ ok: I.Opt(PushSubscription), err: I.Text });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultGame = I.Variant({ ok: UpcomingGame, err: I.Text });
   return I.Service({
@@ -40,6 +45,10 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     addUpcomingGame:      I.Func([UpcomingGameInput], [ResultGame],    []),
     removeUpcomingGame:   I.Func([I.Text],           [ResultUnit],     []),
     getMyUpcomingGames:   I.Func([],                 [I.Vec(UpcomingGame)], ["query"]),
+    registerPushSubscription: I.Func([PushSubscription], [ResultUnit], []),
+    unregisterPushSubscription: I.Func([],           [ResultUnit],     []),
+    getMyPushSubscription: I.Func([],                [I.Opt(PushSubscription)], ["query"]),
+    getSubscriptionFor:   I.Func([I.Principal],       [ResultSub],      ["query"]),
     metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
   });
 };
@@ -68,6 +77,10 @@ export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [
 export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
 export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
 export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: string; levelId: string; notes: string };
+
+export type PushSubscriptionInput =
+  | { WebPush: { endpoint: string; p256dh: string; auth: string } }
+  | { Native: { token: string; platform: string } };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -108,6 +121,10 @@ function actor() {
     addUpcomingGame:      (input: { opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string }) => Promise<{ ok: UpcomingGame } | { err: string }>;
     removeUpcomingGame:   (id: string)       => Promise<{ ok: null } | { err: string }>;
     getMyUpcomingGames:   ()                 => Promise<UpcomingGame[]>;
+    registerPushSubscription: (sub: PushSubscriptionInput) => Promise<{ ok: null } | { err: string }>;
+    unregisterPushSubscription: ()           => Promise<{ ok: null } | { err: string }>;
+    getMyPushSubscription: ()                => Promise<[] | [PushSubscriptionInput]>;
+    getSubscriptionFor:   (p: any)           => Promise<{ ok: [] | [PushSubscriptionInput] } | { err: string }>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -233,5 +250,23 @@ export const userService = {
   async getMyUpcomingGames(): Promise<UpcomingGame[]> {
     if (!CANISTER_ID) return [];
     return actor().getMyUpcomingGames();
+  },
+
+  async registerPushSubscription(sub: PushSubscriptionInput): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().registerPushSubscription(sub);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async unregisterPushSubscription(): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().unregisterPushSubscription();
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async getMyPushSubscription(): Promise<PushSubscriptionInput | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getMyPushSubscription();
+    return res.length ? res[0] : null;
   },
 };

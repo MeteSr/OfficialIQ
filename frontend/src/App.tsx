@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { registerOfflineSync } from "./lib/offlineSync";
+import { registerNativePushListener } from "./lib/pushNotifications";
 import BottomNav from "./components/BottomNav";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
@@ -37,7 +38,7 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import AssociationAnalyticsPage from "./pages/AssociationAnalyticsPage";
 
 export default function App() {
-  useEffect(() => { registerOfflineSync(); }, []);
+  useEffect(() => { registerOfflineSync(); registerNativePushListener(); }, []);
 
   return (
     <AuthProvider>

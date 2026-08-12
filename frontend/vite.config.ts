@@ -8,9 +8,17 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // injectManifest (not the default generateSW) — issue #28 needs a
+      // hand-written `push`/`notificationclick` handler in the service
+      // worker itself, which generateSW's auto-built SW has no hook for.
+      // src/sw.ts owns precaching (via the injected __WB_MANIFEST) plus
+      // those two listeners.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       // Service worker is generated for production builds only (the
       // default); `vite dev` is unaffected, avoiding stale-cache dev friction.
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,svg}"],
         // Article/question/casebook reads go through IndexedDB (see
         // src/lib/offlineDb.ts), not the Cache API, so no runtimeCaching
@@ -45,6 +53,10 @@ export default defineConfig({
     CANISTER_ID_REPORT:    JSON.stringify(process.env.CANISTER_ID_REPORT    ?? ""),
     CANISTER_ID_AI_PROXY:  JSON.stringify(process.env.CANISTER_ID_AI_PROXY  ?? ""),
     DFX_NETWORK:           JSON.stringify(process.env.DFX_NETWORK           ?? "local"),
+    // VAPID public key is not secret (it's the whole point of VAPID — see
+    // scripts/send-pending-push.mjs for the private key, which must never
+    // be build-injected or committed).
+    VITE_VAPID_PUBLIC_KEY: JSON.stringify(process.env.VAPID_PUBLIC_KEY      ?? ""),
   },
   server: {
     port: 5173,
