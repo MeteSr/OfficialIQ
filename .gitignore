@@ -4,5 +4,9 @@ frontend/dist/
 frontend/node_modules/
 .env
 *.env.local
-canister_ids.json
 .vessel/
+
+# canister_ids.json for local/ephemeral networks lives under .dfx/ (already
+# ignored above). dfx writes real-network (ic, staging) canister ids to this
+# root-level file instead — those IDs are permanent and meant to be committed,
+# so this file is intentionally NOT ignored once a real deploy has run.

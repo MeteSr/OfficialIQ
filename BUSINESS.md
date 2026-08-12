@@ -52,10 +52,10 @@ Two AI-powered features work today but run on a developer's personal/test API ke
 
 ## 7. Production hosting decisions
 
-- **Internet Computer mainnet deployment**: everything currently runs on a local developer replica. Deploying to IC mainnet for real users requires acquiring and funding **cycles** (ICP's on-chain compute/storage payment) — this has an ongoing cost, not just a one-time setup.
-- **Push notification relay**: the streak-milestone push system works end-to-end, but the piece that actually sends notifications (`scripts/send-pending-push.mjs`) needs to run continuously somewhere in production (a small scheduled job/server) with production VAPID keys — this needs a hosting decision, not new engineering.
+- **Internet Computer mainnet deployment**: the deployment pipeline itself is now built — `dfx.json` has `staging`/`ic` network config, `scripts/deploy.sh` supports real networks (refusing to run without a funded wallet), and CI (`.github/workflows/deploy-staging.yml` / `deploy-production.yml`) deploys automatically. See `docs/DEPLOYMENT.md`. What's still needed is the actual **cycles wallet funding** — acquiring and converting ICP to cycles for both the staging and production wallets. This has an ongoing cost, not just a one-time setup, and nothing above runs until it's done.
+- **Push notification relay**: the streak-milestone push system works end-to-end, and `scripts/send-pending-push.mjs` now has a ready-to-run scheduled workflow (`.github/workflows/push-relay.yml`, every 15 min) as one valid hosting answer. Still needs VAPID production keys issued and a decision on whether GitHub Actions' schedule is the permanent home or just a placeholder until a dedicated always-on host is chosen.
 
-**Ask:** decide on a mainnet deployment budget/timeline and where small always-on scripts like the push relay will run (a cheap scheduled cloud function is enough).
+**Ask:** fund the staging and production cycles wallets (see `docs/DEPLOYMENT.md` for the exact `dfx` commands), set the `DFX_IDENTITY_PEM` / VAPID repo secrets so the existing CI workflows can actually run, and confirm whether the GitHub Actions push-relay schedule is good enough long-term or needs a dedicated host. *(Issue #33)*
 
 ---
 

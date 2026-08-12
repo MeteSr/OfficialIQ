@@ -1,0 +1,70 @@
+name: Deploy (production)
+
+# Production is the "ic" network (real IC mainnet). Deliberately gated
+# behind a version tag rather than every push to main, so a mainnet
+# deploy is always a conscious act, not a side effect of merging.
+# Also runs against the "environment: production" GitHub Environment —
+# configure required reviewers on that environment in repo settings if
+# you want a manual approval gate before this job runs.
+#
+# Requires repo secrets (none of this runs until they're set — see
+# docs/DEPLOYMENT.md):
+#   DFX_IDENTITY_PEM  — PEM-encoded identity with a funded production wallet
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dfx
+        run: |
+          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+          echo "$HOME/.local/share/dfx/bin" >> "$GITHUB_PATH"
+
+      - name: Import CI identity
+        run: |
+          if [ -z "${DFX_IDENTITY_PEM:-}" ]; then
+            echo "::error::DFX_IDENTITY_PEM secret is not set — see docs/DEPLOYMENT.md" && exit 1
+          fi
+          echo "$DFX_IDENTITY_PEM" > /tmp/ci-identity.pem
+          dfx identity import ci /tmp/ci-identity.pem --storage-mode plaintext
+          rm -f /tmp/ci-identity.pem
+          dfx identity use ci
+        env:
+          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+
+      - name: Deploy to production (ic)
+        run: bash scripts/deploy.sh ic
+
+      - name: Check canister_ids.json is up to date
+        run: |
+          # Deliberately not auto-pushing here: this job runs off a tag (a
+          # detached ref), and force-pushing canister_ids.json to main from
+          # a tag build is riskier than it's worth for a file that should
+          # only ever change on first deploy of a new canister. If this
+          # fails, pull the new canister_ids.json and commit it via a normal PR.
+          if ! git diff --quiet -- canister_ids.json; then
+            echo "::warning::canister_ids.json changed during this deploy — commit the updated file via a PR to main."
+            git diff -- canister_ids.json
+          else
+            echo "canister_ids.json unchanged."
+          fi

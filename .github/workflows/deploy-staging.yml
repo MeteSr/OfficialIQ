@@ -1,0 +1,72 @@
+name: Deploy (staging)
+
+# Staging is a second canister set on IC mainnet (see dfx.json's "staging"
+# network) — ICP has no separate public testnet, so this is the closest
+# real-network equivalent. Runs automatically on every push to main so
+# staging always reflects the latest merged code.
+#
+# Requires repo secrets (none of this runs until they're set — see
+# docs/DEPLOYMENT.md):
+#   DFX_IDENTITY_PEM  — PEM-encoded identity with a funded staging wallet
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "dfx.json"
+      - "scripts/deploy.sh"
+      - "scripts/check-cycles.sh"
+      - ".github/workflows/deploy-staging.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to commit an updated canister_ids.json
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dfx
+        run: |
+          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+          echo "$HOME/.local/share/dfx/bin" >> "$GITHUB_PATH"
+
+      - name: Import CI identity
+        run: |
+          if [ -z "${DFX_IDENTITY_PEM:-}" ]; then
+            echo "::error::DFX_IDENTITY_PEM secret is not set — see docs/DEPLOYMENT.md" && exit 1
+          fi
+          echo "$DFX_IDENTITY_PEM" > /tmp/ci-identity.pem
+          dfx identity import ci /tmp/ci-identity.pem --storage-mode plaintext
+          rm -f /tmp/ci-identity.pem
+          dfx identity use ci
+        env:
+          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+
+      - name: Deploy to staging
+        run: bash scripts/deploy.sh staging
+
+      - name: Commit canister_ids.json if it changed
+        run: |
+          if ! git diff --quiet -- canister_ids.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add canister_ids.json
+            git commit -m "chore: update staging canister_ids.json [skip ci]"
+            git push origin HEAD:main
+          else
+            echo "canister_ids.json unchanged."
+          fi

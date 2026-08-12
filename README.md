@@ -45,9 +45,19 @@ make deploy     # bash scripts/deploy.sh local
 make frontend   # cd frontend && npm run dev  (Vite at :5173)
 make clean      # reset local dfx state
 make status     # show canister status
+make cycles     # show remaining cycles per canister (local)
 ```
 
 Canister IDs are written to `.env` by `scripts/deploy.sh` and read into the frontend at build time via `vite.config.ts`.
+
+## Deploying beyond local
+
+`make deploy-staging` / `make deploy-ic` deploy to a real IC network (a
+second canister set used as staging, and production mainnet, respectively —
+see `dfx.json`'s `staging`/`ic` network entries). Both require a funded
+cycles wallet first; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
+one-time identity/wallet setup, the CI pipeline (`.github/workflows/`), and
+canister-upgrade safety notes.
 
 ## Repo layout
 
@@ -56,6 +66,8 @@ backend/    Motoko canisters, one directory per canister (main.mo)
 frontend/   React + TypeScript app (Vite)
 scripts/    deploy, content seeding, audio generation, push relay
 tests/      end-to-end / integration tests
+docs/       deployment and other operational docs
+.github/    CI workflows (staging/production deploy, push relay)
 dfx.json    canister definitions
 Makefile    common dev commands
 ```

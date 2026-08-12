@@ -1,0 +1,63 @@
+name: Push relay (streak milestones)
+
+# Runs scripts/send-push.sh on a schedule so streak-milestone Web Push
+# notifications actually go out in production — see BUSINESS.md #7, which
+# tracks the *hosting decision* for this; this workflow is the "make it
+# deployable once that's decided" half from issue #33. A scheduled GitHub
+# Actions workflow is one valid answer to that hosting decision on its own;
+# swap this out if a different always-on host is chosen instead.
+#
+# Requires repo secrets (none of this runs until they're set — see
+# docs/DEPLOYMENT.md):
+#   DFX_IDENTITY_PEM   — PEM-encoded identity, same one used for deploys is fine
+#   VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT — from
+#     `npx --prefix frontend web-push generate-vapid-keys`
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dfx
+        run: |
+          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+          echo "$HOME/.local/share/dfx/bin" >> "$GITHUB_PATH"
+
+      - name: Import CI identity
+        run: |
+          if [ -z "${DFX_IDENTITY_PEM:-}" ]; then
+            echo "::error::DFX_IDENTITY_PEM secret is not set — see docs/DEPLOYMENT.md" && exit 1
+          fi
+          echo "$DFX_IDENTITY_PEM" > /tmp/ci-identity.pem
+          dfx identity import ci /tmp/ci-identity.pem --storage-mode plaintext
+          rm -f /tmp/ci-identity.pem
+          dfx identity use ci
+        env:
+          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+
+      - name: Resolve canister IDs
+        run: bash scripts/write-env.sh ic
+
+      - name: Install frontend deps
+        run: npm install --prefix frontend
+
+      - name: Send pending pushes
+        run: bash scripts/send-push.sh ic
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
