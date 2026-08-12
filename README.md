@@ -1,6 +1,6 @@
 # OfficialIQ
 
-A mobile-first study and certification platform for sports officials (referees/umpires), built entirely on the Internet Computer (ICP). Officials study rule articles and casebook plays, drill with question banks, sit generated exams, track ELO-based rankings, and get matched with mentors and their local association — all backed by Motoko canisters, no traditional server.
+A mobile-first study and certification platform for sports officials (referees/umpires), built entirely on the Internet Computer (ICP). Officials study rule articles and casebook plays, drill with question banks, take generated exams, track ELO-based rankings, and get matched with mentors and their local association — all backed by Motoko canisters, no traditional server.
 
 ## Architecture
 
