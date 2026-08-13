@@ -74,7 +74,12 @@ bash "$(dirname "$0")/write-env.sh" "$NETWORK"
 
 # Build the frontend with canister IDs baked in, then deploy assets
 echo "==> Building frontend..."
-(cd frontend && npm install && npm run build)
+# npm install has been observed leaving node_modules/.bin/* non-executable
+# on at least one fresh WSL install — when that happens, a bare `tsc`
+# silently falls through to whatever else is on PATH (e.g. an unrelated
+# global install) instead of failing loudly. Cheap enough to just always
+# fix up permissions rather than debug it again if it recurs.
+(cd frontend && npm install && { chmod +x node_modules/.bin/* 2>/dev/null || true; } && npm run build)
 
 echo "--> Deploying assets..."
 dfx deploy assets --network "$NETWORK" --yes
