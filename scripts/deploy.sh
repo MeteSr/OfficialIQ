@@ -11,13 +11,26 @@ echo "==> Deploying OfficialIQ to network: $NETWORK ($MODE)"
 BACKEND_CANISTERS=(user content question exam ranking challenge ai_proxy mentorship association report)
 
 if [[ "$NETWORK" == "local" ]]; then
-  # Start local replica if needed
-  dfx ping local 2>/dev/null || dfx start --background --clean
+  # Start local replica if needed. dfx can leave a stale lock/PID behind
+  # after a hard restart (e.g. the host or a WSL VM stopping without a
+  # clean `dfx stop` first) — `dfx start` then fails with "dfx is already
+  # running" even though nothing is actually listening. `dfx stop` is a
+  # safe no-op when nothing's running, so clear any stale state first.
+  dfx ping local 2>/dev/null || { dfx stop 2>/dev/null; dfx start --background --clean; }
 else
   # Real network (staging/ic): refuse to proceed on a missing wallet or a
   # wallet that's nearly out of cycles, rather than fail halfway through a
   # multi-canister deploy. See docs/DEPLOYMENT.md for wallet setup/funding.
-  if ! WALLET=$(dfx identity get-wallet --network "$NETWORK" 2>/dev/null); then
+  #
+  # Deliberately NOT trusting `dfx identity get-wallet`'s exit code alone —
+  # for a plaintext-stored identity (the documented CI setup) against a
+  # mainnet-facing network, dfx prints an "insecure identity" warning whose
+  # effect on the exit code is inconsistent (observed both 0 and 1 for the
+  # same underlying "no wallet" condition). Checking that $WALLET actually
+  # came back non-empty is the reliable signal.
+  export DFX_WARNING="-mainnet_plaintext_identity"
+  WALLET=$(dfx identity get-wallet --network "$NETWORK" 2>/dev/null || true)
+  if [[ -z "$WALLET" ]]; then
     echo "!! No cycles wallet configured for network '$NETWORK'." >&2
     echo "   Run 'dfx identity get-wallet --network $NETWORK' to diagnose, or see docs/DEPLOYMENT.md." >&2
     exit 1
