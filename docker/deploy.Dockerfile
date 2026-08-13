@@ -13,7 +13,7 @@
 # The image bakes in whatever source was present at `docker build` time —
 # rebuild it (or bind-mount a fresh checkout over /app) to deploy newer code.
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates git bash build-essential xz-utils \

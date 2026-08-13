@@ -15,7 +15,7 @@ make status     # show canister status
 
 ## Architecture
 
-### Canister Map (7 canisters + assets)
+### Canister Map (10 canisters + assets)
 
 | Canister   | Responsibility |
 |------------|----------------|
@@ -26,6 +26,9 @@ make status     # show canister status
 | **ranking**   | ELO-based leaderboard (Friends / State / National), streak tracking |
 | **challenge** | Peer challenge send/accept/result with 72h TTL |
 | **ai_proxy**  | IC HTTP outcalls for ElevenLabs TTS and future AI features |
+| **mentorship**  | Mentor links, shared exam answer snapshots, mentor annotations |
+| **association** | Officiating associations, join codes, coordinator-assigned study assignments |
+| **report**      | Shareable performance report cards |
 | **assets**    | Serves frontend/dist |
 
 All canisters use `persistent actor` — all variables are implicitly stable.

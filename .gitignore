@@ -4,6 +4,7 @@ frontend/dist/
 frontend/node_modules/
 .env
 *.env.local
+*.pem
 .vessel/
 
 # canister_ids.json for local/ephemeral networks lives under .dfx/ (already

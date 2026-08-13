@@ -1,0 +1,13 @@
+# docker/deploy.Dockerfile does `COPY . .` — keep secrets and local-only
+# artifacts out of the build context so they can never end up baked into
+# an image layer. See docs/DEPLOYMENT.md's "Deploying without GitHub"
+# section.
+*.pem
+.env
+.env.*
+!.env.example
+.dfx/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.git/
