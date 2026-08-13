@@ -11,12 +11,26 @@ echo "==> Deploying OfficialIQ to network: $NETWORK ($MODE)"
 BACKEND_CANISTERS=(user content question exam ranking challenge ai_proxy mentorship association report)
 
 if [[ "$NETWORK" == "local" ]]; then
-  # Start local replica if needed. dfx can leave a stale lock/PID behind
-  # after a hard restart (e.g. the host or a WSL VM stopping without a
-  # clean `dfx stop` first) — `dfx start` then fails with "dfx is already
-  # running" even though nothing is actually listening. `dfx stop` is a
-  # safe no-op when nothing's running, so clear any stale state first.
-  dfx ping local 2>/dev/null || { dfx stop 2>/dev/null; dfx start --background --clean; }
+  # Start local replica if needed. dfx can leave stale state behind after a
+  # hard restart (e.g. the host or a WSL VM stopping without a clean
+  # `dfx stop` first):
+  #  - a stale lock/PID makes `dfx start` fail with "dfx is already
+  #    running" even though nothing is actually listening. `dfx stop` is a
+  #    safe no-op when nothing's running, so run it first.
+  #  - leftover PocketIC port-file dirs under /tmp (from long-past crashed
+  #    or killed sessions, not just the most recent one) can accumulate and
+  #    make every new `dfx start` fail with "Failed to initialize PocketIC:
+  #    HTTP status client error (400 Bad Request)" on a freshly-spawned
+  #    instance, even though nothing about the current attempt is wrong.
+  #    Scoped to only directories that actually hold PocketIC's own marker
+  #    file, so this can't touch unrelated tools' temp dirs.
+  if ! dfx ping local 2>/dev/null; then
+    dfx stop 2>/dev/null || true
+    for d in /tmp/.tmp*/; do
+      [ -e "${d}pocketic-tmp-port" ] && rm -rf "$d"
+    done
+    dfx start --background --clean
+  fi
 else
   # Real network (staging/ic): refuse to proceed on a missing wallet or a
   # wallet that's nearly out of cycles, rather than fail halfway through a
