@@ -712,5 +712,49 @@
     "masteryStat": "{{pct}}% dominio · estudiado {{count}}×",
     "removeDownload": "Eliminar audio descargado",
     "downloadForOffline": "Descargar audio para escuchar sin conexión"
+  },
+  "landing": {
+    "signIn": "Iniciar Sesión",
+    "signingIn": "Iniciando sesión…",
+    "signInFailed": "El inicio de sesión no se completó — inténtalo de nuevo.",
+    "heroTitle": "Domina las reglas. Gana cada jugada.",
+    "heroSubtitle": "La plataforma de estudio y certificación mobile-first para oficiales deportivos — artículos de reglas, jugadas del manual de casos, práctica adaptativa y exámenes clasificatorios, todo en un solo lugar.",
+    "heroCta": "Comenzar Gratis",
+    "heroCtaSub": "Inicia sesión de forma segura con Internet Identity — sin contraseña, sin correo electrónico.",
+    "mockGreeting": "Bienvenido de nuevo",
+    "mockStreak": "🔥 Racha de 14 días",
+    "mockArticle": "Art. {{number}} — Listo para estudiar",
+    "feature": {
+      "study": {
+        "title": "Estudia Cada Regla",
+        "desc": "Artículos de reglas y jugadas del manual de casos completos, organizados por artículo según tu deporte y nivel."
+      },
+      "practice": {
+        "title": "Práctica que se Adapta",
+        "desc": "Ejercicios personalizados con IA y cuestionarios de repetición espaciada enfocados en tus puntos más débiles."
+      },
+      "exam": {
+        "title": "Presión de Examen Real",
+        "desc": "Exámenes cronometrados y una simulación completa de examen de certificación que reflejan el examen real."
+      },
+      "rank": {
+        "title": "Sigue tu Progreso",
+        "desc": "Clasificaciones basadas en ELO frente a amigos, tu estado y a nivel nacional — además de rachas y retos."
+      },
+      "mentor": {
+        "title": "Mentoría Incluida",
+        "desc": "Comparte resultados con un mentor o coordinador y recibe retroalimentación que realmente ayuda."
+      },
+      "anywhere": {
+        "title": "Estudia en Cualquier Lugar",
+        "desc": "El acceso sin conexión y la narración de audio te permiten estudiar en la cancha, en el auto o sin señal."
+      }
+    },
+    "sportsEyebrow": "DISEÑADO PARA CUALQUIER DEPORTE DESDE EL PRIMER DÍA",
+    "sportNcaa": "Baloncesto NCAA",
+    "sportComingSoon": "próximamente",
+    "ctaTitle": "¿Listo para mejorar tu juego?",
+    "ctaSubtitle": "Toma 30 segundos comenzar — sin formularios, sin contraseñas.",
+    "footerCopyright": "© {{year}} OfficialIQ"
   }
 }

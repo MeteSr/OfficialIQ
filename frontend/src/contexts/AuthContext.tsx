@@ -51,8 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const principal = identity.getPrincipal().toText();
         const profile = await userService.getMyProfile();
         if (!cancelled) completeAuth(principal, profile);
-      } else if (import.meta.env.DEV) {
-        // Auto dev-login so the app is usable without II in development
+      } else if (import.meta.env.DEV && !new URLSearchParams(window.location.search).has("skipDevAuth")) {
+        // Auto dev-login so the app is usable without II in development.
+        // Append ?skipDevAuth to preview signed-out UI (e.g. LandingPage)
+        // locally — otherwise this fires before you'd ever see it. Use
+        // devLogin() (e.g. via the landing page's dev-only button) to get
+        // back into the app afterward without a full Internet Identity flow.
         const identity = Ed25519KeyIdentity.generate(DEV_SEED);
         initAgent(identity);
         const principal = identity.getPrincipal().toText();

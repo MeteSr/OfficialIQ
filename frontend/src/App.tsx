@@ -1,9 +1,11 @@
 import { useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { useAuthStore } from "./store/authStore";
 import { registerOfflineSync } from "./lib/offlineSync";
 import { registerNativePushListener } from "./lib/pushNotifications";
 import BottomNav from "./components/BottomNav";
+import LandingPage from "./pages/LandingPage";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
 import ExamPage from "./pages/ExamPage";
@@ -37,52 +39,70 @@ import SchedulePage from "./pages/SchedulePage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import AssociationAnalyticsPage from "./pages/AssociationAnalyticsPage";
 
+// The landing page is the one route that isn't part of the mobile app
+// shell below — a signed-out visitor at "/" should see a real, full-width
+// desktop-capable page, not the 430px-capped app frame. Everything else
+// stays inside the mobile shell as before.
+function LandingRoute() {
+  const { isAuthenticated, isLoading } = useAuthStore();
+  if (isLoading) return null;
+  if (isAuthenticated) return <Navigate to="/home" replace />;
+  return <LandingPage />;
+}
+
+function AppShell() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", maxWidth: 430, margin: "0 auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 64 }}>
+        <Routes>
+          <Route path="/home"  element={<HomePage />} />
+          <Route path="/study" element={<StudyPage />} />
+          <Route path="/exam"  element={<ExamPage />} />
+          <Route path="/ranks" element={<RanksPage />} />
+          <Route path="/me"    element={<MePage />} />
+          <Route path="/u/:principal" element={<AddFriendPage />} />
+          <Route path="/challenge/:id" element={<ChallengePage />} />
+          <Route path="/weekly-quiz" element={<WeeklyQuizPage />} />
+          <Route path="/monthly-quiz" element={<MonthlyQuizPage />} />
+          <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/audio" element={<AudioModePage />} />
+          <Route path="/groups" element={<GroupsPage />} />
+          <Route path="/groups/:id" element={<GroupDetailPage />} />
+          <Route path="/exam-sim" element={<CertExamPage />} />
+          <Route path="/commute" element={<CommuteModePage />} />
+          <Route path="/mentor" element={<MentorPage />} />
+          <Route path="/mentor/:token" element={<MentorReportPage />} />
+          <Route path="/association" element={<AssociationPage />} />
+          <Route path="/association/:id" element={<AssociationDetailPage />} />
+          <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
+          <Route path="/submit-clip" element={<VideoSubmissionPage />} />
+          <Route path="/moderation" element={<ModerationQueuePage />} />
+          <Route path="/reports" element={<ReportCardPage />} />
+          <Route path="/reports/shared" element={<SharedReportsPage />} />
+          <Route path="/report/:id" element={<PublicReportPage />} />
+          <Route path="/ask" element={<RuleAssistantPage />} />
+          <Route path="/ai-drills" element={<AiDrillsPage />} />
+          <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
+          <Route path="/quiz/share/:token" element={<QuizPage />} />
+          <Route path="/quiz/:articleId" element={<QuizPage />} />
+        </Routes>
+      </div>
+      <BottomNav />
+    </div>
+  );
+}
+
 export default function App() {
   useEffect(() => { registerOfflineSync(); registerNativePushListener(); }, []);
+  const location = useLocation();
+  const isLandingRoute = location.pathname === "/";
 
   return (
     <AuthProvider>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", maxWidth: 430, margin: "0 auto" }}>
-        <div style={{ flex: 1, overflowY: "auto", paddingBottom: 64 }}>
-          <Routes>
-            <Route path="/"      element={<Navigate to="/home" replace />} />
-            <Route path="/home"  element={<HomePage />} />
-            <Route path="/study" element={<StudyPage />} />
-            <Route path="/exam"  element={<ExamPage />} />
-            <Route path="/ranks" element={<RanksPage />} />
-            <Route path="/me"    element={<MePage />} />
-            <Route path="/u/:principal" element={<AddFriendPage />} />
-            <Route path="/challenge/:id" element={<ChallengePage />} />
-            <Route path="/weekly-quiz" element={<WeeklyQuizPage />} />
-            <Route path="/monthly-quiz" element={<MonthlyQuizPage />} />
-            <Route path="/progress" element={<ProgressPage />} />
-            <Route path="/audio" element={<AudioModePage />} />
-            <Route path="/groups" element={<GroupsPage />} />
-            <Route path="/groups/:id" element={<GroupDetailPage />} />
-            <Route path="/exam-sim" element={<CertExamPage />} />
-            <Route path="/commute" element={<CommuteModePage />} />
-            <Route path="/mentor" element={<MentorPage />} />
-            <Route path="/mentor/:token" element={<MentorReportPage />} />
-            <Route path="/association" element={<AssociationPage />} />
-            <Route path="/association/:id" element={<AssociationDetailPage />} />
-            <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
-            <Route path="/submit-clip" element={<VideoSubmissionPage />} />
-            <Route path="/moderation" element={<ModerationQueuePage />} />
-            <Route path="/reports" element={<ReportCardPage />} />
-            <Route path="/reports/shared" element={<SharedReportsPage />} />
-            <Route path="/report/:id" element={<PublicReportPage />} />
-            <Route path="/ask" element={<RuleAssistantPage />} />
-            <Route path="/ai-drills" element={<AiDrillsPage />} />
-            <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
-            <Route path="/quiz/share/:token" element={<QuizPage />} />
-            <Route path="/quiz/:articleId" element={<QuizPage />} />
-          </Routes>
-        </div>
-        <BottomNav />
-      </div>
+      {isLandingRoute ? <LandingRoute /> : <AppShell />}
     </AuthProvider>
   );
 }

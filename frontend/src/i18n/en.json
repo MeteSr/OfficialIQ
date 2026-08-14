@@ -712,5 +712,49 @@
     "masteryStat": "{{pct}}% mastery · studied {{count}}×",
     "removeDownload": "Remove downloaded audio",
     "downloadForOffline": "Download audio for offline listening"
+  },
+  "landing": {
+    "signIn": "Sign In",
+    "signingIn": "Signing in…",
+    "signInFailed": "Sign-in didn't go through — try again.",
+    "heroTitle": "Master the rules. Own every call.",
+    "heroSubtitle": "The mobile-first study and certification platform for sports officials — rule articles, casebook plays, adaptive drills, and ranked exams, all in one place.",
+    "heroCta": "Get Started Free",
+    "heroCtaSub": "Sign in securely with Internet Identity — no password, no email required.",
+    "mockGreeting": "Welcome back",
+    "mockStreak": "🔥 14-day streak",
+    "mockArticle": "Art. {{number}} — Ready to study",
+    "feature": {
+      "study": {
+        "title": "Study Every Rule",
+        "desc": "Full rule articles and casebook plays, organized by article and keyed to your sport and level."
+      },
+      "practice": {
+        "title": "Practice That Adapts",
+        "desc": "AI-personalized drills and spaced-repetition quizzes target exactly what you're weakest on."
+      },
+      "exam": {
+        "title": "Real Exam Pressure",
+        "desc": "Timed exams and a full certification exam simulation mirror the real test."
+      },
+      "rank": {
+        "title": "Track Your Climb",
+        "desc": "ELO-based rankings against friends, your state, and nationally — plus streaks and challenges."
+      },
+      "mentor": {
+        "title": "Mentorship Built In",
+        "desc": "Share results with a mentor or coordinator and get feedback that actually sticks."
+      },
+      "anywhere": {
+        "title": "Study Anywhere",
+        "desc": "Offline access and audio narration mean you can study on the field, in the car, or with no signal."
+      }
+    },
+    "sportsEyebrow": "BUILT SPORT-AGNOSTIC FROM DAY ONE",
+    "sportNcaa": "NCAA Basketball",
+    "sportComingSoon": "coming soon",
+    "ctaTitle": "Ready to raise your game?",
+    "ctaSubtitle": "It takes 30 seconds to get started — no forms, no passwords.",
+    "footerCopyright": "© {{year}} OfficialIQ"
   }
 }
