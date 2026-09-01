@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
 import { contentService, type Article } from "../services/content";
@@ -17,9 +17,10 @@ type DrillQuestion = {
   difficulty: string;
 };
 
-// Practice sets generated here are personalized and ephemeral — shown once,
-// scored locally, and never written to the shared question bank (unlike the
-// admin scenario generator, which requires review before that happens).
+function masteryColor(pct: number) {
+  return pct >= 80 ? fill.accent : pct >= 60 ? fill.attention : fill.wrong;
+}
+
 function parseDrills(raw: string): DrillQuestion[] {
   const start = raw.indexOf("[");
   const end = raw.lastIndexOf("]");
@@ -52,12 +53,7 @@ export default function AiDrillsPage() {
         const weak = [...studied].sort((a, b) => Number(a.masteryScore) - Number(b.masteryScore)).slice(0, 3);
         setWeakest(weak.map(p => {
           const a = articles.find(x => x.id === p.articleId);
-          return {
-            articleId: p.articleId,
-            title: a ? a.title : p.articleId,
-            citation: a ? `Art. ${Number(a.number)}` : "",
-            mastery: Number(p.masteryScore),
-          };
+          return { articleId: p.articleId, title: a ? a.title : p.articleId, citation: a ? `Art. ${Number(a.number)}` : "", mastery: Number(p.masteryScore) };
         }));
       })
       .catch(() => {})
@@ -66,10 +62,9 @@ export default function AiDrillsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("aiDrills.signInPrompt")}</div>
-        <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20, color: T.text }}>{t("aiDrills.signInPrompt")}</div>
+        <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
           {t("addFriend.goToProfile")}
         </button>
       </div>
@@ -107,44 +102,64 @@ export default function AiDrillsPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 24 }}>
-      <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🎯 {t("aiDrills.title")}</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 24 }}>
+      {/* Header */}
+      <div style={{ background: T.panelAlt, padding: "56px 20px 18px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+            {t("aiDrills.title")}
+          </div>
+          <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.attention }}>
+            EPHEMERAL
+          </span>
+        </div>
+        <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
           {t("aiDrills.subtitle")}
         </div>
       </div>
 
-      <div style={{ padding: 16 }}>
+      <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Pre-question: targeting + generate */}
         {!questions && (
           <>
             {loadingWeak ? (
-              <div style={{ textAlign: "center", color: T.muted, padding: 24 }}>{t("aiDrills.loadingWeak")}</div>
+              <div style={{ textAlign: "center", color: T.muted, padding: 24, fontFamily: T.font }}>{t("aiDrills.loadingWeak")}</div>
             ) : (
               <>
-                {weakest.length > 0 ? (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("aiDrills.targeting")}</div>
+                {weakest.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+                      {t("aiDrills.targeting")}
+                    </div>
                     {weakest.map(w => (
-                      <div key={w.articleId} style={{ padding: "10px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
-                        {w.citation} — {w.title} <span style={{ color: T.muted }}>({t("aiDrills.masteryPct", { pct: w.mastery })})</span>
+                      <div key={w.articleId} style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                        padding: "12px 14px", background: T.surface,
+                        border: `1px solid ${T.border}`, borderLeft: `3px solid ${masteryColor(w.mastery)}`, borderRadius: 8,
+                      }}>
+                        <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.text }}>
+                          {w.citation} — {w.title}
+                        </span>
+                        <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 17, color: masteryColor(w.mastery) }}>
+                          {w.mastery}%
+                        </span>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>
-                    {t("aiDrills.noWeakAreas")}
-                  </div>
+                )}
+                {weakest.length === 0 && (
+                  <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>{t("aiDrills.noWeakAreas")}</div>
                 )}
                 {error && (
-                  <div style={{ padding: 12, background: "#FDECEA", border: `1px solid ${T.wrong}`, borderRadius: 8, fontSize: 12, color: T.wrong, marginBottom: 16 }}>
+                  <div style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${fill.wrong}`, borderRadius: 8, fontFamily: T.font, fontSize: 12, color: fill.wrong }}>
                     {error}
                   </div>
                 )}
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
-                  style={{ width: "100%", padding: "14px", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, opacity: generating ? 0.6 : 1 }}
+                  style={{ width: "100%", minHeight: 50, background: generating ? T.border : fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontSize: 15, fontWeight: 600, cursor: generating ? "default" : "pointer" }}
                 >
                   {generating ? t("aiDrills.generating") : t("aiDrills.generateButton")}
                 </button>
@@ -153,56 +168,85 @@ export default function AiDrillsPage() {
           </>
         )}
 
+        {/* Active question */}
         {questions && index < questions.length && (() => {
           const q = questions[index];
+          const revealed = !!chosen;
           return (
             <div>
-              <div style={{ fontSize: 12, color: T.muted, marginBottom: 8 }}>{t("aiDrills.questionOf", { current: index + 1, total: questions.length })}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, lineHeight: 1.5 }}>{q.stem}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint }}>
+                QUESTION {index + 1} OF {questions.length} · GENERATED
+              </div>
+              <p style={{ fontFamily: T.font, fontWeight: 500, fontSize: 15.5, lineHeight: 1.55, color: T.text, margin: "12px 0 0" }}>
+                {q.stem}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 18 }}>
                 {q.choices.map(c => {
-                  let bg = T.surface, border = T.border, color = T.text;
-                  if (chosen) {
-                    if (c.id === q.correctId) { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
-                    else if (c.id === chosen) { bg = "#FDECEA"; border = T.wrong; color = T.wrong; }
+                  const isPick = chosen === c.id;
+                  const isCorrect = c.id === q.correctId;
+                  let bg = T.surface, border = T.border, fg = T.text, keyColor = T.faint;
+                  if (revealed) {
+                    if (isCorrect) { bg = "rgba(120,200,150,0.13)"; border = fill.accent; fg = fill.accent; keyColor = fill.accent; }
+                    else if (isPick) { bg = "rgba(220,120,100,0.13)"; border = fill.wrong; fg = fill.wrong; keyColor = fill.wrong; }
                   }
                   return (
                     <button
                       key={c.id}
                       onClick={() => handleChoice(c.id)}
                       disabled={!!chosen}
-                      style={{ textAlign: "left", padding: "12px 14px", background: bg, border: `1px solid ${border}`, borderRadius: 8, fontSize: 13, color }}
+                      style={{
+                        minHeight: 52, padding: "13px 15px",
+                        background: bg, border: `1px solid ${border}`,
+                        borderRadius: 8, textAlign: "left", display: "flex", gap: 11, alignItems: "center",
+                        fontFamily: T.font, fontSize: 14, lineHeight: 1.35, color: fg,
+                        cursor: chosen ? "default" : "pointer",
+                      }}
                     >
-                      <span style={{ fontWeight: 700, marginRight: 8 }}>{c.id.toUpperCase()}</span>
-                      {c.text}
+                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 12, minWidth: 14, color: keyColor }}>{c.id.toUpperCase()}</span>
+                      <span style={{ flex: 1 }}>{c.text}</span>
                     </button>
                   );
                 })}
               </div>
+
+              {/* Reveal panel */}
               {chosen && (
-                <div style={{ marginTop: 14, padding: "12px 14px", background: T.bg, borderRadius: 8, fontSize: 13, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{q.citation}</div>
-                  <div>{q.explanation}</div>
-                  <button
-                    onClick={handleNext}
-                    style={{ marginTop: 12, width: "100%", padding: "12px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
-                  >
-                    {index + 1 < questions.length ? t("aiDrills.nextQuestion") : t("aiDrills.seeResults")}
-                  </button>
+                <div style={{ marginTop: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: fill.accent }}>
+                      {q.citation}
+                    </div>
+                    <div style={{ fontFamily: T.font, fontSize: 13.5, lineHeight: 1.6, color: "rgba(243,244,241,0.8)", marginTop: 9 }}>
+                      {q.explanation}
+                    </div>
+                    <button
+                      onClick={handleNext}
+                      style={{ width: "100%", minHeight: 46, marginTop: 14, background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+                    >
+                      {index + 1 < questions.length ? t("aiDrills.nextQuestion") : t("aiDrills.seeResults")}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           );
         })()}
 
+        {/* Results */}
         {questions && index >= questions.length && (
           <div style={{ textAlign: "center", padding: "32px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏁</div>
-            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{t("aiDrills.correctOf", { correct: correctCount, total: questions.length })}</div>
-            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>{t("aiDrills.notSaved")}</div>
+            <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 48, color: fill.accent, lineHeight: 1 }}>
+              {correctCount}/{questions.length}
+            </div>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", color: T.faint, marginTop: 8 }}>
+              CORRECT
+            </div>
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted, marginTop: 8, marginBottom: 24 }}>
+              {t("aiDrills.notSaved")}
+            </div>
             <button
               onClick={() => setQuestions(null)}
-              style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
+              style={{ padding: "13px 32px", background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
             >
               {t("aiDrills.generateAnother")}
             </button>

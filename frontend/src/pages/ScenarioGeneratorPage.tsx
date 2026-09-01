@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type Article, type Sport } from "../services/content";
 import { aiProxyService } from "../services/aiProxy";
@@ -65,21 +65,19 @@ export default function ScenarioGeneratorPage() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🧪</div>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{t("moderation.signInRequired")}</div>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 22, color: T.text }}>{t("moderation.signInRequired")}</div>
       </div>
     );
   }
   if (checkingAdmin) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("scenarioGen.checkingAccess")}</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80, fontFamily: T.font }}>{t("scenarioGen.checkingAccess")}</div>;
   }
   if (!isAdmin) {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("scenarioGen.adminsOnly")}</div>
-        <div style={{ fontSize: 13, color: T.muted }}>{t("scenarioGen.adminsOnlyDesc")}</div>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 22, color: T.text, marginBottom: 8 }}>{t("scenarioGen.adminsOnly")}</div>
+        <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>{t("scenarioGen.adminsOnlyDesc")}</div>
       </div>
     );
   }
@@ -123,16 +121,11 @@ export default function ScenarioGeneratorPage() {
     setApprovals(a => ({ ...a, [i]: "saving" }));
     try {
       await questionService.addQuestion({
-        sportId,
-        articleId,
-        citation: q.citation,
-        stem: q.stem,
-        choices: q.choices,
-        correctId: q.correctId,
-        explanation: q.explanation,
+        sportId, articleId,
+        citation: q.citation, stem: q.stem, choices: q.choices,
+        correctId: q.correctId, explanation: q.explanation,
         difficulty: toDifficulty(q.difficulty),
-        isCasebook: false,
-        isPointOfEmphasis: false,
+        isCasebook: false, isPointOfEmphasis: false,
       });
       setApprovals(a => ({ ...a, [i]: "saved" }));
     } catch {
@@ -140,101 +133,218 @@ export default function ScenarioGeneratorPage() {
     }
   }
 
+  const selectedSport = sports.find(s => s.id === sportId);
+  const selectedArticle = articles.find(a => a.id === articleId);
+
   return (
-    <div style={{ paddingBottom: 24 }}>
-      <div style={{ background: T.navy, padding: "52px 20px 16px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>🧪 {t("scenarioGen.title")}</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 24 }}>
+      {/* Header */}
+      <div style={{ background: T.panelAlt, padding: "56px 20px 18px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+            {t("scenarioGen.title")}
+          </div>
+          <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.wrong }}>
+            REVIEW REQUIRED
+          </span>
+        </div>
+        <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
           {t("scenarioGen.subtitle")}
         </div>
       </div>
 
-      <div style={{ padding: 16 }}>
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.sportLabel")}</label>
-        <select value={sportId} onChange={e => setSportId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12 }}>
-          {sports.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
-        </select>
+      <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.articleLabel")}</label>
-        <select value={articleId} onChange={e => setArticleId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12 }}>
-          {articles.map(a => <option key={a.id} value={a.id}>Art. {Number(a.number)} — {a.title}</option>)}
-        </select>
+        {/* Sport + Article selectors (2-col) */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>
+              {t("scenarioGen.sportLabel").toUpperCase()}
+            </div>
+            <div style={{ position: "relative" }}>
+              <select
+                value={sportId}
+                onChange={e => setSportId(e.target.value)}
+                style={{ width: "100%", minHeight: 46, padding: "0 36px 0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontSize: 13, appearance: "none", cursor: "pointer" }}
+              >
+                {sports.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
+              </select>
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: T.faint, pointerEvents: "none" }}>▾</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>
+              {t("scenarioGen.articleLabel").toUpperCase()}
+            </div>
+            <div style={{ position: "relative" }}>
+              <select
+                value={articleId}
+                onChange={e => setArticleId(e.target.value)}
+                style={{ width: "100%", minHeight: 46, padding: "0 36px 0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontSize: 13, appearance: "none", cursor: "pointer" }}
+              >
+                {articles.map(a => <option key={a.id} value={a.id}>Art. {Number(a.number)}</option>)}
+              </select>
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: T.faint, pointerEvents: "none" }}>▾</span>
+            </div>
+          </div>
+        </div>
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.instructionsLabel")}</label>
-        <textarea
-          value={instructions}
-          onChange={e => setInstructions(e.target.value)}
-          placeholder={t("scenarioGen.instructionsPlaceholder")}
-          rows={3}
-          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 12, fontFamily: T.font }}
-        />
+        {/* Instructions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>
+            {t("scenarioGen.instructionsLabel").toUpperCase()}
+          </div>
+          <textarea
+            value={instructions}
+            onChange={e => setInstructions(e.target.value)}
+            placeholder={t("scenarioGen.instructionsPlaceholder")}
+            rows={3}
+            style={{
+              minHeight: 74, padding: "12px 14px",
+              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
+              color: instructions ? T.text : T.faint, fontFamily: T.font, fontSize: 13.5, lineHeight: 1.5,
+              resize: "vertical",
+            }}
+          />
+        </div>
 
-        <label style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 4 }}>{t("scenarioGen.countLabel")}</label>
-        <input
-          type="number" min={1} max={10} value={count}
-          onChange={e => setCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 16 }}
-        />
+        {/* Count stepper */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 14, color: T.text }}>
+            {t("scenarioGen.countLabel")}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => setCount(c => Math.max(1, c - 1))}
+              style={{ width: 44, height: 44, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontSize: 19, cursor: "pointer" }}
+            >−</button>
+            <span style={{ minWidth: 32, textAlign: "center", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 21, color: fill.accent }}>
+              {count}
+            </span>
+            <button
+              onClick={() => setCount(c => Math.min(10, c + 1))}
+              style={{ width: 44, height: 44, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontSize: 19, cursor: "pointer" }}
+            >+</button>
+          </div>
+        </div>
 
+        {/* Generate button */}
         <button
           onClick={handleGenerate}
           disabled={generating || !articleId}
-          style={{ width: "100%", padding: "14px", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700, opacity: generating ? 0.6 : 1, marginBottom: 16 }}
+          style={{
+            width: "100%", minHeight: 50,
+            background: generating || !articleId ? T.border : fill.accent,
+            color: fill.onAccent, border: 0, borderRadius: 8,
+            fontFamily: T.font, fontSize: 15, fontWeight: 600,
+            cursor: generating || !articleId ? "default" : "pointer",
+          }}
         >
           {generating ? t("scenarioGen.generating") : t("scenarioGen.generateButton")}
         </button>
 
         {error && (
-          <div style={{ padding: 12, background: "#FDECEA", border: `1px solid ${T.wrong}`, borderRadius: 8, fontSize: 12, color: T.wrong, marginBottom: 16 }}>
+          <div style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${fill.wrong}`, borderRadius: 8, fontFamily: T.font, fontSize: 12, color: fill.wrong }}>
             {error}
           </div>
         )}
 
+        {/* Raw response (parse fallback) */}
         {rawResponse && !parsed && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>{t("scenarioGen.rawResponseLabel")}</div>
+          <div>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint, marginBottom: 7 }}>
+              {t("scenarioGen.rawResponseLabel").toUpperCase()}
+            </div>
             <textarea
               value={rawResponse}
               onChange={e => setRawResponse(e.target.value)}
               rows={8}
-              style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 11, fontFamily: "monospace", marginBottom: 8 }}
+              style={{ width: "100%", padding: 10, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontFamily: T.fontMono, fontSize: 11, color: T.text, resize: "vertical" }}
             />
-            <button onClick={() => tryParse(rawResponse)} style={{ padding: "10px 16px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+            <button
+              onClick={() => tryParse(rawResponse)}
+              style={{ marginTop: 8, padding: "10px 16px", background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
               {t("scenarioGen.parsePreview")}
             </button>
           </div>
         )}
 
+        {/* Generated questions */}
         {parsed && (
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("scenarioGen.questionsGenerated", { count: parsed.length })}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ height: 1, background: T.border }} />
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+              {t("scenarioGen.questionsGenerated", { count: parsed.length })} · {Object.values(approvals).filter(s => s === "saved").length} APPROVED
+            </div>
+
             {parsed.map((q, i) => {
               const state = approvals[i] ?? "idle";
+              const saved = state === "saved";
               return (
-                <div key={i} style={{ padding: 14, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{q.citation} · {q.difficulty}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{q.stem}</div>
-                  {q.choices?.map(c => (
-                    <div key={c.id} style={{ fontSize: 12, padding: "4px 0", color: c.id === q.correctId ? T.correct : T.text, fontWeight: c.id === q.correctId ? 700 : 400 }}>
-                      {c.id.toUpperCase()}. {c.text} {c.id === q.correctId ? "✓" : ""}
-                    </div>
-                  ))}
-                  <div style={{ fontSize: 12, color: T.muted, marginTop: 6 }}>{q.explanation}</div>
-                  <button
-                    onClick={() => handleApprove(i)}
-                    disabled={state === "saving" || state === "saved"}
-                    style={{
-                      marginTop: 10, width: "100%", padding: "10px", borderRadius: 8, fontSize: 13, fontWeight: 700,
-                      background: state === "saved" ? "#E6F4EC" : state === "error" ? "#FDECEA" : T.navy,
-                      color: state === "saved" ? T.correct : state === "error" ? T.wrong : T.white,
-                    }}
-                  >
-                    {state === "saving" ? t("scenarioGen.saving") : state === "saved" ? t("scenarioGen.saved") : state === "error" ? t("scenarioGen.retryFailed") : t("scenarioGen.approve")}
-                  </button>
+                <div
+                  key={i}
+                  style={{
+                    padding: "14px 16px", background: T.surface,
+                    border: `1px solid ${saved ? "rgba(120,200,150,.45)" : T.border}`,
+                    borderRadius: 10,
+                    display: saved ? "flex" : "block",
+                    alignItems: saved ? "center" : undefined,
+                    justifyContent: saved ? "space-between" : undefined,
+                    gap: saved ? 12 : undefined,
+                  }}
+                >
+                  {saved ? (
+                    <>
+                      <span style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: "rgba(243,244,241,0.75)" }}>
+                        {q.citation} — {q.stem.slice(0, 60)}{q.stem.length > 60 ? "…" : ""}
+                      </span>
+                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.accent, flexShrink: 0 }}>
+                        SAVED
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint }}>
+                        {q.citation} · {q.difficulty.toUpperCase()}
+                      </div>
+                      <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 14, lineHeight: 1.45, color: T.text, margin: "8px 0" }}>
+                        {q.stem}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 11 }}>
+                        {q.choices?.map(c => (
+                          <div key={c.id} style={{ fontFamily: T.font, fontSize: 12.5, lineHeight: 1.4, color: c.id === q.correctId ? fill.accent : "rgba(243,244,241,0.6)", fontWeight: c.id === q.correctId ? 600 : 400 }}>
+                            {c.id.toUpperCase()}. {c.text}{c.id === q.correctId ? " ✓" : ""}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontFamily: T.font, fontSize: 12, lineHeight: 1.5, color: T.muted, marginTop: 10 }}>
+                        {q.explanation}
+                      </div>
+                      <button
+                        onClick={() => handleApprove(i)}
+                        disabled={state === "saving" || state === "saved"}
+                        style={{
+                          width: "100%", minHeight: 44, marginTop: 12, background: "transparent",
+                          border: `1px solid ${state === "error" ? fill.wrong : T.border}`,
+                          borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13,
+                          color: state === "error" ? fill.wrong : T.text,
+                          opacity: state === "saving" ? 0.6 : 1,
+                          cursor: state === "saving" || state === "saved" ? "default" : "pointer",
+                        }}
+                      >
+                        {state === "saving" ? t("scenarioGen.saving") : state === "saved" ? t("scenarioGen.saved") : state === "error" ? t("scenarioGen.retryFailed") : t("scenarioGen.approve")}
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             })}
-            <button onClick={() => navigate("/me")} style={{ width: "100%", padding: "12px", background: T.bg, color: T.text, borderRadius: 8, fontSize: 13, fontWeight: 600, marginTop: 4 }}>
+
+            <button
+              onClick={() => navigate("/me")}
+              style={{ width: "100%", minHeight: 44, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13, color: T.text, marginTop: 4, cursor: "pointer" }}
+            >
               {t("scenarioGen.done")}
             </button>
           </div>

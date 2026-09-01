@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { examService } from "../services/exam";
 import { questionService } from "../services/question";
 import { contentService, type Article } from "../services/content";
@@ -30,7 +30,6 @@ export default function ExamPage() {
   const [loading,   setLoading]   = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
 
-  // Load real articles for this sport/level once on mount.
   useEffect(() => {
     contentService.listArticles(sportId, levelId)
       .then((arts) => {
@@ -40,8 +39,6 @@ export default function ExamPage() {
       .catch(() => {});
   }, [sportId, levelId]);
 
-  // Cap the question count to what's actually available for the current
-  // article selection + casebook toggle.
   useEffect(() => {
     if (selected.length === 0) { setMaxCount(0); return; }
     questionService.sampleQuiz({
@@ -68,21 +65,10 @@ export default function ExamPage() {
     setLoading(true);
     try {
       const qs = await questionService.sampleQuiz({
-        sportId,
-        articleIds: selected,
-        casebook,
-        difficulty: [],
-        count:      BigInt(count),
+        sportId, articleIds: selected, casebook, difficulty: [], count: BigInt(count),
       });
       const session = await examService.createSession(
-        {
-          sportId,
-          articleIds: selected,
-          casebook,
-          count:      BigInt(qs.length),
-          secPerQ:    BigInt(secPerQ),
-          mode:       modeMap[mode],
-        },
+        { sportId, articleIds: selected, casebook, count: BigInt(qs.length), secPerQ: BigInt(secPerQ), mode: modeMap[mode] },
         qs.map(q => q.id),
       );
       const token = session.shareToken.length ? session.shareToken[0] : null;
@@ -90,8 +76,6 @@ export default function ExamPage() {
         setShareToken(token);
         await navigator.clipboard.writeText(`${window.location.origin}/quiz/share/${token}`).catch(() => {});
       } else {
-        // Solo / Timed: hand the already-generated session + questions straight
-        // to QuizPage instead of letting it sample a brand new, unrelated set.
         navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`, {
           state: { sessionId: session.id, questionIds: qs.map(q => q.id), secPerQ },
         });
@@ -103,40 +87,45 @@ export default function ExamPage() {
     }
   }
 
+  const canGenerate = !loading && selected.length > 0 && maxCount > 0;
+
   return (
-    <div>
-      <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <span style={{ fontSize: 20 }}>📋</span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>{t("exam.title")}</span>
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 64 }}>
+      {/* Header */}
+      <div style={{ background: T.panelAlt, padding: "56px 20px 18px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+          {t("exam.title")}
         </div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+        <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
           {t("exam.subtitle")}
         </div>
       </div>
 
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
 
+        {/* Cert sim button */}
         <button
           onClick={() => navigate("/exam-sim")}
           style={{
-            width: "100%", padding: "16px", background: T.navy, color: T.white,
-            borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", gap: 12,
+            width: "100%", padding: 16, background: fill.accent, color: fill.onAccent,
+            border: 0, borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center",
+            gap: 12, minHeight: 64, cursor: "pointer",
           }}
         >
-          <span style={{ fontSize: 26 }}>🎓</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{t("exam.certSimTitle")}</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
+            <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 15, lineHeight: 1.2 }}>{t("exam.certSimTitle")}</div>
+            <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: `${fill.onAccent}a6`, marginTop: 3 }}>
               {t("exam.certSimDesc")}
             </div>
           </div>
-          <span style={{ fontSize: 18 }}>›</span>
+          <span style={{ fontSize: 19, color: fill.onAccent }}>›</span>
         </button>
 
         {/* Article selector */}
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 10 }}>{t("exam.ruleArticles")}</div>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint, marginBottom: 11 }}>
+            {t("exam.ruleArticles")}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {articles.map((a) => {
               const on = selected.includes(a.id);
@@ -145,116 +134,139 @@ export default function ExamPage() {
                   key={a.id}
                   onClick={() => toggle(a.id)}
                   style={{
-                    padding: "7px 14px", borderRadius: 6,
-                    background: on ? T.navy : T.surface,
-                    color: on ? T.white : T.text,
-                    border: `1px solid ${on ? T.navy : T.border}`,
-                    fontSize: 13, fontWeight: on ? 700 : 400,
+                    minHeight: 40, padding: "0 14px", borderRadius: 6,
+                    background: on ? fill.accent : T.surface,
+                    color: on ? fill.onAccent : T.text,
+                    border: `1px solid ${on ? fill.accent : T.border}`,
+                    fontFamily: T.font, fontWeight: on ? 600 : 400, fontSize: 13,
+                    cursor: "pointer",
                   }}
-                >Art. {Number(a.number)}</button>
+                >
+                  Art. {Number(a.number)}
+                </button>
               );
             })}
           </div>
         </div>
 
         {/* Casebook toggle */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 14 }}>{t("exam.includeCasebook")}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 14, color: T.text }}>{t("exam.includeCasebook")}</span>
           <button
             onClick={() => setCasebook(v => !v)}
             style={{
-              width: 48, height: 26, borderRadius: 13,
-              background: casebook ? T.navy : T.border,
-              position: "relative", transition: "background 0.2s",
+              width: 52, height: 30, flexShrink: 0, borderRadius: 15,
+              border: `1px solid ${casebook ? fill.accent : T.border}`,
+              background: casebook ? fill.accent : T.surface,
+              position: "relative", padding: 0, cursor: "pointer",
             }}
           >
             <span style={{
               position: "absolute", top: 3,
-              left: casebook ? "calc(100% - 23px)" : 3,
-              width: 20, height: 20, borderRadius: "50%",
-              background: T.white, transition: "left 0.2s",
+              left: casebook ? 27 : 3,
+              width: 22, height: 22, borderRadius: 11,
+              background: casebook ? fill.onAccent : "rgba(243,244,241,0.55)",
               display: "block",
+              transition: "left 0.15s",
             }} />
           </button>
         </div>
 
-        {/* Count + time steppers */}
+        {/* Steppers */}
         {([
-          { label: t("exam.questionsLabel"),          value: count,  set: setCount,  min: 5,  max: Math.max(maxCount, 5), step: 5 },
-          { label: t("exam.timePerQuestionLabel"),  value: secPerQ, set: setSecPerQ, min: 15, max: 120, step: 15, suffix: t("exam.secSuffix") },
+          { label: t("exam.questionsLabel"), value: count, dec: () => setCount(c => Math.max(5, c - 5)), inc: () => setCount(c => Math.min(Math.max(maxCount, 5), c + 5)), display: String(count) },
+          { label: t("exam.timePerQuestionLabel"), value: secPerQ, dec: () => setSecPerQ(s => Math.max(15, s - 15)), inc: () => setSecPerQ(s => Math.min(120, s + 15)), display: `${secPerQ}s` },
         ]).map((row) => (
-          <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 14 }}>{row.label}</span>
+          <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 14, color: T.text }}>{row.label}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
-                onClick={() => (row.set as any)((v: number) => Math.max(row.min, v - row.step))}
-                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+                onClick={row.dec}
+                style={{ width: 44, height: 44, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontSize: 19, cursor: "pointer" }}
               >−</button>
-              <span style={{ fontSize: 15, fontWeight: 700, color: T.red, minWidth: 40, textAlign: "center" }}>
-                {row.value}{"suffix" in row ? row.suffix : ""}
+              <span style={{ minWidth: 52, textAlign: "center", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 21, color: fill.accent }}>
+                {row.display}
               </span>
               <button
-                onClick={() => (row.set as any)((v: number) => Math.min(row.max, v + row.step))}
-                style={{ width: 28, height: 28, borderRadius: 6, background: T.bg, border: `1px solid ${T.border}`, fontSize: 16 }}
+                onClick={row.inc}
+                style={{ width: 44, height: 44, borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontSize: 19, cursor: "pointer" }}
               >+</button>
             </div>
           </div>
         ))}
         {maxCount < count && (
-          <div style={{ fontSize: 12, color: T.muted, marginTop: -12 }}>
+          <div style={{ fontFamily: T.font, fontSize: 12, color: T.muted, marginTop: -12 }}>
             {t("exam.onlyAvailable", { count: maxCount })}
           </div>
         )}
 
         {/* Mode selector */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 14 }}>{t("exam.mode")}</span>
-          <select
-            value={mode}
-            onChange={e => setMode(e.target.value as Mode)}
-            style={{ fontSize: 14, fontWeight: 700, color: T.red, background: "transparent", border: "none", cursor: "pointer" }}
-          >
-            {MODES.map(m => <option key={m} value={m}>{t(MODE_LABEL_KEYS[m])}</option>)}
-          </select>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 14, color: T.text }}>{t("exam.mode")}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {MODES.map(m => {
+              const on = mode === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  style={{
+                    minHeight: 40, padding: "0 12px", borderRadius: 6,
+                    background: on ? fill.accent : T.surface,
+                    color: on ? fill.onAccent : T.text,
+                    border: `1px solid ${on ? fill.accent : T.border}`,
+                    fontFamily: T.font, fontWeight: 600, fontSize: 12, cursor: "pointer",
+                  }}
+                >
+                  {t(MODE_LABEL_KEYS[m])}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Difficulty estimate */}
         <div style={{
-          padding: "12px 14px", background: T.bg,
+          padding: "13px 16px", background: T.surface,
           border: `1px solid ${T.border}`, borderRadius: 8,
-          display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: T.muted,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
         }}>
-          <span style={{ fontSize: 18 }}>📊</span>
-          <span>{t("exam.estDifficulty")} <strong>{difficulty}</strong></span>
-          <span style={{ marginLeft: "auto" }}>{t("exam.estMinutes", { minutes: estMinutes })}</span>
+          <span style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>
+            {t("exam.estDifficulty")} <strong style={{ color: T.text, fontWeight: 600 }}>{difficulty}</strong>
+          </span>
+          <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 11, color: T.faint }}>
+            ≈ {estMinutes} MIN
+          </span>
         </div>
 
-        {/* Generate / share link result */}
+        {/* Generate / share result */}
         {!shareToken ? (
           <button
             onClick={generate}
-            disabled={loading || selected.length === 0 || maxCount === 0}
+            disabled={!canGenerate}
             style={{
-              width: "100%", padding: "14px 0",
-              background: loading || selected.length === 0 || maxCount === 0 ? T.border : T.navy,
-              color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
+              width: "100%", minHeight: 50, background: canGenerate ? fill.accent : T.border,
+              color: fill.onAccent, border: 0, borderRadius: 8,
+              fontFamily: T.font, fontSize: 15, fontWeight: 600,
+              cursor: canGenerate ? "pointer" : "default",
             }}
           >
             {loading ? t("exam.generating") : t("exam.generateAndCopy")}
           </button>
         ) : (
           <div style={{
-            padding: 20, background: "#EEF3FC",
-            border: `1px solid ${T.navy}`, borderRadius: 8, textAlign: "center",
+            padding: 20, background: T.surface,
+            border: `1px solid ${fill.accent}`, borderRadius: 8, textAlign: "center",
           }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>{t("exam.ready")}</div>
-            <div style={{ fontSize: 13, color: T.muted, marginBottom: 14 }}>
+            <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: fill.accent, marginBottom: 4 }}>
+              {t("exam.ready")}
+            </div>
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted, marginBottom: 14 }}>
               {t("exam.linkCopied")}
             </div>
             <button
               onClick={() => navigate(`/quiz/share/${shareToken}`)}
-              style={{ padding: "12px 24px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+              style={{ padding: "12px 24px", background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
             >
               {t("exam.startMyAttempt")}
             </button>

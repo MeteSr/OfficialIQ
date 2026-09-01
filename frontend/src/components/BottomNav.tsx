@@ -1,24 +1,19 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 
 const tabs = [
-  { path: "/home",  key: "home",  icon: "⊞" },
-  { path: "/study", key: "study", icon: "📖" },
-  { path: "/exam",  key: "exam",  icon: "✏️" },
-  { path: "/ranks", key: "ranks", icon: "🏆" },
-  { path: "/me",    key: "me",    icon: "👤" },
+  { path: "/home",  label: "HOME"  },
+  { path: "/study", label: "STUDY" },
+  { path: "/exam",  label: "EXAM"  },
+  { path: "/ranks", label: "RANKS" },
+  { path: "/me",    label: "ME"    },
 ] as const;
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { t } = useTranslation();
 
-  // The certification exam simulation and Commute Mode are full-screen,
-  // distraction-free modes (see issues #16, #17) — no tab bar while active.
-  // "/report/:id" is the public, possibly-unauthenticated report card view
-  // (see issue #22) — no app chrome for external viewers like assignors.
+  // Cert exam sim, commute mode and public report cards are full-screen — no chrome.
   if (
     location.pathname.startsWith("/exam-sim") ||
     location.pathname.startsWith("/commute") ||
@@ -29,26 +24,32 @@ export default function BottomNav() {
     <nav style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
       width: "100%", maxWidth: 430,
-      display: "flex", background: T.surface, borderTop: `1px solid ${T.border}`,
+      display: "flex", background: T.panel, borderTop: `1px solid ${T.border}`,
       zIndex: 100,
     }}>
       {tabs.map((tab) => {
-        const active = location.pathname === tab.path;
+        const active = location.pathname === tab.path ||
+          (tab.path !== "/home" && location.pathname.startsWith(tab.path));
         return (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
             style={{
-              flex: 1, padding: "10px 0 8px",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              flex: 1,
+              padding: "13px 0 14px",
               background: "transparent",
-              color: active ? T.red : T.muted,
-              fontSize: 10, fontWeight: active ? 700 : 400,
-              borderTop: active ? `2px solid ${T.red}` : "2px solid transparent",
+              border: 0,
+              borderTop: active ? `2px solid ${fill.accent}` : "2px solid transparent",
+              color: active ? T.text : T.faint,
+              fontFamily: T.fontMono,
+              fontSize: 9.5,
+              letterSpacing: "0.09em",
+              fontWeight: active ? 600 : 500,
+              minHeight: 48,
+              cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 20 }}>{tab.icon}</span>
-            {t(`nav.${tab.key}`)}
+            {tab.label}
           </button>
         );
       })}

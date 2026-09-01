@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
@@ -308,12 +308,11 @@ export default function MePage() {
 
   if (!isAuthenticated) {
     return (
-      <div>
-        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.profileHeader")}</div>
+      <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+        <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text }}>{t("me.profileHeader")}</div>
         </div>
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6, color: T.text }}>
             {t("me.signInPrompt")}
           </div>
@@ -324,8 +323,8 @@ export default function MePage() {
             onClick={async () => { setLoading(true); await login().catch(() => {}); setLoading(false); }}
             disabled={loading}
             style={{
-              padding: "13px 32px", background: T.navy, color: T.white,
-              borderRadius: 8, fontSize: 15, fontWeight: 700,
+              padding: "13px 32px", background: fill.accent, color: fill.onAccent,
+              borderRadius: 8, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer",
               opacity: loading ? 0.6 : 1,
             }}
           >
@@ -339,10 +338,10 @@ export default function MePage() {
   // Signed in but no on-chain profile yet — onboarding.
   if (!profile) {
     return (
-      <div>
-        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.welcomeTitle")}</div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+      <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+        <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text }}>{t("me.welcomeTitle")}</div>
+          <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted, marginTop: 4 }}>
             {t("me.welcomeSubtitle")}
           </div>
         </div>
@@ -401,9 +400,9 @@ export default function MePage() {
 
   if (editing) {
     return (
-      <div>
-        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("me.editProfileHeader")}</div>
+      <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+        <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text }}>{t("me.editProfileHeader")}</div>
         </div>
         <div style={{ padding: 20 }}>
           {formError && (
@@ -449,417 +448,227 @@ export default function MePage() {
     );
   }
 
+  // Helper for nav link rows
+  const NavRow = ({ label, tag, tagColor, path }: { label: string; tag?: string; tagColor?: string; path: string }) => (
+    <button
+      onClick={() => navigate(path)}
+      style={{
+        minHeight: 52, padding: "14px 16px", background: T.surface,
+        border: `1px solid ${T.border}`, borderRadius: 10,
+        display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", width: "100%",
+      }}
+    >
+      <span style={{ flex: 1, fontFamily: T.font, fontWeight: 500, fontSize: 14, color: T.text, lineHeight: 1.3 }}>{label}</span>
+      {tag && (
+        <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: tagColor ?? T.faint }}>{tag}</span>
+      )}
+      <span style={{ color: T.faint, fontSize: 18 }}>›</span>
+    </button>
+  );
+
   return (
-    <div>
-      <div style={{ background: T.navy, padding: "52px 20px 24px", color: T.white }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 4 }}>
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, paddingBottom: 64 }}>
+      {/* Header */}
+      <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{
-            width: 52, height: 52, borderRadius: "50%",
-            background: T.red, color: T.white,
+            width: 52, height: 52, borderRadius: 26, flexShrink: 0,
+            background: fill.accent, color: fill.onAccent,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, fontWeight: 700,
+            fontFamily: T.font, fontWeight: 600, fontSize: 21,
           }}>
             {profile.displayName?.[0]?.toUpperCase() ?? "?"}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
+            <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1.05 }}>
               {profile.displayName}
             </div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
-              {profile.level} · {profile.state || "—"}
+            <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 6 }}>
+              {profile.sport?.toUpperCase().replace(/_/g, " ")} · {profile.level?.toUpperCase()} · {profile.state || "—"}
             </div>
           </div>
           <button
             onClick={() => setEditing(true)}
-            style={{
-              padding: "6px 12px", background: "rgba(255,255,255,0.12)",
-              color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 600,
-            }}
+            style={{ minHeight: 44, padding: "0 14px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 12, flexShrink: 0, cursor: "pointer" }}
           >
             {t("me.editProfile")}
           </button>
         </div>
-        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 8, wordBreak: "break-all" }}>
-          {principal}
-        </div>
+
+        {/* Stat row — rule-divided */}
+        {stats && (
+          <div style={{ display: "flex", marginTop: 20, borderTop: `1px solid ${T.hairline}`, paddingTop: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1 }}>{Number(stats.examCount)}</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>EXAMS</div>
+            </div>
+            <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
+              <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1 }}>{Number(stats.streak)}</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>STREAK</div>
+            </div>
+            <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
+              <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: fill.accent, lineHeight: 1 }}>{Math.round(stats.accuracy * 100)}%</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>ACCURACY</div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {stats && (
-        <div style={{
-          display: "flex", padding: "16px 20px",
-          borderBottom: `1px solid ${T.border}`,
-        }}>
-          {[
-            { label: t("me.exams"),    value: Number(stats.examCount) },
-            { label: t("me.streak"),   value: Number(stats.streak) },
-            { label: t("me.accuracy"), value: `${Math.round(stats.accuracy * 100)}%` },
-          ].map(s => (
-            <div key={s.label} style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: T.navy }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{s.label}</div>
+      <div style={{ padding: "18px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* Training group */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            Training
+          </div>
+          <NavRow label={t("me.viewFullProgress")} path="/progress" />
+          <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />
+          {isAiAdmin && <NavRow label={t("me.aiScenarioGenerator")} tag="AI" tagColor={fill.accent} path="/ai-scenarios" />}
+          <NavRow label={t("me.askRuleAssistant")} tag="AI" tagColor={fill.accent} path="/ask" />
+          <NavRow label={t("me.submitClip")} path="/submit-clip" />
+        </div>
+
+        {/* People group */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            People
+          </div>
+          <NavRow label={t("me.studyGroups")} path="/groups" />
+          <NavRow label={t("me.mentorship")} path="/mentor" />
+          <NavRow label={t("me.associations")} path="/association" />
+          {isContentAdmin && <NavRow label={t("me.clipModerationQueue")} tag="ADMIN" tagColor={fill.attention} path="/moderation" />}
+        </div>
+
+        {/* Records group */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            Records
+          </div>
+          <NavRow label={t("me.reportCard")} path="/reports" />
+          <NavRow label={t("me.reportCardsShared")} path="/reports/shared" />
+          <NavRow label={t("me.analyticsReadiness")} path="/analytics" />
+          <NavRow label={t("me.scheduleAccounts")} path="/schedule" />
+        </div>
+
+        {/* Friends */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            Friends
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={addFriendInput}
+              onChange={e => setAddFriendInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAddFriend()}
+              placeholder={t("me.friendInputPlaceholder")}
+              style={{
+                flex: 1, minHeight: 46, padding: "0 14px", fontFamily: T.font, fontSize: 13.5,
+                border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
+              }}
+            />
+            <button
+              onClick={handleAddFriend}
+              style={{ minHeight: 46, padding: "0 18px", background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+            >
+              {t("me.add")}
+            </button>
+          </div>
+          {addFriendError && <div style={{ color: T.wrong, fontFamily: T.font, fontSize: 12 }}>{addFriendError}</div>}
+
+          {friendsLoading ? (
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>{t("me.loadingFriends")}</div>
+          ) : friends.length === 0 ? (
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>{t("me.noFriends")}</div>
+          ) : friends.map((f) => (
+            <div
+              key={f.principal}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}
+            >
+              <div style={{ width: 34, height: 34, borderRadius: 17, background: T.bg, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.font, fontWeight: 600, fontSize: 13, color: T.text, flexShrink: 0 }}>
+                {f.displayName[0]?.toUpperCase() ?? "?"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.text, lineHeight: 1.25 }}>{f.displayName}</div>
+                <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, color: T.faint, marginTop: 5 }}>
+                  ELO {Math.round(f.accuracy * 1400)} · {Number(f.streak) > 0 ? `${Number(f.streak)} DAY STREAK` : `${Math.round(f.accuracy * 100)}% ACCURACY`}
+                </div>
+              </div>
+              <button onClick={() => handleRemoveFriend(f.principal)} style={{ minHeight: 44, background: "transparent", border: 0, color: T.faint, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: "0 2px" }}>
+                {t("me.remove")}
+              </button>
             </div>
           ))}
-        </div>
-      )}
 
-      {badges.length > 0 && (
-        <div style={{ padding: "16px 16px 0" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
-            {t("me.badgesEarned", { earned: badges.filter(b => b.earned).length, total: badges.length })}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-            {badges.map((b) => (
-              <div
-                key={b.id}
-                title={b.description}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                  padding: "10px 4px", background: b.earned ? T.surface : T.bg,
-                  border: `1px solid ${b.earned ? T.navy : T.border}`, borderRadius: 8,
-                  opacity: b.earned ? 1 : 0.45,
-                }}
-              >
-                <span style={{ fontSize: 22 }}>{b.icon}</span>
-                <span style={{ fontSize: 9, fontWeight: 700, textAlign: "center", lineHeight: 1.2 }}>{b.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {storage && (
-        <div style={{ padding: "16px 16px 0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{t("me.offlineStorage")}</div>
-            {storage.totalBytes > 0 && (
-              <button
-                onClick={handleClearAll}
-                disabled={clearingStorage}
-                style={{ fontSize: 12, color: T.wrong, fontWeight: 600, background: "transparent" }}
-              >
-                {clearingStorage ? t("me.clearing") : t("me.clearAll")}
-              </button>
-            )}
-          </div>
-
-          <div style={{ padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-              {t("me.storageUsed", { used: formatMB(storage.totalBytes), quota: formatMB(storage.quotaBytes) })}
-            </div>
-            <div style={{ height: 6, background: T.bg, borderRadius: 3, overflow: "hidden", marginBottom: 10 }}>
-              <div style={{
-                height: "100%", borderRadius: 3, background: T.navy,
-                width: `${Math.min(100, (storage.totalBytes / storage.quotaBytes) * 100)}%`,
-              }} />
-            </div>
-            <div style={{ display: "flex", gap: 14, fontSize: 11, color: T.muted }}>
-              <span>{t("me.articlesStorage", { size: formatMB(storage.articlesBytes) })}</span>
-              <span>{t("me.questionsStorage", { size: formatMB(storage.questionsBytes) })}</span>
-              <span>{t("me.audioStorage", { size: formatMB(storage.audioBytes) })}</span>
-            </div>
-          </div>
-
-          {downloadedArticles.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-              {downloadedArticles.map((a) => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
-                  }}
-                >
-                  <span style={{ fontSize: 12 }}>{t("me.audioDownloaded", { number: Number(a.number) })}</span>
-                  <button
-                    onClick={() => handleDeleteDownload(a.id)}
-                    style={{ fontSize: 11, color: T.wrong, fontWeight: 600, background: "transparent" }}
-                  >
-                    {t("me.delete")}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ padding: "16px 16px 0" }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
-        }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{t("me.pushTitle")}</div>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-              {Capacitor.isNativePlatform() || isWebPushSupported()
-                ? t("me.pushSupported")
-                : t("me.pushUnsupported")}
-            </div>
-          </div>
-          <button
-            onClick={handleTogglePush}
-            disabled={pushBusy || (!Capacitor.isNativePlatform() && !isWebPushSupported())}
-            style={{
-              width: 44, height: 26, borderRadius: 13, position: "relative", flexShrink: 0,
-              background: pushEnabled ? T.navy : T.border, opacity: pushBusy ? 0.6 : 1,
-            }}
-          >
-            <span style={{
-              position: "absolute", top: 3, left: pushEnabled ? 21 : 3,
-              width: 20, height: 20, borderRadius: "50%", background: T.white,
-              transition: "left 0.15s",
-            }} />
-          </button>
-        </div>
-        {pushError && (
-          <div style={{ fontSize: 11, color: T.wrong, marginTop: 6 }}>{pushError}</div>
-        )}
-      </div>
-
-      <div style={{ padding: "12px 16px 0" }}>
-        <button
-          onClick={() => navigate("/groups")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.studyGroups")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/progress")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.viewFullProgress")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/mentor")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.mentorship")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/association")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.associations")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/submit-clip")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.submitClip")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/analytics")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.analyticsReadiness")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/schedule")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.scheduleAccounts")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/ask")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.askRuleAssistant")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/ai-drills")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.aiPracticeDrills")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        {isAiAdmin && (
-          <button
-            onClick={() => navigate("/ai-scenarios")}
-            style={{
-              width: "100%", padding: "12px 14px", background: T.surface,
-              border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              fontSize: 13, fontWeight: 600,
-            }}
-          >
-            {t("me.aiScenarioGenerator")}
-            <span style={{ color: T.muted }}>›</span>
-          </button>
-        )}
-        <button
-          onClick={() => navigate("/reports")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 10,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.reportCard")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        <button
-          onClick={() => navigate("/reports/shared")}
-          style={{
-            width: "100%", padding: "12px 14px", background: T.surface,
-            border: `1px solid ${T.border}`, borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {t("me.reportCardsShared")}
-          <span style={{ color: T.muted }}>›</span>
-        </button>
-        {isContentAdmin && (
-          <button
-            onClick={() => navigate("/moderation")}
-            style={{
-              width: "100%", padding: "12px 14px", background: T.surface,
-              border: `1px solid ${T.border}`, borderRadius: 8, marginTop: 10,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              fontSize: 13, fontWeight: 600,
-            }}
-          >
-            {t("me.clipModerationQueue")}
-            <span style={{ color: T.muted }}>›</span>
-          </button>
-        )}
-      </div>
-
-      {/* Friends */}
-      <div style={{ padding: "16px 16px 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{t("me.friends")}</div>
           <button
             onClick={handleCopyShareLink}
-            style={{ fontSize: 12, color: T.navy, fontWeight: 600, background: "transparent" }}
+            style={{ minHeight: 44, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}
           >
             {copied ? t("me.copied") : t("me.copyShareLink")}
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input
-            value={addFriendInput}
-            onChange={e => setAddFriendInput(e.target.value)}
-            placeholder={t("me.friendInputPlaceholder")}
-            style={{
-              flex: 1, padding: "9px 10px", fontSize: 13,
-              border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
-            }}
-          />
-          <button
-            onClick={handleAddFriend}
-            style={{ padding: "9px 14px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 13, fontWeight: 700 }}
-          >
-            {t("me.add")}
-          </button>
-        </div>
-        {addFriendError && (
-          <div style={{ color: T.wrong, fontSize: 12, marginBottom: 8 }}>{addFriendError}</div>
-        )}
+        {/* Device */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            Device
+          </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-          {friendsLoading ? (
-            <div style={{ fontSize: 13, color: T.muted }}>{t("me.loadingFriends")}</div>
-          ) : friends.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>
-              {t("me.noFriends")}
-            </div>
-          ) : friends.map((f) => (
-            <div
-              key={f.principal}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", background: T.surface,
-                border: `1px solid ${T.border}`, borderRadius: 8,
-              }}
-            >
-              <div style={{
-                width: 30, height: 30, borderRadius: "50%", background: T.border,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 700, fontSize: 13, flexShrink: 0,
-              }}>
-                {f.displayName[0]?.toUpperCase() ?? "?"}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{f.displayName}</div>
-                <div style={{ fontSize: 11, color: T.muted }}>
-                  {Math.round(f.accuracy * 100)}% acc. {Number(f.streak) > 0 && `· 🔥 ${Number(f.streak)}`}
+          {/* Offline audio */}
+          {storage && (
+            <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13.5, color: T.text }}>
+                    {t("me.offlineStorage")}
+                  </div>
+                  <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>
+                    {storage.totalBytes > 0 ? t("me.storageUsed", { used: formatMB(storage.totalBytes), quota: formatMB(storage.quotaBytes) }) : t("me.noDownloads")}
+                  </div>
                 </div>
+                {storage.totalBytes > 0 && (
+                  <button onClick={handleClearAll} disabled={clearingStorage} style={{ minHeight: 44, padding: "0 12px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 7, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer", flexShrink: 0 }}>
+                    {clearingStorage ? t("me.clearing") : t("me.clearAll")}
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => handleRemoveFriend(f.principal)}
-                style={{ fontSize: 12, color: T.wrong, background: "transparent" }}
-              >
-                {t("me.remove")}
-              </button>
+              {downloadedArticles.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 12, borderTop: `1px solid ${T.hairline}` }}>
+                  {downloadedArticles.map((a) => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 0", borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
+                      <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted }}>{t("me.audioDownloaded", { number: Number(a.number) })}</span>
+                      <button onClick={() => handleDeleteDownload(a.id)} style={{ minHeight: 40, background: "transparent", border: 0, color: T.faint, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: "0 2px" }}>
+                        {t("me.delete")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      </div>
+          )}
 
-      <div style={{ padding: "0 16px 16px" }}>
+          {/* Push reminders */}
+          <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13.5, color: T.text }}>{t("me.pushTitle")}</div>
+              <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>
+                {Capacitor.isNativePlatform() || isWebPushSupported() ? t("me.pushSupported") : t("me.pushUnsupported")}
+              </div>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy || (!Capacitor.isNativePlatform() && !isWebPushSupported())}
+              style={{ width: 52, height: 30, borderRadius: 15, border: `1px solid ${pushEnabled ? fill.accent : T.border}`, background: pushEnabled ? fill.accent : T.surface, position: "relative", padding: 0, flexShrink: 0, cursor: "pointer", opacity: pushBusy ? 0.6 : 1 }}
+            >
+              <span style={{ position: "absolute", top: 3, left: pushEnabled ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: pushEnabled ? fill.onAccent : T.muted, display: "block", transition: "left 0.15s" }} />
+            </button>
+          </div>
+          {pushError && <div style={{ fontFamily: T.font, fontSize: 11, color: T.wrong }}>{pushError}</div>}
+        </div>
+
+        {/* Sign out */}
         <button
           onClick={() => logout()}
-          style={{
-            width: "100%", padding: "12px 0",
-            background: T.surface, border: `1px solid ${T.border}`,
-            borderRadius: 8, fontSize: 14, color: T.wrong, fontWeight: 600,
-          }}
+          style={{ minHeight: 48, background: "transparent", border: `1px solid oklch(0.68 0.19 32 / 0.5)`, borderRadius: 8, color: fill.wrong, fontFamily: T.font, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
         >
           {t("me.signOut")}
         </button>

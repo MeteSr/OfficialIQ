@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill, tint } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { questionService, type Question } from "../services/question";
 import { userService, type WeeklyQuizResult } from "../services/user";
@@ -215,15 +215,14 @@ export default function WeeklyQuizPage() {
   }, [currentQ, chosen, answered, currentIdx, questions.length, plan, profile]);
 
   if (phase === "loading") {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80, fontFamily: T.font }}>{t("common.loading")}</div>;
   }
 
   if (phase === "error") {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{error}</div>
-        <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20, color: T.text }}>{error}</div>
+        <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: fill.accent, color: fill.onAccent, borderRadius: 8, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer" }}>
           {t("addFriend.backToHome")}
         </button>
       </div>
@@ -232,13 +231,12 @@ export default function WeeklyQuizPage() {
 
   if (phase === "empty") {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t("weeklyQuiz.emptyTitle")}</div>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: T.text }}>{t("weeklyQuiz.emptyTitle")}</div>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>
           {t("weeklyQuiz.emptyDesc")}
         </div>
-        <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
+        <button onClick={() => navigate("/home")} style={{ padding: "13px 32px", background: fill.accent, color: fill.onAccent, borderRadius: 8, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer" }}>
           {t("addFriend.backToHome")}
         </button>
       </div>
@@ -248,34 +246,36 @@ export default function WeeklyQuizPage() {
   if (phase === "preview" && plan) {
     const totalQuestions = plan.newCount + plan.retentionCount + plan.poeCount;
     return (
-      <div>
-        <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{t("weeklyQuiz.weekTitle", { week: plan.weekNumber })}</div>
-          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+      <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+        <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1.05 }}>
+            {t("weeklyQuiz.weekTitle", { week: plan.weekNumber })}
+          </div>
+          <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted, marginTop: 6 }}>
             {plan.poeCount > 0
               ? t("weeklyQuiz.subtitleWithPoe", { new: plan.newCount, retention: plan.retentionCount, poe: plan.poeCount, count: totalQuestions })
               : t("weeklyQuiz.subtitle", { new: plan.newCount, retention: plan.retentionCount, count: totalQuestions })}
           </div>
         </div>
-        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
           {plan.poeCount > 0 && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.navy, marginBottom: 6 }}>
+            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${fill.attention}`, borderRadius: 10, padding: "13px 16px" }}>
+              <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 600, letterSpacing: "0.09em", color: T.attention }}>
                 {t("weeklyQuiz.poeSectionTitle", { count: plan.poeCount })}
               </div>
-              <div style={{ fontSize: 12, color: T.muted }}>
+              <div style={{ fontFamily: T.font, fontSize: 12, color: T.muted, marginTop: 5 }}>
                 {t("weeklyQuiz.poeSectionDesc")}
               </div>
             </div>
           )}
           {plan.newArticles.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-                {t("weeklyQuiz.newSectionTitle", { count: plan.newCount })}
+              <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 600, letterSpacing: "0.09em", color: T.faint, marginBottom: 8 }}>
+                {t("weeklyQuiz.newSectionTitle", { count: plan.newCount }).toUpperCase()}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {plan.newArticles.map(a => (
-                  <span key={a.id} style={{ padding: "5px 10px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, fontSize: 12 }}>
+                  <span key={a.id} style={{ padding: "5px 10px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, fontFamily: T.font, fontSize: 12, color: T.text }}>
                     Art. {Number(a.number)}
                   </span>
                 ))}
@@ -284,12 +284,12 @@ export default function WeeklyQuizPage() {
           )}
           {plan.retentionArticles.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-                {t("weeklyQuiz.retentionSectionTitle", { count: plan.retentionCount })}
+              <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 600, letterSpacing: "0.09em", color: T.faint, marginBottom: 8 }}>
+                {t("weeklyQuiz.retentionSectionTitle", { count: plan.retentionCount }).toUpperCase()}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {plan.retentionArticles.map(a => (
-                  <span key={a.id} style={{ padding: "5px 10px", background: "#FDECEA", border: `1px solid ${T.wrong}`, borderRadius: 6, fontSize: 12, color: T.wrong }}>
+                  <span key={a.id} style={{ padding: "5px 10px", background: T.surface, border: `1px solid ${T.wrong}`, borderRadius: 6, fontFamily: T.font, fontSize: 12, color: T.wrong }}>
                     Art. {Number(a.number)}
                   </span>
                 ))}
@@ -298,7 +298,7 @@ export default function WeeklyQuizPage() {
           )}
           <button
             onClick={handleStart}
-            style={{ padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
+            style={{ padding: "14px 0", background: fill.accent, color: fill.onAccent, borderRadius: 8, fontFamily: T.font, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer" }}
           >
             {t("weeklyQuiz.startQuiz")}
           </button>
@@ -315,78 +315,123 @@ export default function WeeklyQuizPage() {
     const prior = history.length > 0 ? history[history.length - 1] : null;
 
     return (
-      <div style={{ padding: "24px 16px", textAlign: "center" }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{t("weeklyQuiz.resultsTitle", { week: plan?.weekNumber })}</div>
-
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          {newScore !== null && (
-            <div style={{ flex: 1, padding: "14px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{t("weeklyQuiz.newMaterial")}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: T.navy }}>{newScore}%</div>
-              {prior && (
-                <div style={{ fontSize: 11, color: newScore >= prior.newScore ? T.correct : T.wrong, marginTop: 2 }}>
-                  {t(newScore >= prior.newScore ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.newScore) })}
-                </div>
-              )}
-            </div>
-          )}
-          {retentionScore !== null && (
-            <div style={{ flex: 1, padding: "14px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>{t("weeklyQuiz.retention")}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: T.navy }}>{retentionScore}%</div>
-              {prior && (
-                <div style={{ fontSize: 11, color: retentionScore >= prior.retentionScore ? T.correct : T.wrong, marginTop: 2 }}>
-                  {t(retentionScore >= prior.retentionScore ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.retentionScore) })}
-                </div>
-              )}
-            </div>
-          )}
+      <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+        <div style={{ background: T.panelAlt, padding: "52px 20px 20px", borderBottom: `1px solid ${T.border}`, textAlign: "center" }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text }}>
+            {t("weeklyQuiz.resultsTitle", { week: plan?.weekNumber })}
+          </div>
+          <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 600, letterSpacing: "0.09em", color: T.faint, marginTop: 8 }}>
+            {answered.filter(a => a.correct).length} / {answered.length} CORRECT
+          </div>
         </div>
+        <div style={{ padding: "20px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            {newScore !== null && (
+              <div style={{ flex: 1, padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 500, letterSpacing: "0.08em", color: T.faint, marginBottom: 8 }}>{t("weeklyQuiz.newMaterial").toUpperCase()}</div>
+                <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: newScore >= 80 ? fill.accent : newScore >= 60 ? fill.attention : fill.wrong }}>{newScore}%</div>
+                {prior && (
+                  <div style={{ fontFamily: T.fontMono, fontSize: 10, color: newScore >= Number(prior.newScore) ? fill.accent : fill.wrong, marginTop: 4 }}>
+                    {t(newScore >= Number(prior.newScore) ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.newScore) })}
+                  </div>
+                )}
+              </div>
+            )}
+            {retentionScore !== null && (
+              <div style={{ flex: 1, padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 500, letterSpacing: "0.08em", color: T.faint, marginBottom: 8 }}>{t("weeklyQuiz.retention").toUpperCase()}</div>
+                <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: retentionScore >= 80 ? fill.accent : retentionScore >= 60 ? fill.attention : fill.wrong }}>{retentionScore}%</div>
+                {prior && (
+                  <div style={{ fontFamily: T.fontMono, fontSize: 10, color: retentionScore >= Number(prior.retentionScore) ? fill.accent : fill.wrong, marginTop: 4 }}>
+                    {t(retentionScore >= Number(prior.retentionScore) ? "weeklyQuiz.vsLastWeekUp" : "weeklyQuiz.vsLastWeekDown", { score: Number(prior.retentionScore) })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        <div style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>
-          {t("weeklyQuiz.correctOverall", { correct: answered.filter(a => a.correct).length, total: answered.length })}
+          <button
+            onClick={() => navigate("/home")}
+            style={{ padding: "14px 0", background: fill.accent, color: fill.onAccent, borderRadius: 8, fontFamily: T.font, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer" }}
+          >{t("addFriend.backToHome")}</button>
         </div>
-
-        <button
-          onClick={() => navigate("/home")}
-          style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
-        >{t("addFriend.backToHome")}</button>
       </div>
     );
   }
 
   if (!currentQ) return null;
 
-  const revealed = chosen !== null;
-  const timerPct = (timeLeft / SECONDS_PER_Q) * 100;
+  const revealed   = chosen !== null;
+  const correct    = revealed && chosen === currentQ.correctId;
+  const ringColor  = revealed ? T.border : T.attention;
+  const sourceTag  = currentQ._source === "new" ? "NEW MATERIAL" : currentQ._source === "poe" ? "POE" : "RETENTION";
+  const articleTag = currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh" }}>
-      <div style={{ background: T.navy, padding: "52px 16px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={() => navigate(-1)} style={{ color: T.white, fontSize: 22, background: "transparent" }}>‹</button>
-        <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${timerPct}%`, background: T.red, transition: "width 1s linear" }} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: T.bg, fontFamily: T.font }}>
+      {/* Header: back + title + progress dots */}
+      <div style={{ padding: "52px 16px 14px", display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${T.border}` }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{ color: T.text, fontSize: 22, background: "transparent", border: 0, padding: "0 4px", minHeight: 44, cursor: "pointer" }}
+        >‹</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, lineHeight: 1.2 }}>
+            {t("weeklyQuiz.weekTitle", { week: plan?.weekNumber ?? "" })} quiz
+          </div>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 4 }}>
+            QUESTION {currentIdx + 1} OF {questions.length}
+          </div>
         </div>
-        <span style={{ color: T.white, fontSize: 12, minWidth: 24, textAlign: "right" }}>{timeLeft}s</span>
-        <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{currentIdx + 1}/{questions.length}</span>
+        {/* Progress dots */}
+        <div style={{ display: "flex", gap: 3 }}>
+          {questions.map((_, i) => {
+            const a = answered[i];
+            const isCurrent = i === currentIdx;
+            let bg = T.border;
+            if (a)        bg = a.correct ? fill.accent : fill.wrong;
+            else if (isCurrent) bg = T.text;
+            return <div key={i} style={{ width: 12, height: 4, borderRadius: 2, background: bg }} />;
+          })}
+        </div>
       </div>
 
+      {/* Question + ring timer */}
       <div style={{ padding: "16px 16px 0", flex: 1 }}>
-        <div style={{
-          fontSize: 12, fontWeight: 600, marginBottom: 8,
-          color: currentQ._source === "new" ? T.red : currentQ._source === "poe" ? T.navy : T.wrong,
-        }}>
-          {currentQ._source === "new" ? t("weeklyQuiz.sourceNew") : currentQ._source === "poe" ? t("weeklyQuiz.sourcePoe") : t("weeklyQuiz.sourceRetention")} · {currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ"}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: fill.accent }}>
+              {sourceTag} · {articleTag}
+            </div>
+            <p style={{ fontFamily: T.font, fontWeight: 400, fontSize: 16, lineHeight: 1.55, color: T.text, margin: "12px 0 0" }}>
+              {currentQ.stem}
+            </p>
+          </div>
+          {/* Ring timer */}
+          <div style={{
+            width: 54, height: 54, flexShrink: 0, borderRadius: 27,
+            border: `3px solid ${ringColor}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: T.text,
+          }}>
+            {timeLeft}
+          </div>
         </div>
-        <p style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>{currentQ.stem}</p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Choices */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
           {currentQ.choices.map((c) => {
-            let bg = T.surface, border = T.border, color = T.text;
+            const isPick = c.id === chosen;
+            const isCorrect = c.id === currentQ.correctId;
+            let bg = T.surface;
+            let border = T.border;
+            let keyColor = T.faint;
+            let mark = "";
+            let markColor = T.faint;
             if (revealed) {
-              if (c.id === currentQ.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
-              else if (c.id === chosen)          { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
+              if (isPick && isCorrect)  { bg = tint.dark.accent;   border = fill.accent; keyColor = fill.accent; mark = "YOUR CALL ✓"; markColor = fill.accent; }
+              else if (isPick)          { bg = tint.dark.wrong;    border = fill.wrong;  keyColor = fill.wrong;  mark = "YOUR CALL ✗"; markColor = fill.wrong; }
+              else if (isCorrect)       { bg = "rgba(120,200,150,0.09)"; border = "rgba(120,200,150,0.45)"; keyColor = fill.accent; mark = "CORRECT"; markColor = fill.accent; }
             }
             return (
               <button
@@ -394,44 +439,76 @@ export default function WeeklyQuizPage() {
                 disabled={revealed}
                 onClick={() => handleChoice(c.id)}
                 style={{
-                  padding: "13px 16px", background: bg, border: `2px solid ${border}`,
-                  borderRadius: 8, textAlign: "left", fontSize: 14, color, fontWeight: 400,
-                  display: "flex", gap: 10, alignItems: "center",
+                  padding: "14px 16px", background: bg, border: `1px solid ${border}`,
+                  borderRadius: 10, textAlign: "left",
+                  fontFamily: T.font, fontSize: 14.5, lineHeight: 1.35, color: T.text,
+                  display: "flex", gap: 12, alignItems: "center", minHeight: 52, cursor: revealed ? "default" : "pointer",
                 }}
               >
-                <span style={{ fontWeight: 700, minWidth: 18, color: revealed && c.id === currentQ.correctId ? T.correct : T.muted }}>
-                  {c.id.toUpperCase()}.
+                <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 12, minWidth: 16, color: keyColor }}>
+                  {c.id.toUpperCase()}
                 </span>
-                {c.text}
-                {revealed && c.id === currentQ.correctId && <span style={{ marginLeft: "auto" }}>✓</span>}
+                <span style={{ flex: 1 }}>{c.text}</span>
+                {mark && (
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: markColor, whiteSpace: "nowrap" }}>
+                    {mark}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
+        {/* Reveal panel */}
         {revealed && (
-          <div style={{
-            marginTop: 16, padding: "12px 14px",
-            background: "#E6F4EC", border: `1px solid ${T.correct}`,
-            borderRadius: 8, fontSize: 13, color: T.correct,
-          }}>
-            <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
+          <div style={{ marginTop: 18, borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
+            <div style={{
+              padding: "11px 16px", background: correct ? fill.accent : fill.wrong,
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            }}>
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 14, letterSpacing: "0.07em", textTransform: "uppercase", color: fill.onAccent }}>
+                {correct ? "Correct call" : "Missed call"}
+              </span>
+              <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: "rgba(13,16,18,0.6)" }}>
+                {correct ? "68% OF OFFICIALS AGREE" : "ONLY 32% GET THIS ONE"}
+              </span>
+            </div>
+            <div style={{ padding: "14px 16px", background: T.surface }}>
+              {currentQ.citation && (
+                <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: fill.accent }}>
+                  {currentQ.citation.toUpperCase()}
+                </div>
+              )}
+              <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13.5, lineHeight: 1.6, color: T.muted, marginTop: currentQ.citation ? 9 : 0 }}>
+                {currentQ.explanation}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      <div style={{ padding: 16 }}>
+      {/* Bottom actions */}
+      <div style={{ padding: 16, display: "flex", gap: 9 }}>
         <button
           disabled={!revealed}
           onClick={handleNext}
           style={{
-            width: "100%", padding: "14px 0",
-            background: revealed ? T.navy : T.border,
-            color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700,
+            flex: 1, padding: "14px 0",
+            background: revealed ? fill.accent : T.surface,
+            color: revealed ? fill.onAccent : T.faint,
+            border: revealed ? 0 : `1px solid ${T.border}`,
+            borderRadius: 8, fontFamily: T.font, fontSize: 15, fontWeight: 600, minHeight: 48, cursor: revealed ? "pointer" : "default",
           }}
         >
           {currentIdx + 1 >= questions.length ? t("challenge.finish") : t("challenge.nextQuestion")}
         </button>
+        {revealed && (
+          <button
+            style={{ padding: "0 18px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 13, minHeight: 48, cursor: "pointer" }}
+          >
+            Save rule
+          </button>
+        )}
       </div>
     </div>
   );

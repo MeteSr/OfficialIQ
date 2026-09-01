@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { rankingService, type LeaderboardEntry, type SortKey } from "../services/ranking";
 import { challengeService } from "../services/challenge";
 import { questionService } from "../services/question";
@@ -68,32 +68,33 @@ export default function RanksPage() {
   }
 
   return (
-    <div>
-      <div style={{ background: T.navy, padding: "52px 20px 0", color: T.white }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 20, fontWeight: 700 }}>
-            🏆 {t("ranks.title")}
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 64 }}>
+      {/* Header */}
+      <div style={{ background: T.panelAlt, padding: "52px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 16 }}>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+            {t("ranks.title")}
           </div>
           <button
             onClick={() => navigate("/groups")}
-            style={{ fontSize: 13, color: T.white, background: "rgba(255,255,255,0.12)", borderRadius: 12, padding: "5px 10px", fontWeight: 600 }}
+            style={{ minHeight: 44, padding: "0 14px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 12, cursor: "pointer" }}
           >
-            👥 {t("ranks.groups")}
+            {t("ranks.groups")}
           </button>
         </div>
 
+        {/* Scope tabs */}
         <div style={{ display: "flex", gap: 4 }}>
           {(["Friends", "State", "National"] as Tab[]).map((tb) => (
             <button
               key={tb}
               onClick={() => setTab(tb)}
               style={{
-                flex: 1, padding: "8px 0",
-                background: "transparent",
-                color: tab === tb ? T.white : "rgba(255,255,255,0.5)",
-                fontWeight: tab === tb ? 700 : 400,
-                fontSize: 13,
-                borderBottom: `2px solid ${tab === tb ? T.white : "transparent"}`,
+                flex: 1, minHeight: 44, background: "transparent", border: 0,
+                borderBottom: `2px solid ${tab === tb ? T.text : "transparent"}`,
+                color: tab === tb ? T.text : T.faint,
+                fontFamily: T.font, fontWeight: tab === tb ? 600 : 400, fontSize: 13,
+                cursor: "pointer",
               }}
             >
               {t(TAB_LABEL_KEYS[tb])}
@@ -102,18 +103,19 @@ export default function RanksPage() {
         </div>
       </div>
 
-      <div style={{ padding: "12px 16px 0", display: "flex", gap: 6, alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{t("ranks.sortBy")}</span>
+      {/* Sort row */}
+      <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 7 }}>
+        <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>SORT</span>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
             onClick={() => setSortBy(opt.key)}
             style={{
-              padding: "5px 12px", borderRadius: 12,
-              background: sortBy === opt.key ? T.navy : T.surface,
-              color: sortBy === opt.key ? T.white : T.text,
-              border: `1px solid ${sortBy === opt.key ? T.navy : T.border}`,
-              fontSize: 12, fontWeight: sortBy === opt.key ? 700 : 400,
+              minHeight: 36, padding: "0 13px", borderRadius: 18,
+              background: sortBy === opt.key ? fill.accent : T.surface,
+              color: sortBy === opt.key ? fill.onAccent : T.text,
+              border: `1px solid ${sortBy === opt.key ? fill.accent : T.border}`,
+              fontFamily: T.font, fontWeight: 600, fontSize: 12, cursor: "pointer",
             }}
           >
             {t(opt.labelKey)}
@@ -121,49 +123,58 @@ export default function RanksPage() {
         ))}
       </div>
 
-      <div style={{ padding: "8px 16px" }}>
+      {/* Leaderboard rows */}
+      <div style={{ flex: 1, padding: "10px 16px 0" }}>
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} style={{
-              height: 56, marginBottom: 1, background: T.border, borderRadius: 4,
-              opacity: 0.4 + i * 0.1,
-            }} />
+            <div key={i} style={{ height: 56, marginBottom: 1, background: T.border, borderRadius: 4, opacity: 0.4 + i * 0.1 }} />
           ))
-        ) : entries.map((e) => {
+        ) : entries.map((e, i) => {
           const isYou = principal && e.principal.toString() === principal;
+          const value = sortBy === "Elo" ? String(Math.round(e.elo))
+            : sortBy === "Speed" ? `${Math.round(e.avgElapsedSec)}s`
+            : `${Math.round(e.accuracy * 100)}%`;
+          const streak = Number(e.streak);
           return (
             <div
               key={e.principal.toString()}
               style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "14px 10px",
-                borderBottom: `1px solid ${T.border}`,
-                background: isYou ? "#EEF3FC" : "transparent",
+                display: "flex", alignItems: "center", gap: 12, padding: "13px 10px",
+                borderBottom: `1px solid ${T.hairline}`,
+                background: isYou ? "rgba(120,200,150,0.10)" : "transparent",
                 borderRadius: isYou ? 8 : 0,
               }}
             >
-              <span style={{ width: 24, fontSize: 14, color: T.muted, textAlign: "center" }}>
+              <span style={{ width: 22, textAlign: "center", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 17, color: i < 3 ? T.text : T.faint, lineHeight: 1 }}>
                 {Number(e.rank)}
               </span>
               <div style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: isYou ? T.navy : T.border,
-                color: isYou ? T.white : T.text,
+                width: 36, height: 36, borderRadius: 18, flexShrink: 0,
+                background: isYou ? fill.accent : T.surface,
+                border: `1px solid ${isYou ? fill.accent : T.border}`,
+                color: isYou ? fill.onAccent : T.text,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 700, fontSize: 14, flexShrink: 0,
+                fontFamily: T.font, fontWeight: 600, fontSize: 14,
               }}>
                 {e.displayName[0]?.toUpperCase() ?? "?"}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: isYou ? 700 : 500 }}>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontFamily: T.font, fontWeight: isYou ? 600 : 500, fontSize: 14, color: T.text, lineHeight: 1.25 }}>
                   {e.displayName}
-                  {Number(e.streak) > 0 && <span> 🔥 {Number(e.streak)}</span>}
-                </div>
+                </span>
+                {streak > 0 && (
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, color: fill.attention }}>
+                    {streak}D
+                  </span>
+                )}
+                {isYou && (
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.accent }}>
+                    YOU
+                  </span>
+                )}
               </div>
-              <span style={{ fontSize: 15, fontWeight: 700, color: isYou ? T.red : T.text }}>
-                {sortBy === "Elo" ? Math.round(e.elo)
-                  : sortBy === "Speed" ? `${Math.round(e.avgElapsedSec)}s`
-                  : `${Math.round(e.accuracy * 100)}%`}
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 19, color: isYou ? fill.accent : T.text, lineHeight: 1 }}>
+                {value}
               </span>
             </div>
           );
@@ -171,18 +182,17 @@ export default function RanksPage() {
       </div>
 
       {top && !loading && (
-        <div style={{ padding: "16px 16px 0" }}>
+        <div style={{ padding: 16 }}>
           <button
             onClick={() => handleChallenge(top)}
             disabled={challenging}
             style={{
-              width: "100%", padding: "14px 0",
-              background: challenging ? T.border : T.red, color: T.white,
-              borderRadius: 8, fontSize: 15, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              width: "100%", minHeight: 50, background: challenging ? T.border : fill.accent,
+              color: fill.onAccent, border: 0, borderRadius: 8,
+              fontFamily: T.font, fontSize: 15, fontWeight: 600, cursor: challenging ? "default" : "pointer",
             }}
           >
-            {challenging ? t("ranks.sending") : `⚡ ${t("ranks.challengeToRematch", { name: top.displayName })}`}
+            {challenging ? t("ranks.sending") : t("ranks.challengeToRematch", { name: top.displayName })}
           </button>
         </div>
       )}

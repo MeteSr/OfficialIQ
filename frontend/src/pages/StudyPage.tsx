@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { contentService, type Article, type PointOfEmphasis, type MechanicsScenario } from "../services/content";
 import { userService, type ArticleProgress } from "../services/user";
 import { questionService } from "../services/question";
@@ -160,25 +160,32 @@ export default function StudyPage() {
     return Number(a.number) - Number(b.number);
   });
 
+  const masteryColor = (pct: number) => pct >= 80 ? fill.accent : pct >= 60 ? fill.attention : fill.wrong;
+
   return (
-    <div>
-      <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>{t("study.title")}</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          {sportDisplayName}
+    <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, paddingBottom: 64 }}>
+      {/* Header */}
+      <div style={{ padding: "52px 20px 18px", background: T.panelAlt, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+          {t("study.title")}
+        </div>
+        <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 7 }}>
+          {sportDisplayName.toUpperCase()} · VARSITY
         </div>
       </div>
 
-      <div style={{ display: "flex", padding: "12px 16px 0", gap: 8 }}>
+      {/* Tab toggle */}
+      <div style={{ display: "flex", gap: 8, padding: "14px 16px 0" }}>
         {([["rules", t("study.tabRules")], ["mechanics", t("study.tabMechanics")]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             style={{
-              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
-              background: tab === key ? T.navy : T.surface,
-              color: tab === key ? T.white : T.text,
-              border: `1px solid ${tab === key ? T.navy : T.border}`,
+              flex: 1, minHeight: 44, borderRadius: 8,
+              background: tab === key ? fill.accent : T.surface,
+              color: tab === key ? fill.onAccent : T.text,
+              border: `1px solid ${tab === key ? fill.accent : T.border}`,
+              fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: "pointer",
             }}
           >
             {label}
@@ -189,254 +196,181 @@ export default function StudyPage() {
       <audio ref={audioRef} onEnded={() => setPlayingPoeId(null)} style={{ display: "none" }} />
 
       {tab === "mechanics" ? (
-        <div style={{ padding: 16 }}>
-          <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5, marginBottom: 14 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, padding: "18px 16px" }}>
+          <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.6, color: T.muted }}>
             {t("study.mechanicsDesc")}
           </div>
 
           {mechanicsMastery !== null && (
-            <div style={{
-              padding: "12px 14px", marginBottom: 14, background: T.surface,
-              border: `1px solid ${T.border}`, borderRadius: 8,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{t("study.mechanicsMastery")}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: T.navy }}>{mechanicsMastery}%</span>
+            <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13, color: T.text }}>{t("study.mechanicsMastery")}</span>
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 22, color: mechanicsMastery >= 80 ? fill.accent : mechanicsMastery >= 60 ? fill.attention : fill.wrong }}>
+                {mechanicsMastery}%
+              </span>
             </div>
           )}
 
           <button
-            onClick={() => navigate(`/quiz/${MECHANICS_ARTICLE_ID}`, {
-              state: { articleIds: [MECHANICS_ARTICLE_ID], casebook: false },
-            })}
-            style={{
-              width: "100%", padding: "16px", background: T.navy, color: T.white,
-              borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", gap: 12, marginBottom: 16,
-            }}
+            onClick={() => navigate(`/quiz/${MECHANICS_ARTICLE_ID}`, { state: { articleIds: [MECHANICS_ARTICLE_ID], casebook: false } })}
+            style={{ width: "100%", padding: 16, background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", gap: 12, minHeight: 64, cursor: "pointer" }}
           >
-            <span style={{ fontSize: 26 }}>❓</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{t("study.rotationQuizTitle")}</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-                {t("study.rotationQuizDesc")}
-              </div>
+              <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 15, lineHeight: 1.2 }}>{t("study.rotationQuizTitle")}</div>
+              <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, lineHeight: 1.35, color: "rgba(13,16,18,0.65)", marginTop: 3 }}>{t("study.rotationQuizDesc")}</div>
             </div>
-            <span style={{ fontSize: 18 }}>›</span>
+            <span style={{ fontSize: 19 }}>›</span>
           </button>
 
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted, marginBottom: 10 }}>
-            {t("study.coverageZoneDrills")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>{t("study.coverageZoneDrills")}</div>
+            {scenarios.length === 0 ? (
+              <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted }}>{t("study.noDrills")}</div>
+            ) : scenarios.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => navigate(`/mechanics/${s.id}`)}
+                style={{ padding: "14px 16px", minHeight: 56, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}
+              >
+                <div>
+                  <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13.5, color: T.text, lineHeight: 1.25 }}>{s.title}</div>
+                  <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10.5, color: T.faint, marginTop: 6 }}>{t("study.crewZones", { crewSize: Number(s.crewSize), count: s.zones.length })}</div>
+                </div>
+                <span style={{ color: T.faint, fontSize: 18 }}>›</span>
+              </button>
+            ))}
           </div>
-          {scenarios.length === 0 ? (
-            <div style={{ fontSize: 13, color: T.muted }}>{t("study.noDrills")}</div>
-          ) : (
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 18, padding: "18px 16px" }}>
+
+          {/* Assigned modules */}
+          {assignmentRows.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {scenarios.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => navigate(`/mechanics/${s.id}`)}
-                  style={{
-                    padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`,
-                    borderRadius: 10, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
-                  }}
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>{t("study.assignedModules")}</div>
+              {assignmentRows.map(({ assignment: a, coordinatorName, done }) => (
+                <div
+                  key={a.id}
+                  onClick={() => !done && navigate(`/quiz/${a.articleIds[0] ?? "ncaa_basketball:art4"}`, { state: { assignmentId: a.id, articleIds: a.articleIds, casebook: a.casebook } })}
+                  style={{ padding: "13px 16px", background: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${done ? T.border : fill.accent}`, borderRadius: 10, cursor: done ? "default" : "pointer" }}
                 >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("study.crewZones", { crewSize: Number(s.crewSize), count: s.zones.length })}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.1em", color: done ? T.faint : fill.accent }}>{done ? t("study.done") : t("study.assigned")}</span>
+                    <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, flex: 1, lineHeight: 1.25 }}>{a.title}</span>
                   </div>
-                  <span style={{ color: T.muted, fontSize: 18 }}>›</span>
-                </button>
+                  <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 5 }}>
+                    {t("study.assignedBy", { name: coordinatorName, date: new Date(Number(a.dueAt / 1_000_000n)).toLocaleDateString() })}
+                  </div>
+                </div>
               ))}
             </div>
           )}
-        </div>
-      ) : (
-      <>
-      {assignmentRows.length > 0 && (
-        <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>{t("study.assignedModules")}</div>
-          {assignmentRows.map(({ assignment: a, coordinatorName, done }) => (
-            <div
-              key={a.id}
-              onClick={() => !done && navigate(`/quiz/${a.articleIds[0] ?? "ncaa_basketball:art4"}`, {
-                state: { assignmentId: a.id, articleIds: a.articleIds, casebook: a.casebook },
-              })}
-              style={{
-                padding: "12px 14px", background: T.surface,
-                border: `1px solid ${done ? T.correct : T.navy}`, borderRadius: 10,
-                cursor: done ? "default" : "pointer",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: T.white,
-                  background: done ? T.correct : T.navy, borderRadius: 6, padding: "2px 6px",
-                }}>
-                  {done ? t("study.done") : t("study.assigned")}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{a.title}</span>
-              </div>
-              <div style={{ fontSize: 11, color: T.muted }}>
-                {t("study.assignedBy", { name: coordinatorName, date: new Date(Number(a.dueAt / 1_000_000n)).toLocaleDateString() })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
-      {poes.length > 0 && (
-        <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>
-            {t("study.pointsOfEmphasis", { season: CURRENT_SEASON })}
-          </div>
-          {poes.map((poe) => {
-            const reviewed = poe.linkedArticleIds.length > 0 &&
-              poe.linkedArticleIds.every(id => Number(progress[id]?.timesStudied ?? 0n) > 0);
-            const hasAudio = poe.audioUrl.length > 0;
-            const isPlaying = playingPoeId === poe.id;
-            return (
-              <div
-                key={poe.id}
-                style={{
-                  padding: "14px 16px", background: T.surface,
-                  border: `1px solid ${reviewed ? T.correct : T.navy}`,
-                  borderRadius: 10,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, color: T.white, background: T.navy,
-                    borderRadius: 6, padding: "2px 6px",
-                  }}>
-                    {t("study.poe")}
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{poe.title}</span>
-                  {reviewed && <span style={{ fontSize: 11, fontWeight: 700, color: T.correct }}>{t("study.reviewed")}</span>}
-                </div>
-                <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>{poe.body}</div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {poe.linkedArticleIds.map((id) => {
-                      const a = articles.find(x => x.id === id);
-                      return (
+          {/* POE */}
+          {poes.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+                {t("study.pointsOfEmphasis", { season: CURRENT_SEASON })}
+              </div>
+              {poes.map((poe) => {
+                const reviewed = poe.linkedArticleIds.length > 0 &&
+                  poe.linkedArticleIds.every(id => Number(progress[id]?.timesStudied ?? 0n) > 0);
+                const hasAudio = poe.audioUrl.length > 0;
+                const isPlaying = playingPoeId === poe.id;
+                return (
+                  <div key={poe.id} style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${fill.attention}`, borderRadius: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.1em", color: fill.attention }}>POE</span>
+                      <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, flex: 1, lineHeight: 1.25 }}>{poe.title}</span>
+                      {reviewed && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: fill.accent }}>REVIEWED</span>}
+                    </div>
+                    <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12.5, lineHeight: 1.55, color: T.muted, marginTop: 8 }}>{poe.body}</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {poe.linkedArticleIds.map((id) => {
+                          const a = articles.find(x => x.id === id);
+                          return (
+                            <button key={id} onClick={() => navigate(`/quiz/${id}?adaptive=1`)} style={{ padding: "0 11px", minHeight: 34, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 6, fontFamily: T.font, fontWeight: 500, fontSize: 11.5, color: T.text, cursor: "pointer" }}>
+                              {a ? `Art. ${Number(a.number)}` : id}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {hasAudio && (
                         <button
-                          key={id}
-                          onClick={() => navigate(`/quiz/${id}?adaptive=1`)}
-                          style={{
-                            padding: "4px 8px", background: T.bg,
-                            border: `1px solid ${T.border}`, borderRadius: 6, fontSize: 11,
-                          }}
+                          onClick={() => togglePoeAudio(poe)}
+                          style={{ width: 44, height: 44, borderRadius: 22, background: fill.accent, color: fill.onAccent, border: 0, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}
                         >
-                          {a ? `Art. ${Number(a.number)}` : id}
+                          {loadingAudio === poe.id ? "…" : isPlaying ? "❚❚" : "▶"}
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Articles list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} style={{ height: 64, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, opacity: 0.5 }} />
+              ))
+            ) : ordered.map((a) => {
+              const p = progress[a.id];
+              const done = !!p && Number(p.timesStudied) > 0;
+              const overdue = overdueIds.has(a.id);
+              const due = dueCounts[a.id] ?? 0;
+              const hasAudio = a.audioUrl.length > 0;
+              const downloaded = downloadedIds.has(a.id);
+              const downloading = downloadingId === a.id;
+              const markColor = overdue ? fill.wrong : done ? fill.accent : T.faint;
+              const markBorder = overdue ? fill.wrong : done ? "rgba(120,200,150,0.45)" : T.border;
+              const mPct = done ? Number(p.masteryScore) : 0;
+              return (
+                <div
+                  key={a.id}
+                  onClick={() => navigate(`/quiz/${a.id}?adaptive=1`)}
+                  role="button"
+                  tabIndex={0}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: T.surface, border: `1px solid ${overdue ? fill.wrong : T.border}`, borderRadius: 10, textAlign: "left", cursor: "pointer" }}
+                >
+                  {/* Article number / state indicator */}
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: T.bg, border: `1px solid ${markBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 15, color: markColor, flexShrink: 0 }}>
+                    {overdue ? "!" : done ? "✓" : Number(a.number)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, lineHeight: 1.25 }}>{t("study.article", { number: Number(a.number) })}</span>
+                      {overdue && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.08em", color: fill.wrong }}>OVERDUE</span>}
+                    </div>
+                    <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>{a.title}</div>
+                    {due > 0 && (
+                      <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: fill.accent, marginTop: 6 }}>{due} DUE TODAY</div>
+                    )}
+                    {done && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                        <div style={{ flex: 1, maxWidth: 120, height: 3, borderRadius: 2, background: T.border, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${mPct}%`, background: masteryColor(mPct), borderRadius: 2 }} />
+                        </div>
+                        <span style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: T.faint }}>{mPct}% · {Number(p.timesStudied)} SESSIONS</span>
+                      </div>
+                    )}
                   </div>
                   {hasAudio && (
                     <button
-                      onClick={() => togglePoeAudio(poe)}
-                      style={{
-                        width: 30, height: 30, borderRadius: "50%", background: T.navy, color: T.white,
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0,
-                      }}
+                      onClick={(e) => handleDownloadToggle(a.id, e)}
+                      title={downloaded ? t("study.removeDownload") : t("study.downloadForOffline")}
+                      style={{ width: 44, height: 44, borderRadius: 22, background: "transparent", border: `1px solid ${downloaded ? "rgba(120,200,150,0.45)" : T.border}`, color: downloaded ? fill.accent : T.faint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0, cursor: "pointer" }}
                     >
-                      {loadingAudio === poe.id ? "…" : isPlaying ? "❚❚" : "▶"}
+                      {downloading ? "…" : downloaded ? "✓" : "⬇"}
                     </button>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      )}
-
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} style={{
-              height: 64, background: T.border, borderRadius: 10,
-              animation: "pulse 1.5s ease-in-out infinite",
-            }} />
-          ))
-        ) : ordered.map((a) => {
-          const p = progress[a.id];
-          const done = !!p && Number(p.timesStudied) > 0;
-          const overdue = overdueIds.has(a.id);
-          const due = dueCounts[a.id] ?? 0;
-          const hasAudio = a.audioUrl.length > 0;
-          const downloaded = downloadedIds.has(a.id);
-          const downloading = downloadingId === a.id;
-          return (
-            <div
-              key={a.id}
-              onClick={() => navigate(`/quiz/${a.id}?adaptive=1`)}
-              role="button"
-              tabIndex={0}
-              style={{
-                display: "flex", alignItems: "center", gap: 14,
-                padding: "14px 16px",
-                background: T.surface,
-                border: `1px solid ${overdue ? T.wrong : T.border}`,
-                borderRadius: 10, textAlign: "left", cursor: "pointer",
-              }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: overdue ? "#FDECEA" : done ? "#E6F4EC" : T.navy,
-                color: overdue ? T.wrong : done ? T.correct : T.white,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 700, fontSize: 14, flexShrink: 0,
-              }}>
-                {overdue ? "!" : done ? "✓" : Number(a.number)}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                  {t("study.article", { number: Number(a.number) })}
-                  {overdue && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: T.wrong }}>{t("study.overdue")}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{a.title}</div>
-                {due > 0 && (
-                  <div style={{ fontSize: 11, color: T.navy, fontWeight: 600, marginTop: 4 }}>
-                    {t("study.dueToday", { count: due })}
-                  </div>
-                )}
-                {done && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                    <div style={{ flex: 1, height: 3, background: T.border, borderRadius: 2, overflow: "hidden", maxWidth: 120 }}>
-                      <div style={{
-                        height: "100%", width: `${Math.min(100, Number(p.masteryScore))}%`,
-                        background: T.correct, borderRadius: 2,
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 10, color: T.muted }}>
-                      {t("study.masteryStat", { pct: Number(p.masteryScore), count: Number(p.timesStudied) })}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {hasAudio && (
-                <button
-                  onClick={(e) => handleDownloadToggle(a.id, e)}
-                  title={downloaded ? t("study.removeDownload") : t("study.downloadForOffline")}
-                  style={{
-                    width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                    background: downloaded ? "#E6F4EC" : T.bg,
-                    color: downloaded ? T.correct : T.muted,
-                    border: `1px solid ${downloaded ? T.correct : T.border}`,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13,
-                  }}
-                >
-                  {downloading ? "…" : downloaded ? "✓" : "⬇"}
-                </button>
-              )}
-              <span style={{ color: T.muted, fontSize: 18 }}>›</span>
-            </div>
-          );
-        })}
-      </div>
-      </>
       )}
     </div>
   );

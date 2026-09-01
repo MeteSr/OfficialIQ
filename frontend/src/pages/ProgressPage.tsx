@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { rankingService, type UserStats, type EloSnapshot } from "../services/ranking";
 import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
@@ -32,14 +32,13 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 const THIRTY_DAYS_NS = 30n * 24n * 3600n * 1_000_000_000n;
 
 function masteryColor(pct: number): string {
-  if (pct >= 80) return T.correct;
-  if (pct >= 60) return "#D9A400";
-  return T.wrong;
+  if (pct >= 80) return fill.accent;
+  if (pct >= 60) return fill.attention;
+  return fill.wrong;
 }
-function masteryBg(pct: number): string {
-  if (pct >= 80) return "#E6F4EC";
-  if (pct >= 60) return "#FFF6DC";
-  return "#FDECEA";
+function masteryBorder(pct: number): string {
+  const c = masteryColor(pct);
+  return c.replace(")", " / 0.45)").replace("oklch(", "oklch(");
 }
 
 function EloSparkline({ points, t }: { points: EloSnapshot[]; t: TFunction }) {
@@ -110,10 +109,9 @@ export default function ProgressPage() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🛡️</div>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>{t("progress.signInPrompt")}</div>
-        <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80, fontFamily: T.font }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20, color: T.text }}>{t("progress.signInPrompt")}</div>
+        <button onClick={() => navigate("/me")} style={{ padding: "13px 32px", background: fill.accent, color: fill.onAccent, borderRadius: 8, fontSize: 15, fontWeight: 700, border: 0, cursor: "pointer" }}>
           {t("addFriend.goToProfile")}
         </button>
       </div>
@@ -121,7 +119,7 @@ export default function ProgressPage() {
   }
 
   if (loading) {
-    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
+    return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80, fontFamily: T.font }}>{t("common.loading")}</div>;
   }
 
   const nowNs = BigInt(Date.now()) * 1_000_000n;
@@ -135,10 +133,10 @@ export default function ProgressPage() {
     ? Number(mechanicsProgress.masteryScore) : null;
 
   const statCards = [
-    { label: t("progress.examsTaken"),     value: stats ? Number(stats.examCount) : 0 },
-    { label: t("progress.avgAccuracy"),    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
-    { label: t("progress.currentStreak"),  value: stats ? Number(stats.streak) : 0 },
-    { label: t("progress.bestStreak"),     value: stats ? Number(stats.bestStreak) : 0 },
+    { label: "EXAMS TAKEN",     value: stats ? Number(stats.examCount) : 0 },
+    { label: "AVG ACCURACY",    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
+    { label: "CURRENT STREAK",  value: stats ? Number(stats.streak) : 0 },
+    { label: "BEST STREAK",     value: stats ? Number(stats.bestStreak) : 0 },
   ];
 
   function handleExportCsv() {
@@ -160,68 +158,88 @@ export default function ProgressPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 24 }}>
-      <div style={{ background: T.navy, padding: "52px 20px 20px", color: T.white }}>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>📈 {t("progress.title")}</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
-          NCAA Men's Basketball
+    <div style={{ paddingBottom: 64, background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
+      {/* Header */}
+      <div style={{ padding: "52px 20px 18px", background: T.panelAlt, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1.05 }}>
+            {t("progress.title")}
+          </div>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 7 }}>
+            NCAA MEN'S BASKETBALL · VARSITY
+          </div>
         </div>
-      </div>
-
-      <div style={{ padding: 16 }}>
         {exams.length > 0 && (
           <button
             onClick={handleExportCsv}
-            style={{ width: "100%", padding: "10px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 16 }}
+            style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 7, padding: "0 12px", minHeight: 44, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, color: T.text, flexShrink: 0, cursor: "pointer" }}
           >
-            ⬇️ {t("progress.exportCsv")}
+            {t("progress.exportCsv")}
           </button>
         )}
+      </div>
+
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Stat cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {statCards.map(s => (
-            <div key={s.label} style={{ padding: "14px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, textAlign: "center" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: T.navy }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{s.label}</div>
+            <div key={s.label} style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+              <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 28, color: T.text, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
         {/* ELO trend */}
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.eloTrend")}</div>
+        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "15px 16px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+              {t("progress.eloTrend")} · 30 days
+            </div>
+            {stats && (
+              <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 18, color: fill.accent }}>
+                {Math.round(stats.elo)}
+              </div>
+            )}
+          </div>
           <EloSparkline points={recentHistory} t={t} />
-          {stats && <div style={{ fontSize: 12, color: T.muted, textAlign: "right" }}>{t("progress.current", { elo: Math.round(stats.elo) })}</div>}
         </div>
 
         {/* Weak areas */}
         {weakest.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{t("progress.weakestAreas")}</div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+                {t("progress.weakestAreas")}
+              </div>
               <button
                 onClick={() => navigate("/ai-drills")}
-                style={{ padding: "6px 12px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 11, fontWeight: 700 }}
+                style={{ padding: "0 12px", minHeight: 44, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer" }}
               >
-                🎯 {t("progress.aiPractice")}
+                {t("progress.aiPractice")}
               </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {weakest.map(p => {
                 const a = articles.find(x => x.id === p.articleId);
                 const pct = Number(p.masteryScore);
                 return (
                   <div key={p.articleId} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                    background: masteryBg(pct), border: `1px solid ${masteryColor(pct)}`, borderRadius: 8,
+                    display: "flex", alignItems: "center", gap: 12, padding: "13px 16px",
+                    background: T.surface, border: `1px solid ${T.border}`,
+                    borderLeft: `3px solid ${masteryColor(pct)}`, borderRadius: 10,
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>Art. {a ? Number(a.number) : "?"}{a ? ` — ${a.title}` : ""}</div>
-                      <div style={{ fontSize: 11, color: masteryColor(pct) }}>{t("progress.masteryPct", { pct })}</div>
+                      <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.text, lineHeight: 1.35 }}>
+                        Art. {a ? Number(a.number) : "?"}{a ? ` — ${a.title}` : ""}
+                      </div>
+                      <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: masteryColor(pct), marginTop: 5 }}>
+                        {pct}% MASTERY
+                      </div>
                     </div>
                     <button
                       onClick={() => navigate(`/quiz/${p.articleId}?count=10`)}
-                      style={{ padding: "7px 14px", background: T.red, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}
+                      style={{ padding: "0 14px", minHeight: 44, background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 6, fontFamily: T.font, fontWeight: 600, fontSize: 12, flexShrink: 0, cursor: "pointer" }}
                     >
                       {t("progress.drillNow")}
                     </button>
@@ -233,31 +251,35 @@ export default function ProgressPage() {
         )}
 
         {/* Mechanics mastery */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.mechanicsMastery")}</div>
-          <button
-            onClick={() => navigate("/study")}
-            style={{
-              width: "100%", padding: "12px 14px", textAlign: "left",
-              background: mechanicsMastery !== null ? masteryBg(mechanicsMastery) : T.bg,
-              border: `1px solid ${mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.border}`,
-              borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>🏀 {t("progress.crewPositioning")}</div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{t("progress.crewPositioningDesc")}</div>
+        <button
+          onClick={() => navigate("/study")}
+          style={{
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderLeft: `3px solid ${mechanicsMastery !== null ? masteryColor(mechanicsMastery) : fill.attention}`,
+            borderRadius: 10, padding: "13px 16px",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            cursor: "pointer", textAlign: "left",
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.text, lineHeight: 1.3 }}>
+              {t("progress.crewPositioning")}
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.muted }}>
-              {mechanicsMastery !== null ? `${mechanicsMastery}%` : "—"}
-            </span>
-          </button>
-        </div>
+            <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>
+              {t("progress.crewPositioningDesc")}
+            </div>
+          </div>
+          <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: mechanicsMastery !== null ? masteryColor(mechanicsMastery) : T.muted, flexShrink: 0 }}>
+            {mechanicsMastery !== null ? `${mechanicsMastery}%` : "—"}
+          </span>
+        </button>
 
         {/* Mastery grid */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("progress.articleMastery")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint, marginBottom: 12 }}>
+            {t("progress.articleMastery")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7 }}>
             {articles.map(a => {
               const p = progressByArticle[a.id];
               const started = !!p && Number(p.timesStudied) > 0;
@@ -268,18 +290,22 @@ export default function ProgressPage() {
                   onClick={() => navigate(`/quiz/${a.id}`)}
                   style={{
                     aspectRatio: "1", borderRadius: 8, display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center",
-                    background: pct !== null ? masteryBg(pct) : T.bg,
-                    border: `1px solid ${pct !== null ? masteryColor(pct) : T.border}`,
+                    alignItems: "center", justifyContent: "center", gap: 3,
+                    background: pct === null ? T.panel : T.surface,
+                    border: `1px solid ${pct === null ? T.hairline : masteryBorder(pct)}`,
+                    cursor: "pointer",
                   }}
                 >
-                  <span style={{ fontSize: 11, color: T.muted }}>{t("progress.artAbbrev", { number: Number(a.number) })}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: pct !== null ? masteryColor(pct) : T.muted }}>
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9, color: T.faint }}>A{Number(a.number)}</span>
+                  <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 15, color: pct !== null ? masteryColor(pct) : T.faint }}>
                     {pct !== null ? `${pct}%` : "—"}
                   </span>
                 </button>
               );
             })}
+          </div>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: T.faint, marginTop: 12, lineHeight: 1.5 }}>
+            GREEN ≥80% · AMBER ≥60% · RED BELOW · DASH NOT STARTED
           </div>
         </div>
       </div>
