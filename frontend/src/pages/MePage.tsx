@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { T, fill } from "../tokens";
+import { T, fill, setMode } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
@@ -134,8 +134,8 @@ function ProfileForm({
         disabled={submitting || !displayName.trim() || state.length !== 2}
         onClick={() => onSubmit({ displayName: displayName.trim(), sport, level, state, preferredLanguage })}
         style={{
-          padding: "13px 0", background: submitting ? T.border : T.navy, color: T.white,
-          borderRadius: 8, fontSize: 15, fontWeight: 700,
+          padding: "13px 0", background: submitting ? T.border : fill.accent, color: fill.onAccent,
+          border: 0, borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: submitting ? "default" : "pointer",
         }}
       >
         {submitting ? t("me.saving") : submitLabel}
@@ -663,6 +663,20 @@ export default function MePage() {
             </button>
           </div>
           {pushError && <div style={{ fontFamily: T.font, fontSize: 11, color: T.wrong }}>{pushError}</div>}
+
+          {/* Dark mode */}
+          <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13.5, color: T.text }}>{t("me.darkModeTitle")}</div>
+              <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>{t("me.darkModeDesc")}</div>
+            </div>
+            <button
+              onClick={() => { setMode(T.mode === "dark" ? "light" : "dark"); window.location.reload(); }}
+              style={{ width: 52, height: 30, borderRadius: 15, border: `1px solid ${T.mode === "dark" ? fill.accent : T.border}`, background: T.mode === "dark" ? fill.accent : T.surface, position: "relative", padding: 0, flexShrink: 0, cursor: "pointer" }}
+            >
+              <span style={{ position: "absolute", top: 3, left: T.mode === "dark" ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: T.mode === "dark" ? fill.onAccent : T.muted, display: "block", transition: "left 0.15s" }} />
+            </button>
+          </div>
         </div>
 
         {/* Sign out */}

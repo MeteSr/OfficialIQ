@@ -154,7 +154,7 @@ export function setMode(mode: Mode) {
  * `T.red` and friends exactly as before — no per-page changes required to
  * pick up the new palette.
  */
-export let T: Tokens = dark;
+export let T: Tokens = tokensFor(preferredMode());
 
 export function tokensFor(mode: Mode): Tokens {
   return mode === "light" ? light : dark;
