@@ -716,47 +716,98 @@
     "downloadForOffline": "Descargar audio para escuchar sin conexión"
   },
   "landing": {
-    "signIn": "Iniciar Sesión",
+    "wordmark": "OFFICIALIQ",
+    "betaTag": "BETA",
+    "navHowItWorks": "Cómo funciona",
+    "navAssociations": "Para asociaciones",
+    "navPricing": "Precios",
+    "signIn": "Iniciar sesión",
     "signingIn": "Iniciando sesión…",
     "signInFailed": "El inicio de sesión no se completó — inténtalo de nuevo.",
-    "heroTitle": "Domina las reglas. Gana cada jugada.",
-    "heroSubtitle": "La plataforma de estudio y certificación mobile-first para oficiales deportivos — artículos de reglas, jugadas del manual de casos, práctica adaptativa y exámenes clasificatorios, todo en un solo lugar.",
-    "heroCta": "Comenzar Gratis",
+    "startFree": "Empezar gratis",
+    "heroEyebrow": "BALONCESTO · TEMPORADA OTOÑO 2026",
+    "heroTitle": "Conoce la regla antes del silbato.",
+    "heroSubtitle": "OfficialIQ convierte el reglamento en diez minutos al día. Cuestionarios semanales sobre los artículos que cubre tu asociación, repetición espaciada sobre las jugadas que fallas y un simulador de examen completo antes de la certificación.",
+    "heroCtaSecondary": "Ver una semana de muestra",
     "heroCtaSub": "Inicia sesión de forma segura con Internet Identity — sin contraseña, sin correo electrónico.",
-    "mockGreeting": "Bienvenido de nuevo",
-    "mockStreak": "🔥 Racha de 14 días",
-    "mockArticle": "Art. {{number}} — Listo para estudiar",
+    "statOfficials": "2,400+",
+    "statOfficialsLabel": "OFICIALES ENTRENANDO",
+    "statAssociations": "31",
+    "statAssociationsLabel": "ASOCIACIONES",
+    "statSession": "9 min",
+    "statSessionLabel": "SESIÓN DIARIA PROMEDIO",
+    "mockBanner": "Partido vs Central · 7:00 PM",
+    "mockWeek": "Semana 6 · varsity",
+    "mockGreeting": "Buenas tardes, Dana",
+    "mockDoNext": "Hacer a continuación",
+    "mockArticle": "Art. 7 — Reglamento de tiempo",
+    "mockDrillCta": "Iniciar repaso de atraso",
+    "featuresTitle": "Una semana en la app",
+    "featuresSubtitle": "El calendario sigue el cronograma de reglas de tu asociación, así que lo que estudias es lo que se evaluará.",
     "feature": {
-      "study": {
-        "title": "Estudia Cada Regla",
-        "desc": "Artículos de reglas y jugadas del manual de casos completos, organizados por artículo según tu deporte y nivel."
+      "monday": {
+        "tag": "LUNES",
+        "title": "Llega el cuestionario semanal",
+        "desc": "Diez preguntas sobre los artículos de esta semana, cada una cronometrada. Cada respuesta revela la cita de la regla y cómo respondió el resto de tu asociación."
       },
-      "practice": {
-        "title": "Práctica que se Adapta",
-        "desc": "Ejercicios personalizados con IA y cuestionarios de repetición espaciada enfocados en tus puntos más débiles."
+      "midweek": {
+        "tag": "MITAD DE SEMANA",
+        "title": "Vuelven los fallos",
+        "desc": "Todo lo que respondiste mal regresa en un cronograma de repaso hasta que lo domines al 80%. Los artículos débiles aparecen en la pantalla de progreso con la brecha señalada."
       },
-      "exam": {
-        "title": "Presión de Examen Real",
-        "desc": "Exámenes cronometrados y una simulación completa de examen de certificación que reflejan el examen real."
-      },
-      "rank": {
-        "title": "Sigue tu Progreso",
-        "desc": "Clasificaciones basadas en ELO frente a amigos, tu estado y a nivel nacional — además de rachas y retos."
-      },
-      "mentor": {
-        "title": "Mentoría Incluida",
-        "desc": "Comparte resultados con un mentor o coordinador y recibe retroalimentación que realmente ayuda."
-      },
-      "anywhere": {
-        "title": "Estudia en Cualquier Lugar",
-        "desc": "El acceso sin conexión y la narración de audio te permiten estudiar en la cancha, en el auto o sin señal."
+      "gameNight": {
+        "tag": "NOCHE DE PARTIDO",
+        "title": "Un resumen previo al partido",
+        "desc": "Tu equipo, tu posición y las tres situaciones más probables de este enfrentamiento. El modo audio lo reproduce en el camino."
       }
     },
-    "sportsEyebrow": "DISEÑADO PARA CUALQUIER DEPORTE DESDE EL PRIMER DÍA",
-    "sportNcaa": "Baloncesto NCAA",
-    "sportComingSoon": "próximamente",
-    "ctaTitle": "¿Listo para mejorar tu juego?",
-    "ctaSubtitle": "Toma 30 segundos comenzar — sin formularios, sin contraseñas.",
+    "examEyebrow": "SIMULADOR DE EXAMEN",
+    "examTitle": "Llega a la certificación habiéndola presentado ya.",
+    "examDesc": "Cien preguntas bajo el reloj real, extraídas con la misma ponderación de artículos que el examen estatal. Obtienes un desglose de puntaje por artículo y un plan de estudio para lo que quedó corto.",
+    "examFeature": {
+      "full": { "label": "Examen cronometrado completo", "value": "100 P · 120 MIN" },
+      "breakdown": { "label": "Desglose por artículo", "value": "10 ARTÍCULOS" },
+      "threshold": { "label": "Seguimiento del umbral de aprobación", "value": "80%" }
+    },
+    "examCardEyebrow": "ÚLTIMO EXAMEN SIMULADO",
+    "examCardDate": "24 AGO",
+    "examCardScoreDesc": "86 de 100 · aprobado",
+    "associationsEyebrow": "PARA ASOCIACIONES Y COORDINADORES",
+    "associationsTitle": "Ve quién está listo antes de asignar el partido.",
+    "associationsDesc": "Publica tu calendario de reglas una vez y cada oficial de tu plantilla lo recibe. La vista del coordinador muestra participación, dominio por artículo y estado de certificación, para que las asignaciones y conversaciones de entrenamiento partan de los mismos números.",
+    "associationsCta": "Reservar una demostración",
+    "rosterOfficial": "OFICIAL",
+    "rosterWeek": "SEMANA 6",
+    "rosterMastery": "DOMINIO",
+    "rosterCert": "CERT.",
+    "rosterMore": "+ {{count}} MÁS EN ESTA PLANTILLA",
+    "pricingTitle": "Precios",
+    "pricing": {
+      "mostOfficials": "MÁS ELEGIDO",
+      "perMonth": "/ mes",
+      "rookie": {
+        "tag": "NOVATO",
+        "price": "Gratis",
+        "desc": "El cuestionario semanal, tu racha y tu progreso por artículo. Todo lo que necesitas para seguir el calendario de tu asociación.",
+        "cta": "Crear una cuenta"
+      },
+      "varsity": {
+        "tag": "VARSITY",
+        "price": "$8",
+        "desc": "Agrega el simulador de examen, ejercicios de repetición espaciada, revisión de clips de video, resúmenes previos al partido y modo audio para el camino.",
+        "cta": "14 días gratis"
+      },
+      "association": {
+        "tag": "ASOCIACIÓN",
+        "price": "A medida",
+        "desc": "Licencias para toda la plantilla, tu propio calendario de reglas, análisis para coordinadores e informes de certificación para la oficina estatal.",
+        "cta": "Hablar con nosotros"
+      }
+    },
+    "ctaTitle": "La temporada empieza en seis semanas. Empieza esta semana.",
+    "footerPrivacy": "Privacidad",
+    "footerTerms": "Términos",
+    "footerSupport": "Soporte",
     "footerCopyright": "© {{year}} OfficialIQ"
   }
 }

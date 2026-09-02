@@ -1,86 +1,38 @@
-import { useState, type SVGProps, type ReactElement } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { T } from "../tokens";
+import { T, fill } from "../tokens";
 import { useAuth } from "../contexts/AuthContext";
 
 // Unlike every other page, this one is NOT constrained to the app's
 // 430px mobile-shell width (see App.tsx) — it's the one surface meant to
 // be viewed on a real desktop browser by someone who hasn't signed in yet.
 // Still mobile-optimized: fluid grid/typography handle small viewports
-// without a separate mobile layout, plus a couple of real breakpoints
-// (via the injected <style> block, same pattern already used for the
-// print stylesheets in ReportCardPage/AssociationAnalyticsPage) for the
-// handful of layout decisions fluid CSS alone can't express.
+// without a separate mobile layout, plus real breakpoints (via the
+// injected <style> block, same pattern already used for the print
+// stylesheets in ReportCardPage/AssociationAnalyticsPage) for the layout
+// decisions fluid CSS alone can't express.
 
-// Hand-drawn line icons (no icon-library dependency, matching the rest of
-// the app's "no external UI framework" convention) — emoji read fine as
-// chrome inside the app itself, but too playful for a first-impression
-// marketing page. Same stroke style throughout: 24x24, currentColor,
-// 1.75px rounded strokes, built from plain primitives (rect/circle/line)
-// to keep them easy to hand-verify.
-function IconBase(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props} />
-  );
+// Illustrative-only figures — this page has no billing backend yet (see
+// the canister map in CLAUDE.md), so every CTA below routes to the same
+// Internet Identity sign-in, same as the rest of the marketing content.
+const LAST_EXAM_BREAKDOWN = [
+  { label: "Art. 4 — Definitions", pct: 94 },
+  { label: "Art. 9 — Violations", pct: 88 },
+  { label: "Art. 7 — Timing", pct: 71 },
+  { label: "Art. 10 — Fouls & penalties", pct: 58 },
+];
+
+const ROSTER_ROWS: { name: string; week: string; mastery: string; cert: "CURRENT" | "LAPSED" }[] = [
+  { name: "D. Whitfield", week: "10/10", mastery: "88%", cert: "CURRENT" },
+  { name: "M. Alvarez", week: "10/10", mastery: "84%", cert: "CURRENT" },
+  { name: "R. Okafor", week: "6/10", mastery: "71%", cert: "CURRENT" },
+  { name: "J. Behrens", week: "0/10", mastery: "54%", cert: "LAPSED" },
+  { name: "T. Nakamura", week: "9/10", mastery: "80%", cert: "CURRENT" },
+];
+
+function masteryBarColor(pct: number) {
+  return pct >= 80 ? fill.accent : pct >= 60 ? fill.attention : fill.wrong;
 }
-const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
-  study: (p) => (
-    <IconBase {...p}>
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <line x1="8" y1="8" x2="16" y2="8" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-      <line x1="8" y1="16" x2="13" y2="16" />
-    </IconBase>
-  ),
-  practice: (p) => (
-    <IconBase {...p}>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="4.5" />
-      <circle cx="12" cy="12" r="0.8" fill="currentColor" />
-    </IconBase>
-  ),
-  exam: (p) => (
-    <IconBase {...p}>
-      <circle cx="12" cy="13" r="8" />
-      <line x1="12" y1="13" x2="12" y2="8.5" />
-      <line x1="12" y1="13" x2="15" y2="15" />
-      <line x1="9.5" y1="2" x2="14.5" y2="2" />
-    </IconBase>
-  ),
-  rank: (p) => (
-    <IconBase {...p}>
-      <line x1="4" y1="21" x2="20" y2="21" />
-      <rect x="6" y="14" width="3.2" height="7" />
-      <rect x="10.4" y="9" width="3.2" height="12" />
-      <rect x="14.8" y="5" width="3.2" height="16" />
-    </IconBase>
-  ),
-  mentor: (p) => (
-    <IconBase {...p}>
-      <rect x="3" y="5" width="18" height="11" rx="2.5" />
-      <polygon points="8,16 8,20 12,16" fill="none" />
-      <line x1="7" y1="9" x2="17" y2="9" />
-      <line x1="7" y1="12.3" x2="14" y2="12.3" />
-    </IconBase>
-  ),
-  anywhere: (p) => (
-    <IconBase {...p}>
-      <path d="M4 14a8 8 0 0 1 16 0" />
-      <rect x="3" y="14" width="4" height="6" rx="1.5" />
-      <rect x="17" y="14" width="4" height="6" rx="1.5" />
-    </IconBase>
-  ),
-};
-
-const FEATURES = [
-  { key: "study" },
-  { key: "practice" },
-  { key: "exam" },
-  { key: "rank" },
-  { key: "mentor" },
-  { key: "anywhere" },
-] as const;
 
 export default function LandingPage() {
   const { t } = useTranslation();
@@ -103,93 +55,144 @@ export default function LandingPage() {
   return (
     <div style={{ background: T.bg, color: T.text, fontFamily: T.font }}>
       <style>{`
-        .landing-hero { display: flex; flex-direction: column; gap: 32px; }
-        .landing-hero-visual { display: none; }
-        @media (min-width: 860px) {
-          .landing-hero { flex-direction: row; align-items: center; gap: 48px; }
+        .landing-hero { display: flex; flex-direction: column; gap: 40px; }
+        .landing-hero-visual { display: flex; justify-content: center; }
+        .landing-nav-links { display: none; }
+        .landing-2col { display: flex; flex-direction: column; gap: 40px; }
+        .landing-grid-3 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+        @media (min-width: 720px) {
+          .landing-grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        }
+        @media (min-width: 900px) {
+          .landing-nav-links { display: flex; align-items: center; gap: 28px; }
+          .landing-hero { flex-direction: row; align-items: start; gap: 56px; }
           .landing-hero-copy { flex: 1; }
-          .landing-hero-visual { display: flex; flex: 1; justify-content: center; }
+          .landing-hero-visual { flex: none; }
+          .landing-2col { flex-direction: row; align-items: center; gap: 56px; }
+          .landing-2col > * { flex: 1; min-width: 0; }
         }
       `}</style>
 
-      {/* Header */}
-      <header style={{
+      {/* Nav */}
+      <nav style={{
         position: "sticky", top: 0, zIndex: 10,
-        background: T.navy, color: T.white,
+        background: T.bg, borderBottom: `1px solid ${T.hairline}`,
         padding: "16px 20px",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center", gap: 24,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: "50%",
-            border: `2px solid ${T.red}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16,
-          }}>🛡</div>
-          <span style={{ fontWeight: 700, fontSize: 18 }}>OfficialIQ</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 9, marginRight: "auto" }}>
+          <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, letterSpacing: "0.02em", color: T.text }}>
+            {t("landing.wordmark")}
+          </span>
+          <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9, letterSpacing: "0.14em", color: T.faint }}>
+            {t("landing.betaTag")}
+          </span>
+        </div>
+        <div className="landing-nav-links">
+          <a href="#features" style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.muted }}>{t("landing.navHowItWorks")}</a>
+          <a href="#associations" style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.muted }}>{t("landing.navAssociations")}</a>
+          <a href="#pricing" style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.muted }}>{t("landing.navPricing")}</a>
+          <button onClick={handleSignIn} disabled={signingIn} style={{ background: "transparent", border: 0, fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.muted, cursor: "pointer" }}>
+            {t("landing.signIn")}
+          </button>
         </div>
         <button
           onClick={handleSignIn}
           disabled={signingIn}
-          style={{
-            padding: "9px 18px", background: T.red, color: T.white,
-            borderRadius: 8, fontSize: 14, fontWeight: 700,
-            opacity: signingIn ? 0.7 : 1,
-          }}
+          style={{ background: fill.accent, color: fill.onAccent, fontFamily: T.font, fontWeight: 600, fontSize: 13.5, padding: "11px 18px", borderRadius: 8, border: 0, cursor: "pointer", opacity: signingIn ? 0.7 : 1, flexShrink: 0 }}
         >
-          {signingIn ? t("landing.signingIn") : t("landing.signIn")}
+          {signingIn ? t("landing.signingIn") : t("landing.startFree")}
         </button>
-      </header>
+      </nav>
 
       {/* Hero */}
-      <section style={{ maxWidth: 1080, margin: "0 auto", padding: "56px 20px 40px" }}>
+      <section style={{ maxWidth: 1240, margin: "0 auto", padding: "48px 20px 0" }}>
         <div className="landing-hero">
           <div className="landing-hero-copy">
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 9,
+              fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em",
+              color: fill.accent, border: `1px solid ${T.border}`, borderRadius: 100, padding: "8px 13px",
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: 3, background: fill.accent }} />
+              {t("landing.heroEyebrow")}
+            </div>
             <h1 style={{
-              fontSize: "clamp(30px, 5vw, 48px)", fontWeight: 700, lineHeight: 1.15,
-              marginBottom: 16, color: T.navy,
+              margin: "22px 0 0", fontFamily: T.fontCondensed, fontWeight: 700,
+              fontSize: "clamp(34px, 5.2vw, 64px)", lineHeight: 1, letterSpacing: "-0.01em",
+              color: T.text, maxWidth: "14ch",
             }}>
               {t("landing.heroTitle")}
             </h1>
-            <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: T.muted, lineHeight: 1.6, marginBottom: 28, maxWidth: 520 }}>
+            <p style={{ margin: "20px 0 0", fontFamily: T.font, fontSize: "clamp(15px, 1.6vw, 18px)", lineHeight: 1.6, color: T.muted, maxWidth: 540 }}>
               {t("landing.heroSubtitle")}
             </p>
-            <button
-              onClick={handleSignIn}
-              disabled={signingIn}
-              style={{
-                padding: "15px 32px", background: T.red, color: T.white,
-                borderRadius: 10, fontSize: 16, fontWeight: 700,
-                opacity: signingIn ? 0.7 : 1,
-              }}
-            >
-              {signingIn ? t("landing.signingIn") : t("landing.heroCta")}
-            </button>
-            <div style={{ fontSize: 13, color: T.faint, marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 12, marginTop: 28, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={handleSignIn}
+                disabled={signingIn}
+                style={{ background: fill.accent, color: fill.onAccent, fontFamily: T.font, fontWeight: 600, fontSize: 15, padding: "16px 26px", borderRadius: 9, border: 0, cursor: "pointer", opacity: signingIn ? 0.7 : 1 }}
+              >
+                {signingIn ? t("landing.signingIn") : t("landing.startFree")}
+              </button>
+              <a href="#features" style={{ border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 15, padding: "15px 24px", borderRadius: 9 }}>
+                {t("landing.heroCtaSecondary")}
+              </a>
+            </div>
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.faint, marginTop: 12 }}>
               {t("landing.heroCtaSub")}
             </div>
-            {error && <div style={{ fontSize: 13, color: T.wrong, marginTop: 10 }}>{error}</div>}
+            {error && <div style={{ fontFamily: T.font, fontSize: 13, color: T.wrong, marginTop: 10 }}>{error}</div>}
+
+            <div style={{ display: "flex", marginTop: 48, borderTop: `1px solid ${T.hairline}`, paddingTop: 20, maxWidth: 560 }}>
+              {[
+                [t("landing.statOfficials"), t("landing.statOfficialsLabel"), T.text],
+                [t("landing.statAssociations"), t("landing.statAssociationsLabel"), fill.accent],
+                [t("landing.statSession"), t("landing.statSessionLabel"), T.text],
+              ].map(([value, label, color], i) => (
+                <div key={label} style={{ flex: 1, borderLeft: i > 0 ? `1px solid ${T.hairline}` : "none", paddingLeft: i > 0 ? 20 : 0 }}>
+                  <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 30, color }}>{value}</div>
+                  <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 7 }}>{label}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Decorative phone mockup — CSS only, no image assets */}
+          {/* Decorative phone mockup — a static facsimile of the real /home
+              screen. No image assets; hardcoded illustrative data only. */}
           <div className="landing-hero-visual">
-            <div style={{
-              width: 220, borderRadius: 28, background: T.navy,
-              padding: "14px 10px", boxShadow: "0 24px 48px rgba(29,66,138,0.25)",
-            }}>
-              <div style={{ background: T.bg, borderRadius: 16, overflow: "hidden" }}>
-                <div style={{ background: T.navy, padding: "20px 14px 14px", color: T.white }}>
-                  <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>{t("landing.mockGreeting")}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>{t("landing.mockStreak")}</div>
+            <div style={{ width: 300, borderRadius: 28, overflow: "hidden", background: T.bg, border: `1px solid ${T.border}`, boxShadow: "0 32px 64px rgba(0,0,0,0.35)" }}>
+              <div style={{ background: T.panelAlt, color: T.text, padding: "14px 16px 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: T.font, fontWeight: 500, fontSize: 11.5 }}>
+                <span style={{ color: fill.attention, fontFamily: T.fontMono, fontWeight: 600, fontSize: 9, letterSpacing: "0.08em" }}>FRI</span>
+                {t("landing.mockBanner")}
+              </div>
+              <div style={{ padding: "16px 18px 18px", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9, letterSpacing: "0.13em", textTransform: "uppercase", color: T.faint }}>{t("landing.mockWeek")}</div>
+                <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 24, color: T.text, marginTop: 7 }}>{t("landing.mockGreeting")}</div>
+                <div style={{ display: "flex", marginTop: 16, borderTop: `1px solid ${T.hairline}`, paddingTop: 13 }}>
+                  <div style={{ flex: 1 }}><div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: T.text }}>14</div><div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 8.5, letterSpacing: "0.08em", color: T.faint, marginTop: 5 }}>DAY STREAK</div></div>
+                  <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 13 }}><div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: fill.accent }}>#47</div><div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 8.5, letterSpacing: "0.08em", color: T.faint, marginTop: 5 }}>STATE RANK</div></div>
+                  <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 13 }}><div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 20, color: T.text }}>84%</div><div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 8.5, letterSpacing: "0.08em", color: T.faint, marginTop: 5 }}>ACCURACY</div></div>
                 </div>
-                <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[1, 2, 3].map(i => (
-                    <div key={i} style={{
-                      background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
-                      padding: "10px 12px", fontSize: 11, color: T.muted,
-                    }}>
-                      {t("landing.mockArticle", { number: i })}
+              </div>
+              <div style={{ padding: 13, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "10px 13px", borderBottom: `1px solid ${T.hairline}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: T.faint }}>{t("landing.mockDoNext")}</span>
+                    <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 8.5, letterSpacing: "0.06em", color: T.wrong }}>1 OVERDUE</span>
+                  </div>
+                  <div style={{ padding: 13 }}>
+                    <div style={{ fontFamily: T.fontCondensed, fontWeight: 600, fontSize: 15, color: T.text }}>{t("landing.mockArticle")}</div>
+                    <div style={{ display: "flex", gap: 3, margin: "12px 0 0" }}>
+                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: fill.accent }} />
+                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: T.border }} />
                     </div>
+                    <div style={{ width: "100%", minHeight: 34, marginTop: 12, background: fill.accent, color: fill.onAccent, borderRadius: 7, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, lineHeight: "34px", textAlign: "center" }}>{t("landing.mockDrillCta")}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", background: T.panel, borderTop: `1px solid ${T.border}`, marginTop: 2, borderRadius: 8, overflow: "hidden" }}>
+                  {["HOME", "STUDY", "RANKS", "EXAM", "ME"].map((label, i) => (
+                    <div key={label} style={{ flex: 1, padding: "9px 0", textAlign: "center", borderTop: `2px solid ${i === 0 ? fill.accent : "transparent"}`, color: i === 0 ? T.text : T.faint, fontFamily: T.fontMono, fontWeight: i === 0 ? 600 : 500, fontSize: 7.5, letterSpacing: "0.08em" }}>{label}</div>
                   ))}
                 </div>
               </div>
@@ -198,83 +201,193 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
-      <section style={{ maxWidth: 1080, margin: "0 auto", padding: "24px 20px 56px" }}>
-        <div style={{
-          display: "grid", gap: 20,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        }}>
-          {FEATURES.map(f => (
-            <div key={f.key} style={{
-              background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14,
-              padding: "22px 20px",
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 10, marginBottom: 14,
-                background: T.bg, color: T.navy,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {ICONS[f.key]({})}
+      {/* A week in the app */}
+      <section id="features" style={{ maxWidth: 1240, margin: "0 auto", padding: "96px 20px 0" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "baseline", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, paddingBottom: 20 }}>
+          <h2 style={{ margin: 0, fontFamily: T.fontCondensed, fontWeight: 700, fontSize: "clamp(28px, 3.6vw, 40px)", letterSpacing: "-0.008em", color: T.text }}>
+            {t("landing.featuresTitle")}
+          </h2>
+          <span style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13, color: T.muted, maxWidth: "38ch" }}>
+            {t("landing.featuresSubtitle")}
+          </span>
+        </div>
+        <div className="landing-grid-3" style={{ marginTop: 1, background: T.hairline, borderBottom: `1px solid ${T.hairline}` }}>
+          {(["monday", "midweek", "gameNight"] as const).map((key, i) => (
+            <div key={key} style={{ background: T.bg, padding: "30px 26px 34px" }}>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em", color: i === 0 ? fill.accent : i === 1 ? fill.attention : T.faint }}>
+                {t(`landing.feature.${key}.tag`)}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-                {t(`landing.feature.${f.key}.title`)}
-              </div>
-              <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.55 }}>
-                {t(`landing.feature.${f.key}.desc`)}
-              </div>
+              <h3 style={{ margin: "14px 0 0", fontFamily: T.fontCondensed, fontWeight: 600, fontSize: 21, color: T.text }}>
+                {t(`landing.feature.${key}.title`)}
+              </h3>
+              <p style={{ margin: "10px 0 0", fontFamily: T.font, fontSize: 13.5, lineHeight: 1.6, color: T.muted }}>
+                {t(`landing.feature.${key}.desc`)}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Sports strip */}
-      <section style={{ background: T.navy, color: T.white, padding: "40px 20px" }}>
-        <div style={{ maxWidth: 1080, margin: "0 auto", textAlign: "center" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.6)", marginBottom: 14 }}>
-            {t("landing.sportsEyebrow")}
+      {/* Exam simulator */}
+      <section style={{ maxWidth: 1240, margin: "0 auto", padding: "88px 20px 0" }}>
+        <div className="landing-2col">
+          <div>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em", color: T.faint }}>{t("landing.examEyebrow")}</div>
+            <h2 style={{ margin: "16px 0 0", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: "clamp(26px, 3.6vw, 40px)", letterSpacing: "-0.008em", color: T.text, maxWidth: "16ch" }}>
+              {t("landing.examTitle")}
+            </h2>
+            <p style={{ margin: "16px 0 0", fontFamily: T.font, fontSize: 15.5, lineHeight: 1.65, color: T.muted, maxWidth: "50ch" }}>
+              {t("landing.examDesc")}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", marginTop: 28, maxWidth: 470 }}>
+              {(["full", "breakdown", "threshold"] as const).map((key, i, arr) => (
+                <div key={key} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0",
+                  borderTop: `1px solid ${T.border}`, borderBottom: i === arr.length - 1 ? `1px solid ${T.border}` : "none",
+                }}>
+                  <span style={{ fontFamily: T.font, fontWeight: 500, fontSize: 14, color: T.text }}>{t(`landing.examFeature.${key}.label`)}</span>
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 12.5, color: key === "threshold" ? fill.accent : T.muted }}>{t(`landing.examFeature.${key}.value`)}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
-            <span style={{ padding: "8px 16px", background: T.red, borderRadius: 20, fontSize: 13, fontWeight: 700 }}>
-              🏀 {t("landing.sportNcaa")}
-            </span>
-            {["🏀 FIBA Basketball", "⚽ FIFA Football", "🏉 World Rugby"].map(s => (
-              <span key={s} style={{
-                padding: "8px 16px", background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, fontSize: 13, fontWeight: 600,
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "26px 26px 30px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+              <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", color: T.faint }}>{t("landing.examCardEyebrow")}</span>
+              <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: T.faint }}>{t("landing.examCardDate")}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 16 }}>
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 52, color: fill.accent }}>86%</span>
+              <span style={{ fontFamily: T.font, fontSize: 13.5, color: T.muted }}>{t("landing.examCardScoreDesc")}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 13, marginTop: 24 }}>
+              {LAST_EXAM_BREAKDOWN.map(row => (
+                <div key={row.label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: T.font, fontWeight: 500, fontSize: 12.5, color: T.text, marginBottom: 6 }}>
+                    <span>{row.label}</span>
+                    <span style={{ fontFamily: T.fontMono, fontSize: 11.5, color: T.muted }}>{row.pct}%</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: T.border }}>
+                    <div style={{ width: `${row.pct}%`, height: 6, borderRadius: 3, background: masteryBarColor(row.pct) }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* For associations */}
+      <section id="associations" style={{ margin: "96px 0 0", padding: "64px 20px", background: T.panel, borderTop: `1px solid ${T.hairline}`, borderBottom: `1px solid ${T.hairline}` }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto" }}>
+          <div className="landing-2col" style={{ alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em", color: T.faint }}>{t("landing.associationsEyebrow")}</div>
+              <h2 style={{ margin: "16px 0 0", fontFamily: T.fontCondensed, fontWeight: 700, fontSize: "clamp(26px, 3.6vw, 40px)", letterSpacing: "-0.008em", color: T.text, maxWidth: "18ch" }}>
+                {t("landing.associationsTitle")}
+              </h2>
+              <p style={{ margin: "16px 0 0", fontFamily: T.font, fontSize: 15.5, lineHeight: 1.65, color: T.muted, maxWidth: "52ch" }}>
+                {t("landing.associationsDesc")}
+              </p>
+              <a href="#" style={{ display: "inline-block", marginTop: 24, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 15, padding: "15px 24px", borderRadius: 9 }}>
+                {t("landing.associationsCta")}
+              </a>
+            </div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", padding: "12px 18px", borderBottom: `1px solid ${T.border}`, fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.1em", color: T.faint }}>
+                <span>{t("landing.rosterOfficial")}</span><span>{t("landing.rosterWeek")}</span><span>{t("landing.rosterMastery")}</span><span>{t("landing.rosterCert")}</span>
+              </div>
+              {ROSTER_ROWS.map(r => (
+                <div key={r.name} style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr 1fr", alignItems: "center", padding: "13px 18px", borderBottom: `1px solid ${T.hairline}` }}>
+                  <span style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13, color: T.text }}>{r.name}</span>
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 12, color: r.week.startsWith("10") ? T.text : (r.cert === "LAPSED" ? T.wrong : T.muted) }}>{r.week}</span>
+                  <span style={{ fontFamily: T.fontCondensed, fontWeight: 600, fontSize: 14, color: T.text }}>{r.mastery}</span>
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.06em", color: r.cert === "LAPSED" ? T.wrong : T.faint }}>{r.cert}</span>
+                </div>
+              ))}
+              <div style={{ padding: "12px 18px", fontFamily: T.fontMono, fontWeight: 500, fontSize: 11, letterSpacing: "0.06em", color: T.faint }}>
+                {t("landing.rosterMore", { count: 38 })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" style={{ maxWidth: 1240, margin: "0 auto", padding: "88px 20px 0" }}>
+        <h2 style={{ margin: 0, fontFamily: T.fontCondensed, fontWeight: 700, fontSize: "clamp(28px, 3.6vw, 40px)", letterSpacing: "-0.008em", color: T.text }}>
+          {t("landing.pricingTitle")}
+        </h2>
+        <div className="landing-grid-3" style={{ marginTop: 28 }}>
+          {(["rookie", "varsity", "association"] as const).map((tier) => {
+            const featured = tier === "varsity";
+            return (
+              <div key={tier} style={{
+                border: `1px solid ${featured ? fill.accent : T.border}`, borderRadius: 14,
+                padding: "26px 24px 28px", display: "flex", flexDirection: "column", gap: 12,
+                background: featured ? T.surface : "transparent",
               }}>
-                {s} · {t("landing.sportComingSoon")}
-              </span>
-            ))}
-          </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em", color: featured ? fill.accent : T.faint }}>
+                    {t(`landing.pricing.${tier}.tag`)}
+                  </span>
+                  {featured && (
+                    <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9, letterSpacing: "0.08em", color: fill.onAccent, background: fill.accent, padding: "5px 8px", borderRadius: 5 }}>
+                      {t("landing.pricing.mostOfficials")}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                  <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 38, color: T.text }}>{t(`landing.pricing.${tier}.price`)}</span>
+                  {tier === "varsity" && <span style={{ fontFamily: T.font, fontSize: 13, color: T.faint }}>{t("landing.pricing.perMonth")}</span>}
+                </div>
+                <p style={{ margin: 0, fontFamily: T.font, fontSize: 13.5, lineHeight: 1.6, color: T.muted }}>
+                  {t(`landing.pricing.${tier}.desc`)}
+                </p>
+                <button
+                  onClick={handleSignIn}
+                  disabled={signingIn}
+                  style={{
+                    marginTop: "auto", textAlign: "center", border: featured ? 0 : `1px solid ${T.border}`,
+                    background: featured ? fill.accent : "transparent", color: featured ? fill.onAccent : T.text,
+                    fontFamily: T.font, fontWeight: 600, fontSize: 13.5, padding: "14px 0", borderRadius: 9,
+                    cursor: "pointer", opacity: signingIn ? 0.7 : 1,
+                  }}
+                >
+                  {t(`landing.pricing.${tier}.cta`)}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </section>
 
       {/* Final CTA */}
-      <section style={{ padding: "56px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: "clamp(22px, 3vw, 30px)", fontWeight: 700, marginBottom: 12, color: T.navy }}>
-          {t("landing.ctaTitle")}
+      <section style={{ maxWidth: 1240, margin: "0 auto", padding: "96px 20px 88px" }}>
+        <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 40, display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-end", justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0, fontFamily: T.fontCondensed, fontWeight: 700, fontSize: "clamp(28px, 4vw, 48px)", lineHeight: 1.05, letterSpacing: "-0.01em", color: T.text, maxWidth: "18ch" }}>
+            {t("landing.ctaTitle")}
+          </h2>
+          <button
+            onClick={handleSignIn}
+            disabled={signingIn}
+            style={{ flexShrink: 0, background: fill.accent, color: fill.onAccent, fontFamily: T.font, fontWeight: 600, fontSize: 15.5, padding: "17px 28px", borderRadius: 9, border: 0, cursor: "pointer", opacity: signingIn ? 0.7 : 1 }}
+          >
+            {signingIn ? t("landing.signingIn") : t("landing.startFree")}
+          </button>
         </div>
-        <div style={{ fontSize: 14, color: T.muted, marginBottom: 24 }}>
-          {t("landing.ctaSubtitle")}
-        </div>
-        <button
-          onClick={handleSignIn}
-          disabled={signingIn}
-          style={{
-            padding: "15px 36px", background: T.red, color: T.white,
-            borderRadius: 10, fontSize: 16, fontWeight: 700,
-            opacity: signingIn ? 0.7 : 1,
-          }}
-        >
-          {signingIn ? t("landing.signingIn") : t("landing.heroCta")}
-        </button>
       </section>
 
-      <footer style={{
-        padding: "20px 20px 32px", textAlign: "center",
-        fontSize: 12, color: T.faint,
-      }}>
-        {t("landing.footerCopyright", { year: new Date().getFullYear() })}
+      <footer style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 20px 40px", borderTop: `1px solid ${T.hairline}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24 }}>
+        <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 14, letterSpacing: "0.03em", color: T.muted, marginRight: "auto" }}>
+          {t("landing.wordmark")}
+        </span>
+        <a href="#" style={{ fontFamily: T.font, fontSize: 12.5, color: T.faint }}>{t("landing.footerPrivacy")}</a>
+        <a href="#" style={{ fontFamily: T.font, fontSize: 12.5, color: T.faint }}>{t("landing.footerTerms")}</a>
+        <a href="#" style={{ fontFamily: T.font, fontSize: 12.5, color: T.faint }}>{t("landing.footerSupport")}</a>
+        <span style={{ fontFamily: T.font, fontSize: 12.5, color: T.faint }}>
+          {t("landing.footerCopyright", { year: new Date().getFullYear() })}
+        </span>
       </footer>
 
       {/* Dev-only escape hatch — AuthContext skips auto-login when the URL

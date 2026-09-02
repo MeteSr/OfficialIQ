@@ -716,47 +716,98 @@
     "downloadForOffline": "Download audio for offline listening"
   },
   "landing": {
-    "signIn": "Sign In",
+    "wordmark": "OFFICIALIQ",
+    "betaTag": "BETA",
+    "navHowItWorks": "How it works",
+    "navAssociations": "For associations",
+    "navPricing": "Pricing",
+    "signIn": "Sign in",
     "signingIn": "Signing in…",
     "signInFailed": "Sign-in didn't go through — try again.",
-    "heroTitle": "Master the rules. Own every call.",
-    "heroSubtitle": "The mobile-first study and certification platform for sports officials — rule articles, casebook plays, adaptive drills, and ranked exams, all in one place.",
-    "heroCta": "Get Started Free",
+    "startFree": "Start free",
+    "heroEyebrow": "BASKETBALL · FALL 2026 SEASON",
+    "heroTitle": "Know the rule before the whistle.",
+    "heroSubtitle": "OfficialIQ turns the rulebook into ten minutes a day. Weekly quizzes on the articles your association is covering, spaced repetition on the calls you miss, and a full exam simulator before certification.",
+    "heroCtaSecondary": "See a sample week",
     "heroCtaSub": "Sign in securely with Internet Identity — no password, no email required.",
-    "mockGreeting": "Welcome back",
-    "mockStreak": "🔥 14-day streak",
-    "mockArticle": "Art. {{number}} — Ready to study",
+    "statOfficials": "2,400+",
+    "statOfficialsLabel": "OFFICIALS TRAINING",
+    "statAssociations": "31",
+    "statAssociationsLabel": "ASSOCIATIONS",
+    "statSession": "9 min",
+    "statSessionLabel": "MEDIAN DAILY SESSION",
+    "mockBanner": "Game vs Central · 7:00 PM",
+    "mockWeek": "Week 6 · varsity",
+    "mockGreeting": "Good evening, Dana",
+    "mockDoNext": "Do this next",
+    "mockArticle": "Art. 7 — Timing regulations",
+    "mockDrillCta": "Start catch-up drill",
+    "featuresTitle": "A week in the app",
+    "featuresSubtitle": "The schedule follows your association's rules calendar, so what you study is what you'll be tested and evaluated on.",
     "feature": {
-      "study": {
-        "title": "Study Every Rule",
-        "desc": "Full rule articles and casebook plays, organized by article and keyed to your sport and level."
+      "monday": {
+        "tag": "MONDAY",
+        "title": "The weekly quiz drops",
+        "desc": "Ten questions on this week's articles, each timed. Every answer reveals the rule citation and how the rest of your association answered it."
       },
-      "practice": {
-        "title": "Practice That Adapts",
-        "desc": "AI-personalized drills and spaced-repetition quizzes target exactly what you're weakest on."
+      "midweek": {
+        "tag": "MIDWEEK",
+        "title": "Misses come back",
+        "desc": "Anything you got wrong returns on a spacing schedule until you hold it at 80% mastery. Weak articles surface on the progress screen with the gap named."
       },
-      "exam": {
-        "title": "Real Exam Pressure",
-        "desc": "Timed exams and a full certification exam simulation mirror the real test."
-      },
-      "rank": {
-        "title": "Track Your Climb",
-        "desc": "ELO-based rankings against friends, your state, and nationally — plus streaks and challenges."
-      },
-      "mentor": {
-        "title": "Mentorship Built In",
-        "desc": "Share results with a mentor or coordinator and get feedback that actually sticks."
-      },
-      "anywhere": {
-        "title": "Study Anywhere",
-        "desc": "Offline access and audio narration mean you can study on the field, in the car, or with no signal."
+      "gameNight": {
+        "tag": "GAME NIGHT",
+        "title": "A pregame brief",
+        "desc": "Your crew, your position and the three situations most likely to come up in this matchup. Audio mode plays it on the drive."
       }
     },
-    "sportsEyebrow": "BUILT SPORT-AGNOSTIC FROM DAY ONE",
-    "sportNcaa": "NCAA Basketball",
-    "sportComingSoon": "coming soon",
-    "ctaTitle": "Ready to raise your game?",
-    "ctaSubtitle": "It takes 30 seconds to get started — no forms, no passwords.",
+    "examEyebrow": "EXAM SIMULATOR",
+    "examTitle": "Walk into certification having already taken it.",
+    "examDesc": "A hundred questions under the real clock, drawn from the same article weighting as the state exam. You get a score breakdown by article and a study plan for whatever fell short.",
+    "examFeature": {
+      "full": { "label": "Full-length timed exam", "value": "100 Q · 120 MIN" },
+      "breakdown": { "label": "Article-by-article breakdown", "value": "10 ARTICLES" },
+      "threshold": { "label": "Pass threshold tracking", "value": "80%" }
+    },
+    "examCardEyebrow": "LAST SIMULATED EXAM",
+    "examCardDate": "AUG 24",
+    "examCardScoreDesc": "86 of 100 · passing",
+    "associationsEyebrow": "FOR ASSOCIATIONS & COORDINATORS",
+    "associationsTitle": "See who is ready before you assign the game.",
+    "associationsDesc": "Publish your rules calendar once and every official on your roster gets it. The coordinator view shows participation, mastery by article and certification status, so assignments and training conversations start from the same numbers.",
+    "associationsCta": "Book a walkthrough",
+    "rosterOfficial": "OFFICIAL",
+    "rosterWeek": "WEEK 6",
+    "rosterMastery": "MASTERY",
+    "rosterCert": "CERT",
+    "rosterMore": "+ {{count}} MORE ON THIS ROSTER",
+    "pricingTitle": "Pricing",
+    "pricing": {
+      "mostOfficials": "MOST OFFICIALS",
+      "perMonth": "/ month",
+      "rookie": {
+        "tag": "ROOKIE",
+        "price": "Free",
+        "desc": "The weekly quiz, your streak and progress by article. Everything you need to keep up with your association's calendar.",
+        "cta": "Create an account"
+      },
+      "varsity": {
+        "tag": "VARSITY",
+        "price": "$8",
+        "desc": "Adds the exam simulator, spaced repetition drills, video clip review, pregame briefs and audio mode for the commute.",
+        "cta": "Start free for 14 days"
+      },
+      "association": {
+        "tag": "ASSOCIATION",
+        "price": "Custom",
+        "desc": "Roster-wide licences, your own rules calendar, coordinator analytics and certification reporting for the state office.",
+        "cta": "Talk to us"
+      }
+    },
+    "ctaTitle": "The season starts in six weeks. Start this week.",
+    "footerPrivacy": "Privacy",
+    "footerTerms": "Terms",
+    "footerSupport": "Support",
     "footerCopyright": "© {{year}} OfficialIQ"
   }
 }
