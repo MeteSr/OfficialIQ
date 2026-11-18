@@ -50,9 +50,12 @@ a PEM exported from dfx imports unchanged, with the same principal.
 icp-cli has no cycles wallet canister: deploys spend cycles straight from
 the deploying identity's **cycles-ledger balance** on mainnet, and staging
 and production share it (both are on the `ic` network). Each new canister
-takes the `--cycles` amount (default 2T) plus a 100M ledger fee, so a first
-deploy of all 11 canisters needs roughly 23T cycles per environment, plus a
-margin for top-ups.
+takes the `--cycles` amount (default 2T) plus the creation fee, so
+`scripts/check-cycles-balance.sh` (run by `deploy.sh` before anything
+else) requires a 1T floor plus 2.5T for every canister that doesn't exist
+yet: **~28.5T** for the first deploy of all 11 canisters per environment.
+Later upgrades only need the floor plus whatever the post-deploy top-up
+uses.
 
 ```bash
 icp identity account-id --identity ci-deploy          # send ICP here, then:
@@ -65,15 +68,15 @@ icp cycles balance -n ic --identity ci-deploy
 ```
 
 This is the actual funding step tracked in `BUSINESS.md` #7.
-`scripts/deploy.sh` refuses to start a mainnet deploy when the identity
-holds under 1T cycles, so there's no risk of a half-finished deploy from
-skipping this.
+`scripts/deploy.sh` refuses to start a mainnet deploy the identity can't
+pay for, so there's no risk of a half-finished deploy from skipping this.
 
 ### 3. Set repo secrets
 
 | Secret | Used by | Notes |
 |---|---|---|
-| `ICP_IDENTITY_PEM` | `deploy-staging.yml`, `deploy-production.yml`, `push-relay.yml` | PEM export from step 1 (`DFX_IDENTITY_PEM` still accepted) |
+| `ICP_IDENTITY_PEM` | `deploy-staging.yml`, `deploy-production.yml`, `cycle-watchdog.yml`, `push-relay.yml` | PEM export from step 1 (`DFX_IDENTITY_PEM` still accepted). Set it on the `staging` and `production` environments; until it's on `staging`, the staging deploy skips instead of failing |
+| `CI_PUSH_TOKEN` | the deploy workflows | Optional. Fine-grained PAT (this repo, Contents: read/write) used to push `.icp/data/mappings` and the `staging-*`/`mainnet-*` tags. Only needed if `main`'s branch protection blocks the default `GITHUB_TOKEN` |
 | `VAPID_PRIVATE_KEY` | `push-relay.yml` | `npx --prefix frontend web-push generate-vapid-keys` |
 | `VAPID_PUBLIC_KEY` | `push-relay.yml` | Same command; also build-injected as `VITE_VAPID_PUBLIC_KEY` (not secret) |
 | `VAPID_SUBJECT` | `push-relay.yml` | `mailto:` address for push service abuse contact |
@@ -83,7 +86,7 @@ skipping this.
 Both deploy workflows run under `environment: staging` / `environment: production`.
 Creating those environments in repo Settings → Environments lets you add
 required reviewers on `production` specifically, so a mainnet deploy needs a
-human approval click even though the tag-push trigger is automatic.
+second person's approval click on top of being started by hand.
 
 ### 5. Claim app-level admin
 
@@ -96,10 +99,47 @@ admin on first use — run them with the identity that deployed.
 
 ## Day-to-day usage
 
-- **Staging** deploys automatically on every push to `main` that touches
-  backend/frontend/build-config paths (`deploy-staging.yml`).
-- **Production** deploys only on a version tag push (`v*.*.*`) or manual
-  dispatch (`deploy-production.yml`) — never automatically from `main`.
+This follows the same pipeline shape as HomeGentic:
+
+```
+PR ──► CI (frontend tests + build, every canister type-checks and builds)
+   └─► Stable Compatibility (can every canister upgrade in place from main,
+                             and can existing clients still call it?)
+
+merge to main ──► CI ──► Deploy (staging)
+                          1. upgrade gate: stable-memory + Candid check against
+                             the build running on staging (newest staging-* tag)
+                          2. cycles pre-flight on the deploy identity
+                          3. create new canisters; then per backend canister:
+                             stop → snapshot → upgrade → start
+                          4. frontend; 90-day freezing threshold; auto top-up
+                          5. commit .icp/data/mappings (even on failure)
+                          6. smoke test, cycle health gate
+                          7. tag staging-YYYYMMDD-HHMMSS
+
+Actions → Deploy (production) → Run workflow on main
+                          same steps against ic, after a full CI run,
+                          tagged mainnet-YYYYMMDD-HHMMSS + a GitHub release
+
+hourly ──► Cycle Watchdog (ic): app answers, balances, top-up
+every 15 min ──► Push relay
+```
+
+- **Staging** deploys every commit on `main` once CI has passed on it
+  (`deploy-staging.yml`). It deploys the exact commit CI tested, not
+  whatever `main` points at by the time the deploy starts.
+- **Production** deploys only when someone runs `deploy-production.yml`
+  from the Actions tab on `main`. It re-runs CI first, so it can't ship a
+  commit whose tests fail. Every successful run tags the commit
+  `mainnet-YYYYMMDD-HHMMSS` and publishes a GitHub release with the merged
+  PRs since the previous one and each canister's module hash
+  (`scripts/ops/release-manifest.sh`).
+- **A deploy fails** (not just warns) if any canister isn't running or its
+  `metrics()` query doesn't answer afterwards (`scripts/smoke-deployed.sh`),
+  or if any canister is within 30 days of its freezing threshold or its
+  balance can't be read (`scripts/check-cycle-health.sh`). Neither failure
+  tags the commit, so a bad deploy never becomes the baseline for the next
+  upgrade check or a rollback target.
 - **Push relay** runs every 15 minutes against `ic` once secrets exist
   (`push-relay.yml`). Swap this for a different always-on host if that's
   what gets decided for `BUSINESS.md` #7 — the workflow is just one valid
@@ -109,12 +149,39 @@ Manual deploys work the same way locally once your default icp identity
 holds cycles:
 
 ```bash
-bash scripts/deploy.sh staging              # full deploy
-bash scripts/deploy.sh staging assets-only  # frontend-only fix, skips backend canisters
-bash scripts/check-cycles.sh staging        # remaining balance per canister
+bash scripts/deploy.sh staging               # full deploy
+bash scripts/deploy.sh staging assets-only   # frontend-only fix, skips backend canisters
+bash scripts/smoke-deployed.sh staging       # is everything up?
+bash scripts/check-cycle-health.sh staging   # balance + runway per canister (make cycles-staging)
+bash scripts/top-up-canisters.sh staging     # top up anything low (add --dry-run to just look)
 ```
 
-### How the frontend finds the canisters
+## Cycles: thresholds, top-ups and monitoring
+
+`deploy.sh` sets a **90-day freezing threshold** on every mainnet canister
+(the IC default is 30): a canister stops executing once its balance would
+last less than 90 more days idle, which leaves a long window to notice and
+top up before anything is actually lost. The thresholds in
+`scripts/lib/canisters.sh` are measured against that, using each
+canister's own idle burn rate from `icp canister status`:
+
+| Level | When | What happens |
+|---|---|---|
+| 🟡 top-up due | < 60 days of runway past the freezing threshold, or < 1T | `top-up-canisters.sh` adds cycles from the deploy identity up to 180 days of runway (at least 2T) |
+| 🔴 alert | < 30 days of runway, or < 0.5T | `check-cycle-health.sh` fails: the deploy fails, and the watchdog run fails |
+
+Top-ups run automatically after every deploy and every hour from
+`cycle-watchdog.yml`. A failed top-up after a deploy is a warning (the
+canisters are already upgraded); a failed watchdog run is the alert, and
+GitHub emails it to the repo's watchers. The watchdog checks `ic` on its
+schedule; run it by hand with `network: staging` for staging. It skips
+itself until the environment has committed canister IDs and
+`ICP_IDENTITY_PEM` is set.
+
+When a top-up fails, the deploy identity itself is low: fund it as in
+step 2 above, then run `bash scripts/top-up-canisters.sh ic`.
+
+## How the frontend finds the canisters
 
 `icp deploy` injects every canister's ID into every canister as
 `PUBLIC_CANISTER_ID:<name>`. The frontend canister (`@dfinity/static-site`,
@@ -143,35 +210,93 @@ this canister.
 Local canister IDs live under `.icp/cache/` (gitignored, regenerated per
 developer). Mainnet IDs (`staging`, `ic`) are written to
 `.icp/data/mappings/<environment>.ids.json`, which **must be committed** —
-it's the only record of which on-chain canister is which. The CI workflows
-commit it automatically after a staging deploy; production deploys only
-warn if it changed, since auto-pushing to `main` from a tag build is
-riskier than it's worth for a file that should only change once per new
-canister (see the workflow's comments).
+it's the only record of which on-chain canister is which.
+
+Both deploy workflows commit it to `main` after a deploy, **even when the
+deploy failed partway**: creating a canister is real and paid for the
+moment it happens, and an ID that isn't committed means the next deploy
+can't see that canister and creates (and pays for) another one.
+`scripts/commit-canister-ids.sh` commits on top of `main`'s current tip and
+only merges in the IDs this deploy recorded, so it's safe even when `main`
+moved during the deploy.
 
 ## Canister upgrades and rollback safety
 
-`icp deploy` upgrades existing canisters in place. All canister state
-survives upgrades because every canister is a `persistent actor` (enhanced
-orthogonal persistence — the only model in moc 2; see `CLAUDE.md`). Before
-deploying a change that **removes or changes the type of** a persistent
-field:
+`icp deploy` upgrades existing canisters in place, and every canister is a
+`persistent actor` (enhanced orthogonal persistence — the only model in
+moc 2), so all of its state survives an upgrade — **as long as the new
+stable types are compatible with the old ones.** If they aren't (the
+classic case: adding a field to a record that's stored in a `Map`, even an
+optional one), the upgrade traps with "Memory-incompatible program upgrade"
+and the only way forward is a reinstall that deletes the data. Three layers
+catch that, plus Candid breaks that would strand existing clients:
 
-1. icp-cli checks Candid interface compatibility before installing and
-   stops on a breaking change. Don't bypass it with `--yes` unless you have
-   confirmed the break is intended.
-2. If a state migration is genuinely needed, write it as an explicit
-   migration (see the `migrating-motoko-actors` ICP skill) — moc refuses an
-   upgrade that would silently drop data, but it's still worth rehearsing on
-   staging before production.
-3. The frontend can always be redeployed independently
-   (`scripts/deploy.sh <environment> assets-only`) without touching backend
-   canister state, for frontend-only fixes.
-4. Moving the frontend canister to a new **major** `@dfinity/static-site`
-   recipe version needs `icp canister install frontend --mode reinstall -e
-   <env>` and then `icp deploy` (it re-uploads every asset; no backend state
-   is affected). A patch bump just needs `--mode upgrade`. The sync step
-   tells you which when the versions mismatch.
+1. **On every PR** (`stable-compat.yml` → `scripts/ci/check-stable-compat.sh`):
+   compiles each canister at the PR's base and head with
+   `moc --stable-types --idl`, runs `moc --stable-compatible`, and compares
+   the Candid interfaces with `mops check-candid`. Run it locally with
+   `bash scripts/ci/check-stable-compat.sh origin/main` (`make stable-compat`).
+2. **Before every deploy** (the upgrade gate,
+   `scripts/ci/upgrade-from-deployed.sh`): the same check, but from the
+   commit actually running on the network (the newest `staging-*` /
+   `mainnet-*` tag). Production can be many merges behind staging, and this
+   is the comparison that matters.
+3. **During the deploy**: icp-cli checks Candid compatibility again before
+   installing, and each existing canister is stopped, snapshotted, upgraded
+   and started again. A canister whose upgrade is refused is started again
+   on its old code, the rest carry on, and the deploy fails without touching
+   the frontend.
+
+To keep stable state compatible, store new data in a new stable `Map`/`var`
+rather than changing a stored type, or write an explicit migration (the
+`migrating-motoko-actors` ICP skill). If a break is genuinely intended,
+label the PR `allow-stable-break` (data will be lost: say which) or
+`allow-candid-break` (every client updated in the same deploy), and deploy
+with the workflow's `allow_upgrade_break` input.
+
+The frontend can always be redeployed independently
+(`scripts/deploy.sh <environment> assets-only`) without touching backend
+canister state, for frontend-only fixes. Moving it to a new **major**
+`@dfinity/static-site` recipe version needs `icp canister install frontend
+--mode reinstall -e <env>` and then `icp deploy` (it re-uploads every
+asset; no backend state is affected). A patch bump just needs
+`--mode upgrade`. The sync step tells you which when the versions mismatch.
+
+### Rolling back
+
+Every backend canister holds one snapshot: its state from just before the
+last deploy upgraded it (`deploy.sh` replaces the previous one each time
+and prints the IDs at the end).
+
+**Option A — restore the pre-upgrade snapshot (code and data).** For an
+upgrade that broke a canister or corrupted its data. Anything written since
+the upgrade is lost.
+
+```bash
+icp canister snapshot list user -e ic
+icp canister stop user -e ic
+icp canister snapshot restore user <snapshot-id> -e ic
+icp canister start user -e ic
+```
+
+**Option B — redeploy the previous code (keeps current data).** Every
+successful production deploy is tagged (`git tag -l 'mainnet-*'`):
+
+```bash
+git checkout <last good mainnet-* tag>
+bash scripts/ci/check-stable-compat.sh main      # can the old code read today's data?
+SKIP_SNAPSHOTS=1 bash scripts/deploy.sh ic       # keeps Option A's snapshot intact
+```
+
+Rolling back is itself an upgrade: it only works if the old types can
+accept the data as the new version left it. If the new version only added
+stable vars, it usually can. If it can't, use Option A or fix forward.
+
+**A deploy that failed part-way.** `deploy.sh` keeps going after one
+canister's upgrade fails and exits non-zero, so the others are on the new
+code and the failed one on the old. Fix it and re-run (already-upgraded
+canisters just upgrade to the same code), or restore the ones that did
+upgrade with Option A if the mix of versions breaks the app meanwhile.
 
 ## Deploying without GitHub
 
@@ -198,7 +323,8 @@ anything beyond icp-cli itself (`npm install -g @icp-sdk/icp-cli
 ```bash
 icp identity default ci-deploy   # or whichever identity holds the cycles
 bash scripts/deploy.sh staging   # or: ic
-bash scripts/check-cycles.sh staging
+bash scripts/smoke-deployed.sh staging
+bash scripts/check-cycle-health.sh staging
 ```
 
 The identity's private key stays in your OS keyring (icp-cli's default
@@ -234,7 +360,9 @@ working pipeline without writing provider-specific YAML at all.
 
 `.gitlab-ci.yml` at the repo root mirrors the two GitHub workflows
 (`deploy-staging` on push to `main`, `deploy-production` manually-gated on
-a version tag) plus a `push-relay` job meant to run off a GitLab **Scheduled
+a version tag; the GitHub workflows have since moved production to a manual
+run on `main` and added the upgrade gate, smoke test and cycle checks, which
+the GitLab file doesn't mirror yet) plus a `push-relay` job meant to run off a GitLab **Scheduled
 Pipeline** (CI/CD → Schedules in the GitLab UI — GitLab doesn't read cron
 syntax from the YAML itself the way GitHub Actions does). Set the same
 `ICP_IDENTITY_PEM`/`VAPID_*` values as masked, protected CI/CD variables
@@ -325,3 +453,9 @@ icp-cli is moving fast. `tools/package.json` pins the versions CI uses
 (Dependabot proposes upgrades), and the weekly **ICP freshness** workflow
 flags newer recipe, compiler and Motoko package releases. When in doubt,
 `icp <command> --help` is authoritative — icp-cli's flags are not dfx's.
+
+The deploy scripts were rehearsed end to end with icp-cli 1.8.0 against a
+local network configured as a separate environment (so the mainnet code
+paths ran): a first deploy of all 11 canisters, two upgrades with data
+kept, a refused stable-incompatible upgrade, a snapshot restore, top-ups,
+and the pre-flight, health and smoke checks.

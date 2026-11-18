@@ -2,61 +2,149 @@ name: Deploy (staging)
 
 # Staging is a second canister set on IC mainnet (icp.yaml's "staging"
 # environment) — ICP has no separate public testnet, so this is the closest
-# real-network equivalent. Runs automatically on every push to main so
-# staging always reflects the latest merged code.
+# real-network equivalent. Deploys every commit on main once CI has passed on
+# it, so staging always runs the latest merged code and is where each upgrade
+# is exercised before production sees it.
 #
-# Requires repo secrets (none of this runs until they're set — see
-# docs/DEPLOYMENT.md):
-#   ICP_IDENTITY_PEM  — PEM-encoded identity whose cycles-ledger balance pays
-#                       for staging (the old DFX_IDENTITY_PEM name works too)
+# Secrets on the `staging` environment (docs/DEPLOYMENT.md):
+#   ICP_IDENTITY_PEM  — PEM of the deploy identity, whose cycles-ledger balance
+#                       pays for staging (the old DFX_IDENTITY_PEM name works too)
+#   CI_PUSH_TOKEN     — optional fine-grained PAT (Contents: read/write) for
+#                       pushing the canister ID mappings and the staging-* tag
+#                       when main's branch protection blocks GITHUB_TOKEN
+# Until the identity is set the deploy job is skipped, not failed.
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
     branches: [main]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "icp.yaml"
-      - "mops.toml"
-      - "mops.lock"
-      - "tools/**"
-      - "scripts/deploy.sh"
-      - "scripts/check-cycles.sh"
-      - ".github/workflows/deploy-staging.yml"
-  workflow_dispatch: {}
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      allow_upgrade_break:
+        description: "Deploy even if upgrading from the deployed build breaks stable memory or Candid (a planned reinstall or interface break)"
+        required: false
+        default: false
+        type: boolean
 
+# One staging deploy at a time. Queue, don't cancel, so a deploy is never
+# killed halfway through an upgrade.
 concurrency:
   group: deploy-staging
   cancel-in-progress: false
 
 permissions:
-  contents: write   # needed to commit updated .icp/data/mappings
+  contents: read
 
 jobs:
-  deploy:
+  upgrade-gate:
+    name: Upgrade from the deployed build
+    # The upgrade this deploy is about to run: from the build running on
+    # staging (the newest staging-* tag) to this commit. No secrets.
+    # workflow_run only for a successful CI *push* run in this repo: the
+    # branches filter matches head_branch, so without the event/repo check a
+    # fork PR from a branch named main would trigger a deploy.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run checks out main's tip by default, which may be newer
+          # than the commit CI passed on. Deploy exactly that commit.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+      - name: Stable-memory and Candid check against the deployed build
+        run: bash scripts/ci/upgrade-from-deployed.sh staging
+        env:
+          ALLOW_STABLE_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
+          ALLOW_CANDID_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
+
+  deploy:
+    needs: upgrade-gate
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: write   # mappings commit + staging-* tag (when CI_PUSH_TOKEN is unset)
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      HAS_IDENTITY: ${{ secrets.ICP_IDENTITY_PEM != '' || secrets.DFX_IDENTITY_PEM != '' }}
+    steps:
+      - name: Skip until the deploy identity is configured
+        if: env.HAS_IDENTITY != 'true'
+        run: echo "::notice::ICP_IDENTITY_PEM is not set on the staging environment — skipping (docs/DEPLOYMENT.md)."
+
+      # persist-credentials: false keeps any token out of .git/config while
+      # npm and deploy.sh run; the push token is only handed to the steps
+      # that push.
+      - uses: actions/checkout@v4
+        if: env.HAS_IDENTITY == 'true'
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
+        if: env.HAS_IDENTITY == 'true'
         with:
           node-version: "22"
 
       - name: Install icp-cli, ic-wasm and mops
+        if: env.HAS_IDENTITY == 'true'
         run: bash scripts/install-icp.sh
 
       - name: Import CI identity
+        if: env.HAS_IDENTITY == 'true'
         run: bash scripts/import-identity.sh
         env:
-          # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
           ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Deploy to staging
+        # Cycles pre-flight first, a snapshot of each canister before it's
+        # upgraded, a top-up of low canisters afterwards (scripts/deploy.sh).
+        id: deploy
+        if: env.HAS_IDENTITY == 'true'
         run: bash scripts/deploy.sh staging
 
-      - name: Commit canister ID mappings if they changed
+      - name: Commit canister ID mappings
+        # Must run even when the deploy failed partway: a created canister is
+        # real and paid for, and an uncommitted ID means the next deploy
+        # creates (and pays for) another one.
+        if: always() && env.HAS_IDENTITY == 'true' && steps.deploy.outcome != 'skipped'
         run: bash scripts/commit-canister-ids.sh main
         env:
+          PUSH_TOKEN: ${{ secrets.CI_PUSH_TOKEN || github.token }}
           GIT_AUTHOR_NAME: "github-actions[bot]"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+
+      - name: Post-deploy smoke test
+        # Every canister running, every backend answering metrics(), the
+        # frontend serving the app.
+        if: env.HAS_IDENTITY == 'true'
+        run: bash scripts/smoke-deployed.sh staging
+
+      - name: Post-deploy cycle health gate
+        # Fails the deploy if any canister is within 30 days of its freezing
+        # threshold, or its balance can't be read.
+        if: env.HAS_IDENTITY == 'true'
+        run: bash scripts/check-cycle-health.sh staging
+
+      - name: Tag the deployed commit
+        # The next deploy's upgrade gate compares against this build. Only
+        # after the smoke test, so a broken deploy is never the baseline.
+        if: success() && env.HAS_IDENTITY == 'true'
+        env:
+          PUSH_TOKEN: ${{ secrets.CI_PUSH_TOKEN || github.token }}
+        run: |
+          TAG="staging-$(date -u +%Y%m%d-%H%M%S)"
+          git tag "$TAG" "$DEPLOY_SHA"
+          git -c core.hooksPath=/dev/null push \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"
+          echo "Deployed $DEPLOY_SHA to staging, tagged $TAG" >> "$GITHUB_STEP_SUMMARY"

@@ -64,7 +64,7 @@ canisters:
         # `ic_env` cookie (the Capacitor Android app, service worker).
         presync:
           # `vite build`, not `npm run build`: tsc still fails on known
-          # unused-variable errors (see .github/workflows/frontend-ci.yml).
+          # unused-variable errors (see .github/workflows/ci.yml).
           - cd frontend && npm ci && npx vite build
 
 networks:

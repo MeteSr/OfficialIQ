@@ -1,0 +1,79 @@
+name: CI
+
+# The gate everything else waits on: frontend unit tests + bundle, and every
+# backend canister type-checking and building. Runs on pull requests, on every push to main
+# (deploy-staging.yml deploys only after this passes there), and as the
+# pre-deploy test gate of deploy-production.yml (workflow_call).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  # workflow_call runs inherit the caller's ref; give them their own group so a
+  # production deploy's test gate never cancels (or is cancelled by) a push run.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend tests + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # `npm run build` also runs `tsc`, which currently fails on unrelated
+      # unused-variable errors in MePage / RuleAssistantPage /
+      # ScenarioGeneratorPage. Bundle with Vite directly until those are
+      # cleaned up, then switch this step to `npm run build`.
+      - name: Build
+        run: npx vite build
+
+  backend:
+    name: Backend canisters build
+    # Type-checks and builds every Motoko canister with the pinned toolchain
+    # (mops.toml / tools/package.json), so a moc/core/recipe bump that breaks
+    # the build is caught before it reaches staging.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        run: mops install --locked
+
+      - name: Type-check canisters
+        run: mops check --no-lint
+
+      - name: Build canisters
+        run: |
+          source scripts/lib/canisters.sh
+          icp build "${BACKEND_CANISTERS[@]}"
+        env:
+          DO_NOT_TRACK: "1"

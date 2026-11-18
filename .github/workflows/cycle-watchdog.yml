@@ -1,0 +1,119 @@
+name: Cycle Watchdog
+
+# Hourly: checks the app answers, reads every canister's cycle balance, tops
+# up the ones near their freezing threshold, and fails the run (which GitHub
+# emails to the repo's watchers) when anything is wrong. Thresholds live in
+# scripts/lib/canisters.sh.
+#
+# Scheduled runs check production (`ic`). Run it by hand with network=staging
+# to check staging; that run uses the staging environment's secrets.
+# Does nothing (and passes) until the environment has been deployed and has
+# ICP_IDENTITY_PEM.
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # hourly, off the top of the hour
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Environment to check"
+        required: false
+        default: ic
+        type: choice
+        options: [ic, staging]
+      dry_run:
+        description: "Dry run — report only, no top-up"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network == 'staging' && 'staging' || 'production' }}
+    # Holds a controller identity and runs the ref's own scripts — only ever
+    # from main (schedules use the default branch).
+    if: github.ref == 'refs/heads/main'
+    env:
+      NETWORK: ${{ inputs.network || 'ic' }}
+      HAS_IDENTITY: ${{ secrets.ICP_IDENTITY_PEM != '' || secrets.DFX_IDENTITY_PEM != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is there anything to watch?
+        id: gate
+        run: |
+          F=".icp/data/mappings/$NETWORK.ids.json"
+          ASSETS_ID=$(python3 -c "import json,os,sys; print(json.load(open(sys.argv[1])).get('frontend','') if os.path.exists(sys.argv[1]) else '')" "$F")
+          if [ "$HAS_IDENTITY" != "true" ] || [ -z "$ASSETS_ID" ]; then
+            echo "::notice::Nothing deployed on $NETWORK yet, or ICP_IDENTITY_PEM not set — skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "assets=$ASSETS_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        if: steps.gate.outputs.run == 'true'
+        run: bash scripts/install-icp.sh
+
+      - name: Import CI identity
+        if: steps.gate.outputs.run == 'true'
+        run: bash scripts/import-identity.sh
+        env:
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
+
+      - name: Check the app answers
+        id: uptime
+        if: steps.gate.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          URL: https://${{ steps.gate.outputs.assets }}.icp0.io/
+        run: |
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$URL" || echo 000)
+          echo "Frontend $URL → $CODE"
+          [ "$CODE" = "200" ]
+
+      - name: Check cycle balances
+        id: health
+        if: steps.gate.outputs.run == 'true'
+        continue-on-error: true
+        run: |
+          set -o pipefail   # without it, tee's exit status hides a failed check
+          bash scripts/check-cycle-health.sh "$NETWORK" 2>&1 | tee cycle-health.log
+
+      - name: Top up low canisters
+        id: topup
+        if: steps.gate.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          set -o pipefail
+          bash scripts/top-up-canisters.sh "$NETWORK" $DRY_RUN 2>&1 | tee top-up.log
+
+      - name: Post summary
+        if: always() && steps.gate.outputs.run == 'true'
+        run: |
+          {
+            echo "## Cycle Watchdog ($NETWORK)"
+            echo "Uptime: ${{ steps.uptime.outcome }} · Cycles: ${{ steps.health.outcome }} · Top-up: ${{ steps.topup.outcome }}"
+            echo '```'
+            cat cycle-health.log top-up.log 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail the run when anything is wrong
+        # A failed scheduled run is what alerts: GitHub notifies on it.
+        if: steps.uptime.outcome == 'failure' || steps.health.outcome == 'failure' || steps.topup.outcome == 'failure'
+        run: |
+          echo "::error::Watchdog ($NETWORK): uptime=${{ steps.uptime.outcome }} cycles=${{ steps.health.outcome }} top-up=${{ steps.topup.outcome }}"
+          exit 1
