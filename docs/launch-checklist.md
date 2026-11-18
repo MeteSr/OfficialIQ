@@ -13,7 +13,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 2. **Mete:** confirm the rights to the NCAA rules content, or replace it with licensed text. The seed data says it was written from scratch for development (`frontend/scripts/seedData.mjs`, issue #1).
 3. **Mete + Claude:** run the staging smoke test (ranked quiz, cert exam, challenge) once staging is up.
 4. **Mete:** set up the production accounts and keys: a spend-capped Anthropic key, VAPID keys and the push relay identity.
-5. **Mete + Claude:** ship Android and iOS. Mete opens the Apple and Google developer accounts; Claude adds the iOS project, fixes sign-in inside the app, and builds the release workflows (§7).
+5. **Mete:** ship Android and iOS. The iOS project, in-app sign-in and release workflows are built (§7); what's left is the Apple and Google accounts and the secrets listed in `docs/MOBILE.md`, then a sign-in test on a real phone.
 
 ## 1. Features
 
@@ -106,34 +106,35 @@ Known gaps from the security audit (#51) that Mete accepted: practice mode still
 
 ## 7. Mobile (Android and iOS are part of the launch)
 
-The apps wrap the same React build with Capacitor (`frontend/capacitor.config.ts`, app ID `app.officialiq.study`). There is no separate native codebase.
+The apps wrap the same React build with Capacitor (`frontend/capacitor.config.ts`, app ID `app.officialiq.study`). There is no separate native codebase. Setup steps and every secret: `docs/MOBILE.md`.
 
 | Item | Status | Owner |
 |---|---|---|
-| Android project (`frontend/android`) | Ready in code; never built in CI | Claude |
-| iOS project (`frontend/ios`) | **Missing**: add `@capacitor/ios` and generate it with `npx cap add ios` (no Mac needed to generate, only to build) | Claude |
-| Sign-in inside the app: Internet Identity opens a pop-up window and returns by `postMessage`, which an app web view doesn't support | **Not ready, likely blocker**: needs a native flow (system browser plus a deep link back into the app). Verify on a device first | Claude |
-| Canister IDs baked into the app at build time (the app gets no `ic_env` cookie) | Not ready: needs mainnet IDs, so it waits for the first production deploy | Claude |
-| Android build and signing in GitHub Actions: Gradle builds a signed release bundle (`.aab`) and uploads it to Play's internal testing track | Not ready | Claude (workflow), Mete (secrets below) |
-| iOS build and signing in GitHub Actions: a macOS runner builds with Xcode, signs with fastlane, uploads to TestFlight | Not ready | Claude (workflow), Mete (secrets below) |
+| Android project (`frontend/android`) | Ready: built on every frontend PR (`mobile-ci.yml`) | Claude |
+| iOS project (`frontend/ios`) | Ready: added, built for the simulator on GitHub's macOS runners on every frontend PR (`mobile-ci.yml`) | Claude |
+| Sign-in inside the app: Internet Identity opens a pop-up window and returns by `postMessage`, which an app web view doesn't support | Ready in code: II's redirect transport (ICRC-167) through the system browser, returning on a verified App Link / associated domain (`src/lib/nativeAuth.ts`). Same principal as the website. **Not yet tested on a phone**: needs production, the team ID and signing fingerprints (`docs/MOBILE.md`) | Claude (built), Mete (device test) |
+| Canister IDs baked into the app at build time (the app gets no `ic_env` cookie) | Ready in code: the release workflow builds against `.icp/data/mappings/ic.ids.json`, so it waits for the first production deploy | Claude (automatic) |
+| Android build and signing in GitHub Actions: Gradle builds a signed release bundle (`.aab`) and uploads it to Play's internal testing track | Ready in code (`mobile-release.yml`); skips until the secrets exist. The first bundle goes up by hand from the run's artifact | Claude (workflow), Mete (secrets below) |
+| iOS build and signing in GitHub Actions: a macOS runner archives with Xcode's automatic (cloud-managed) signing and uploads to TestFlight. No fastlane or certificate repo needed | Ready in code (`mobile-release.yml`); skips until the secrets exist | Claude (workflow), Mete (secrets below) |
 | Google Play developer account ($25 one-time) | Not ready | Mete |
 | Apple Developer Program ($99/yr) | Not ready | Mete |
-| Android upload keystore, and its passwords as repo secrets (Claude can generate it in a workflow if you prefer) | Not ready | Mete |
-| Play service-account JSON for uploads, as a repo secret | Not ready | Mete |
-| App Store Connect API key (issuer ID, key ID, `.p8`) as repo secrets; fastlane match manages certificates and profiles from it | Not ready | Mete |
+| Android upload keystore and its passwords as repo secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`); one `keytool` command in `docs/MOBILE.md` | Not ready | Mete |
+| Play service-account JSON for uploads (`PLAY_SERVICE_ACCOUNT_JSON`), and both SHA-256 fingerprints from Play's App integrity page as the `ANDROID_CERT_SHA256` variable (for the App Link) | Not ready | Mete |
+| App Store Connect API key with the Admin role (`APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_P8`), the `APPLE_TEAM_ID` variable, and the app record for `app.officialiq.study` | Not ready | Mete |
 | Native push: Firebase project (`google-services.json`) for Android, APNs key for iOS. The relay currently skips native tokens (`send-pending-push.mjs`) | Not ready: Mete creates the accounts, Claude wires the sending | Mete, Claude |
 | App icons and splash screens for both platforms | Not ready: Claude can generate them from one source image with `@capacitor/assets` | Mete (source art), Claude |
 | Store listings: description, screenshots, privacy policy URL, Play data-safety form, App Store privacy labels, push permission reason | Not ready | Mete (text, forms), Claude (screenshots, draft copy) |
 | Apple review risk: apps that only wrap a website can be rejected (guideline 4.2). Offline study, native push and share help make the case | Watch | Mete |
-| Version numbering: `versionCode` / build number bumped by the release workflow | Not ready | Claude |
+| Version numbering: `versionCode` / build number bumped by the release workflow | Ready: the run number, with the version name as a workflow input | Claude |
 
-HomeGentic's mobile pipeline is built on Expo/EAS, which doesn't apply to Capacitor. Its shape (CI builds, internal track and TestFlight first, manual promotion to production) still carries over.
+HomeGentic's mobile pipeline is built on Expo/EAS, which doesn't apply to Capacitor. Its shape carries over: CI builds on every PR, a release workflow that skips until secrets exist, internal track and TestFlight first, manual promotion to production.
 
 ## 8. Launch-day checks
 
 Once staging is up, run these on staging, then again on production after the manual deploy:
 
 - [ ] Sign in, pick sport and level, profile saves (Mete)
+- [ ] Sign in on the Android and iOS test builds (Play internal testing, TestFlight); the principal matches the website's (Mete)
 - [ ] Ranked quiz: questions vary between attempts, result shows on the leaderboard (Mete)
 - [ ] Cert exam: graded on the canister, appears in exam history (Mete)
 - [ ] Challenge: send, accept, result within the 72h window (Mete, needs two accounts)

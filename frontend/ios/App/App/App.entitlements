@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Internet Identity returns native sign-in to https://$(APP_LINK_HOST)/native-callback
+	     (src/lib/nativeAuth.ts). applinks: lets the OS hand that link to the app;
+	     webcredentials: lets ASWebAuthenticationSession accept it as an https
+	     callback. Both are verified against the origin's
+	     /.well-known/apple-app-site-association. APP_LINK_HOST is a build setting
+	     (localhost by default; the release workflow passes the real host). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:$(APP_LINK_HOST)</string>
+		<string>webcredentials:$(APP_LINK_HOST)</string>
+	</array>
+</dict>
+</plist>

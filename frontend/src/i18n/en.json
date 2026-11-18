@@ -1034,5 +1034,10 @@
     "title": "Something went wrong",
     "body": "This screen hit an error. Your progress is saved. Try again, or go back to Home.",
     "goHome": "Back to Home"
+  },
+  "nativeCallback": {
+    "title": "Finish signing in in the app",
+    "body": "This page finishes signing in to the OfficialIQ app on your phone. If you can see it, the app didn't open: go back to OfficialIQ and tap Sign in again.",
+    "web": "Using OfficialIQ in a browser? Continue here."
   }
 }

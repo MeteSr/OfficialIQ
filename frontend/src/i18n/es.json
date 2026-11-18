@@ -1034,5 +1034,10 @@
     "title": "Algo salió mal",
     "body": "Esta pantalla tuvo un error. Tu progreso está guardado. Inténtalo de nuevo o vuelve al inicio.",
     "goHome": "Volver al inicio"
+  },
+  "nativeCallback": {
+    "title": "Termina de iniciar sesión en la app",
+    "body": "Esta página completa el inicio de sesión en la app OfficialIQ de tu teléfono. Si la estás viendo, la app no se abrió: vuelve a OfficialIQ y toca Iniciar sesión otra vez.",
+    "web": "¿Usas OfficialIQ en el navegador? Continúa aquí."
   }
 }
