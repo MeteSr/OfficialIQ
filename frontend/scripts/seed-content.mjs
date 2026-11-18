@@ -100,6 +100,7 @@ const questionIdlFactory = ({ IDL: I }) => {
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
     addQuestion: I.Func([QuestionInput], [ResultQuestion], []),
+    metrics: I.Func([], [I.Record({ questionCount: I.Nat })], ["query"]),
   });
 };
 
@@ -121,6 +122,15 @@ async function main() {
   await ensureAdmin("content", content, principal);
   await ensureAdmin("question", question, principal);
   if (exam) await ensureAdmin("exam", exam, principal);
+
+  // addQuestion always mints a new id, so a second run would duplicate the
+  // whole bank. Articles, plays and the rest are upserts and stay safe to
+  // re-run; questions are only added to an empty bank unless forced.
+  const existingQuestions = Number((await question.metrics()).questionCount);
+  const seedQuestions = existingQuestions === 0 || process.env.SEED_FORCE_QUESTIONS === "1";
+  if (!seedQuestions) {
+    console.log(`  · The question bank already holds ${existingQuestions} questions: skipping questions (set SEED_FORCE_QUESTIONS=1 to add them anyway).`);
+  }
 
   let articleCount = 0, playCount = 0, questionCount = 0, errorCount = 0;
 
@@ -173,7 +183,7 @@ async function main() {
       }
     }
 
-    for (const q of article.questions) {
+    for (const q of seedQuestions ? article.questions : []) {
       const citation = q.citation ?? `Art. ${article.number}`;
       const qRes = await question.addQuestion({
         sportId: SPORT_ID, articleId, citation,
@@ -218,7 +228,7 @@ async function main() {
   // real content Article, so they're seeded straight to the question
   // canister without an upsertArticle call first (see seedData.mjs).
   let mechanicsQuestionCount = 0;
-  for (const q of MECHANICS_QUESTIONS) {
+  for (const q of seedQuestions ? MECHANICS_QUESTIONS : []) {
     const qRes = await question.addQuestion({
       sportId: SPORT_ID, articleId: MECHANICS_ARTICLE_ID, citation: q.citation,
       stem: q.stem, choices: q.choices, correctId: q.correctId,

@@ -36,11 +36,11 @@ Nothing below is blocked on code. The app can't go live until these are done:
 
 | Item | Where | Status | Owner |
 |---|---|---|---|
-| Monthly quiz "days left" is hardcoded to 4 | `HomePage.tsx` `MONTHLY_DAYS_LEFT_STUB` | Not ready | Claude |
-| Weekly quiz "agree %" is hardcoded to 68% | `WeeklyQuizPage.tsx` `AGREE_PCT_STUB` | Not ready | Claude |
+| Monthly quiz "days left" was hardcoded to 4 (and said 25 questions instead of 50) | Now counted from the date (`lib/monthlyWindow.ts`) | Ready | Claude |
+| Weekly quiz "agree %" was hardcoded to 68% | Now real, from `question.getAnswerRates`; hidden until a question has 10 answers | Ready | Claude |
 | Services fall back to stub data when a canister ID is missing | `frontend/src/lib/icEnv.ts` | Ready (only affects dev builds; staging smoke test confirms) | Claude |
 | Case-play video clips | Player and moderation queue built, no clips (issue #29) | Not ready; can launch without, hide the entry point | Mete |
-| Badges UI | Dropped in the design handoff; fetch removed in #53. Mete decided 2026-11-18 to bring them back on the Me page | Not ready | Claude |
+| Badges UI | Dropped in the design handoff; back on the Me page (Mete's call, 2026-11-18) | Ready | Claude |
 | Assigning-platform schedule sync | Manual entry works; no ArbiterSports/RefTown API (issue #30) | Ready for launch with manual entry | Mete |
 | French / Portuguese | Intentionally not offered | Ready (out of scope for launch) | Mete |
 
@@ -57,7 +57,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | Required reviewers on the `production` environment | Not ready (recommended) | Mete |
 | `.icp/data/mappings/*.ids.json` committed | Not ready: written by the first deploy | Claude (automatic) |
 | Weekly ICP freshness workflow can open PRs: Settings, Actions, "Allow GitHub Actions to create and approve pull requests" | Not ready (the workflow has never run) | Mete |
-| Seeding content and setting the AI config run only from a local machine as the deploy identity | Not ready: add `seed-content` and `set-ai-config` to the Admin task workflow so no local commands are needed | Claude |
+| Seeding content and setting the AI key from GitHub: Admin task `seed-content` and `set-ai-config` (needs the `ANTHROPIC_API_KEY` environment secret) | Ready in code; run after the first deploy | Mete (run), Claude (built) |
 | Open Dependabot PRs (#37 to #39, #41 to #46, #48, #52), including majors for TypeScript 7, vitest 5, i18next 27, web-push 4 | Not ready: triage before launch, majors need checking | Claude |
 | `.gitlab-ci.yml` duplicates the pipeline (review finding 11) | Not ready: delete unless a GitLab move is planned | Claude |
 
@@ -67,13 +67,13 @@ Nothing below is blocked on code. The app can't go live until these are done:
 
 | Item | Status | Owner |
 |---|---|---|
-| Spend-capped Anthropic key in a dedicated Console workspace (`docs/DEPLOYMENT.md` §7) | Not ready | Mete |
+| Spend-capped Anthropic key in a dedicated Console workspace (`docs/DEPLOYMENT.md` §7), saved as the `ANTHROPIC_API_KEY` environment secret, then Admin task `set-ai-config` | Not ready | Mete |
 | ElevenLabs production account | Not ready | Mete |
 | `PUSH_RELAY_IDENTITY_PEM` secret, then Admin task `set-push-relay` | Not ready | Mete |
 | `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` secrets | Not ready | Mete |
 | Decide whether the GitHub Actions push relay is permanent | Not ready | Mete |
 | Grant coordinator roles with Admin task `set-role` | Not ready (after deploy) | Mete |
-| Claim app admin with the deploy identity (first admin script run) | Not ready (after deploy) | Mete, or Claude once the Admin task can seed |
+| Claim app admin with the deploy identity: happens on the first Admin task `seed-content` run | Not ready (after deploy) | Mete |
 
 ## 5. Content and legal
 
@@ -97,7 +97,7 @@ From the engineering review ([doc](https://claude.ai/artifact/G4rXTTcTA2JB9Cd5eg
 | 5 | 3 update calls per answered question (1 to 2 s reveal latency on mainnet) | Not ready | Recommended: users feel it | Claude |
 | 6 | Hand-written IDLs, no drift check; shared types copied into 4 canisters | Not ready | Recommended | Claude |
 | 7 | API types double as stored types; ranking trusts client name/state | Not ready | After launch | Claude |
-| 8 | 114 silent `.catch(() => …)`, no error boundary | Not ready | **Yes**: one bad render blanks the app | Claude |
+| 8 | 114 silent `.catch(() => …)`, no error boundary | Error boundary added (per screen and app-wide); silent catches and the stuck offline queue still open | Boundary done; rest recommended | Claude |
 | 9 | One 958 kB bundle, no code splitting; N+1 offline sync | Not ready | Recommended for a mobile PWA | Claude |
 | 10 | Badges UI dropped; "ELO" is a fixed ±16 | Badges coming back (Mete, 2026-11-18); rating formula still open | Badges yes; rating after launch | Claude |
 | 11 | Large page components, `.gitlab-ci.yml` drift | Not ready | After launch (GitLab file in §3) | Claude |
