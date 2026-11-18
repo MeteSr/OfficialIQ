@@ -6,6 +6,8 @@ import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
 import { userService } from "../services/user";
+import { challengeService } from "../services/challenge";
+import { computeBadges, type Badge } from "../lib/badges";
 import { contentService, type Article, type Sport } from "../services/content";
 import {
   getStorageBreakdown, getDownloadedAudioIds, deleteAudioBlob, clearAllDownloads,
@@ -161,6 +163,7 @@ export default function MePage() {
   const [addFriendInput, setAddFriendInput] = useState("");
   const [addFriendError, setAddFriendError] = useState<string | null>(null);
   const [copied,         setCopied]         = useState(false);
+  const [badges,         setBadges]         = useState<Badge[]>([]);
 
   const [storage,           setStorage]           = useState<StorageBreakdown | null>(null);
   const [downloadedArticles, setDownloadedArticles] = useState<Article[]>([]);
@@ -183,6 +186,19 @@ export default function MePage() {
     aiProxyService.isAdmin().then(setIsAiAdmin).catch(() => {});
     isPushConfigured().then(setPushEnabled).catch(() => {});
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !principal) return;
+    Promise.all([
+      rankingService.getDailyStreak().catch(() => null),
+      rankingService.getSkillCounters().catch(() => null),
+      rankingService.getMyStats().catch(() => null),
+      userService.getWeeklyQuizHistory().catch(() => []),
+      challengeService.getMyChallenges().catch(() => []),
+    ]).then(([dailyStreak, skills, myStats, weeklyHistory, challenges]) => {
+      setBadges(computeBadges({ dailyStreak, skills, stats: myStats, weeklyHistory, challenges, myPrincipal: principal }));
+    });
+  }, [isAuthenticated, principal]);
 
   async function handleTogglePush() {
     setPushBusy(true);
@@ -499,6 +515,40 @@ export default function MePage() {
       </div>
 
       <div style={{ padding: "18px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* Badges */}
+        {badges.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+                {t("badges.title")}
+              </div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.06em", color: T.faint }}>
+                {t("badges.earnedCount", { earned: badges.filter(b => b.earned).length, total: badges.length })}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {badges.map((b) => (
+                <div
+                  key={b.id}
+                  title={t(`badges.${b.id}.description`)}
+                  aria-label={`${t(`badges.${b.id}.name`)}: ${t(`badges.${b.id}.description`)}`}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                    padding: "12px 4px", background: T.surface,
+                    border: `1px solid ${b.earned ? fill.accent : T.border}`, borderRadius: 10,
+                    opacity: b.earned ? 1 : 0.4,
+                  }}
+                >
+                  <span style={{ fontSize: 22, lineHeight: 1, filter: b.earned ? "none" : "grayscale(1)" }}>{b.icon}</span>
+                  <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 10, color: T.text, textAlign: "center", lineHeight: 1.2 }}>
+                    {t(`badges.${b.id}.name`)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Training group */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

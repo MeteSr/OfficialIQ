@@ -2,12 +2,11 @@ import type { DailyActivity, SkillCounters, UserStats } from "../services/rankin
 import type { WeeklyQuizResult } from "../services/user";
 import type { Challenge } from "../services/challenge";
 
+// Name and description come from i18n: badges.<id>.name / badges.<id>.description.
 export type Badge = {
-  id:          string;
-  icon:        string;
-  name:        string;
-  description: string;
-  earned:      boolean;
+  id:     string;
+  icon:   string;
+  earned: boolean;
 };
 
 export function computeBadges(input: {
@@ -33,13 +32,13 @@ export function computeBadges(input: {
   }).length;
 
   return [
-    { id: "streak7",     icon: "🔥", name: "7-Day Streak",    description: "Answer questions 7 days in a row",                earned: longestStreak >= 7 },
-    { id: "streak30",    icon: "🔥", name: "30-Day Streak",   description: "Answer questions 30 days in a row",               earned: longestStreak >= 30 },
-    { id: "streak100",   icon: "🔥", name: "100-Day Streak",  description: "Answer questions 100 days in a row",              earned: longestStreak >= 100 },
-    { id: "speedDemon",  icon: "⚡", name: "Speed Demon",     description: "10 correct answers in a row, each under 10s",     earned: bestSpeedStreak >= 10 },
-    { id: "perfectWeek", icon: "💯", name: "Perfect Week",    description: "Score 100% on the new-material weekly quiz",      earned: perfectWeek },
-    { id: "casebookKing",icon: "📖", name: "Casebook King",   description: "90%+ accuracy across 20+ casebook questions",     earned: casebookTotal >= 20 && casebookAccuracy >= 0.9 },
-    { id: "challenger",  icon: "⚔️", name: "Challenger",      description: "Win 10 peer challenges",                          earned: wins >= 10 },
-    { id: "centuryClub", icon: "🎓", name: "Century Club",    description: "Complete 100 exams",                              earned: examCount >= 100 },
+    { id: "streak7", icon: "🔥", earned: longestStreak >= 7 },
+    { id: "streak30", icon: "🔥", earned: longestStreak >= 30 },
+    { id: "streak100", icon: "🔥", earned: longestStreak >= 100 },
+    { id: "speedDemon", icon: "⚡", earned: bestSpeedStreak >= 10 },
+    { id: "perfectWeek", icon: "💯", earned: perfectWeek },
+    { id: "casebookKing", icon: "📖", earned: casebookTotal >= 20 && casebookAccuracy >= 0.9 },
+    { id: "challenger", icon: "⚔️", earned: wins >= 10 },
+    { id: "centuryClub", icon: "🎓", earned: examCount >= 100 },
   ];
 }
