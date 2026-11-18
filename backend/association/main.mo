@@ -8,6 +8,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
 import Env "../lib/Env";
+import Index "../lib/Index";
 import Set "mo:core/Set";
 
 persistent actor Association {
@@ -56,6 +57,19 @@ persistent actor Association {
 
   var completions : Map.Map<Text, Completion> = Map.empty<Text, Completion>(); // key = assignmentId # "|" # member.toText()
 
+  // Secondary indexes (lib/Index.mo), built from the tables above on the
+  // upgrade that adds them. completionsByMember holds completion keys.
+  var associationsByCoordinator : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, rec) in Map.entries(associations)) Index.add(ix, Principal.compare, rec.coordinator, id);
+    ix
+  };
+  var completionsByMember : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((key, c) in Map.entries(completions)) Index.add(ix, Principal.compare, c.member, key);
+    ix
+  };
+
   var nextAssociationId : Nat = 0;
   var nextAssignmentId  : Nat = 0;
 
@@ -98,6 +112,7 @@ persistent actor Association {
     let rec : AssociationRec = { id; name; sport; coordinator = caller; joinCode; createdAt = Time.now() };
     Map.add(associations, Text.compare, id, rec);
     Map.add(joinCodeIndex, Text.compare, joinCode, id);
+    Index.add(associationsByCoordinator, Principal.compare, caller, id);
     Map.add(members, Text.compare, id, [caller]);
     let mine = switch (Map.get(myAssociations, Principal.compare, caller)) { case (?a) a; case null [] };
     Map.add(myAssociations, Principal.compare, caller, Array.concat<Text>(mine, [id]));
@@ -177,7 +192,11 @@ persistent actor Association {
         if (not isTargeted(a, caller)) return #err("This module wasn't assigned to you");
         if (r.articleIds != a.articleIds) return #err("That exam doesn't cover this assignment's articles");
         let c : Completion = { assignmentId; member = caller; score = r.score; completedAt = Time.now() };
-        Map.add(completions, Text.compare, completionKey(assignmentId, caller), c);
+        let key = completionKey(assignmentId, caller);
+        // A retake replaces the completion under the same key, so the key is
+        // indexed only the first time.
+        if (Map.get(completions, Text.compare, key) == null) Index.add(completionsByMember, Principal.compare, caller, key);
+        Map.add(completions, Text.compare, key, c);
         Set.add(usedSessions, Text.compare, sessionId);
         #ok(c)
       };
@@ -196,11 +215,7 @@ persistent actor Association {
   };
 
   public shared query ({ caller }) func getMyCoordinatedAssociations() : async [AssociationRec] {
-    let buf = List.empty<AssociationRec>();
-    for ((_, rec) in Map.entries(associations)) {
-      if (rec.coordinator == caller) List.add(buf, rec);
-    };
-    List.toArray(buf)
+    Index.rows(associationsByCoordinator, Principal.compare, caller, associations)
   };
 
   public shared query ({ caller }) func getAssociation(id : Text) : async ?AssociationRec {
@@ -253,11 +268,7 @@ persistent actor Association {
   };
 
   public shared query ({ caller }) func getMyCompletions() : async [Completion] {
-    let buf = List.empty<Completion>();
-    for ((_, c) in Map.entries(completions)) {
-      if (c.member == caller) List.add(buf, c);
-    };
-    List.toArray(buf)
+    Index.rows(completionsByMember, Principal.compare, caller, completions)
   };
 
   // Coordinator-only: every completion recorded against one assignment,
@@ -270,9 +281,13 @@ persistent actor Association {
           case null #err("Association not found");
           case (?rec) {
             if (rec.coordinator != caller) return #err("Coordinator only");
+            // Completion keys are "<assignmentId>|<member>", so one
+            // assignment's completions are a contiguous key range.
+            let prefix = assignmentId # "|";
             let buf = List.empty<Completion>();
-            for ((_, c) in Map.entries(completions)) {
-              if (c.assignmentId == assignmentId) List.add(buf, c);
+            label scan for ((key, c) in Map.entriesFrom(completions, Text.compare, prefix)) {
+              if (not Text.startsWith(key, #text prefix)) break scan;
+              List.add(buf, c);
             };
             #ok(List.toArray(buf))
           };

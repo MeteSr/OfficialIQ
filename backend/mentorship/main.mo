@@ -1,11 +1,13 @@
 import Map "mo:core/Map";
 import List "mo:core/List";
+import Array "mo:core/Array";
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
+import Index "../lib/Index";
 
 persistent actor Mentorship {
 
@@ -56,6 +58,26 @@ persistent actor Mentorship {
   var tokenIndex  : Map.Map<Text, Text>       = Map.empty<Text, Text>(); // token -> link id
   var annotations : Map.Map<Text, Annotation> = Map.empty<Text, Annotation>();
 
+  // Secondary indexes (lib/Index.mo), built from the tables above on the
+  // upgrade that adds them.
+  var linksByOwner : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, l) in Map.entries(links)) Index.add(ix, Principal.compare, l.owner, id);
+    ix
+  };
+  var linksByMentor : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, l) in Map.entries(links)) {
+      switch (l.mentorPrincipal) { case (?m) Index.add(ix, Principal.compare, m, id); case null {} };
+    };
+    ix
+  };
+  var annotationsByLink : Index.Index<Text> = do {
+    let ix = Index.empty<Text>();
+    for ((id, a) in Map.entries(annotations)) Index.add(ix, Text.compare, a.linkId, id);
+    ix
+  };
+
   var nextLinkId       : Nat = 0;
   var nextAnnotationId : Nat = 0;
 
@@ -87,6 +109,7 @@ persistent actor Mentorship {
     };
     Map.add(links, Text.compare, id, link);
     Map.add(tokenIndex, Text.compare, token, id);
+    Index.add(linksByOwner, Principal.compare, caller, id);
     #ok(link)
   };
 
@@ -119,6 +142,7 @@ persistent actor Mentorship {
               case null {
                 let claimed = { l with mentorPrincipal = ?caller };
                 Map.add(links, Text.compare, id, claimed);
+                Index.add(linksByMentor, Principal.compare, caller, id);
                 #ok(claimed)
               };
               case (?m) {
@@ -147,6 +171,7 @@ persistent actor Mentorship {
             nextAnnotationId += 1;
             let a : Annotation = { id; linkId; questionId; mentor = caller; note; seen = false; createdAt = Time.now() };
             Map.add(annotations, Text.compare, id, a);
+            Index.add(annotationsByLink, Text.compare, linkId, id);
             #ok(a)
           };
         }
@@ -173,20 +198,12 @@ persistent actor Mentorship {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyMentorLinks() : async [MentorLink] {
-    let buf = List.empty<MentorLink>();
-    for ((_, l) in Map.entries(links)) {
-      if (l.owner == caller) List.add(buf, l);
-    };
-    List.toArray(buf)
+    Index.rows(linksByOwner, Principal.compare, caller, links)
   };
 
   public shared query ({ caller }) func getMentorDashboard() : async [MentorLink] {
-    let buf = List.empty<MentorLink>();
-    for ((_, l) in Map.entries(links)) {
-      // Revoking a link must also take it off the mentor's dashboard.
-      if (l.mentorPrincipal == ?caller and not l.revoked) List.add(buf, l);
-    };
-    List.toArray(buf)
+    // Revoking a link must also take it off the mentor's dashboard.
+    Array.filter<MentorLink>(Index.rows(linksByMentor, Principal.compare, caller, links), func(l) { not l.revoked })
   };
 
   public shared query ({ caller }) func getAnnotationsForLink(linkId : Text) : async Result.Result<[Annotation], Text> {
@@ -194,36 +211,27 @@ persistent actor Mentorship {
       case null #err("Link not found");
       case (?l) {
         if (l.owner != caller and l.mentorPrincipal != ?caller) return #err("Not authorized");
-        let buf = List.empty<Annotation>();
-        for ((_, a) in Map.entries(annotations)) {
-          if (a.linkId == linkId) List.add(buf, a);
-        };
-        #ok(List.toArray(buf))
+        #ok(Index.rows(annotationsByLink, Text.compare, linkId, annotations))
       };
     }
   };
 
-  public shared query ({ caller }) func getMyAnnotations() : async [Annotation] {
+  // Annotations on every link the caller owns.
+  func myAnnotations(caller : Principal) : List.List<Annotation> {
     let buf = List.empty<Annotation>();
-    for ((_, a) in Map.entries(annotations)) {
-      switch (Map.get(links, Text.compare, a.linkId)) {
-        case (?l) { if (l.owner == caller) List.add(buf, a) };
-        case null {};
-      }
+    for (linkId in Index.ids(linksByOwner, Principal.compare, caller).values()) {
+      for (a in Index.rows(annotationsByLink, Text.compare, linkId, annotations).values()) List.add(buf, a);
     };
-    List.toArray(buf)
+    buf
+  };
+
+  public shared query ({ caller }) func getMyAnnotations() : async [Annotation] {
+    List.toArray(myAnnotations(caller))
   };
 
   public shared query ({ caller }) func getMyUnseenAnnotationCount() : async Nat {
     var count = 0;
-    for ((_, a) in Map.entries(annotations)) {
-      if (not a.seen) {
-        switch (Map.get(links, Text.compare, a.linkId)) {
-          case (?l) { if (l.owner == caller) count += 1 };
-          case null {};
-        }
-      };
-    };
+    for (a in List.values(myAnnotations(caller))) { if (not a.seen) count += 1 };
     count
   };
 

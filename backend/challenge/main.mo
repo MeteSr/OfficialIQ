@@ -8,6 +8,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Env "../lib/Env";
+import Index "../lib/Index";
 import Set "mo:core/Set";
 
 persistent actor Challenge {
@@ -39,6 +40,17 @@ persistent actor Challenge {
   // ─── State ────────────────────────────────────────────────────────────────
 
   var challenges : Map.Map<Text, Challenge> = Map.empty<Text, Challenge>();
+
+  // participant (challenger or challenged) -> challenge ids (lib/Index.mo),
+  // built from `challenges` on the upgrade that adds it.
+  var challengesByParticipant : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, ch) in Map.entries(challenges)) {
+      Index.add(ix, Principal.compare, ch.challenger, id);
+      Index.add(ix, Principal.compare, ch.challenged, id);
+    };
+    ix
+  };
 
   var nextId : Nat = 0;
 
@@ -74,6 +86,8 @@ persistent actor Challenge {
       expiresAt   = now + TTL_NS;
     };
     Map.add(challenges, Text.compare, id, ch);
+    Index.add(challengesByParticipant, Principal.compare, caller, id);
+    Index.add(challengesByParticipant, Principal.compare, opponent, id);
     #ok(ch)
   };
 
@@ -172,19 +186,7 @@ persistent actor Challenge {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyChallenges() : async [Challenge] {
-    let buf = VarArray.repeat<Challenge>({
-      id = ""; challenger = caller; challenged = caller; sport = "";
-      articleIds = []; questionIds = []; count = 0; status = #Pending;
-      results = []; createdAt = 0; expiresAt = 0;
-    }, Map.size(challenges));
-    var i = 0;
-    for ((_, ch) in Map.entries(challenges)) {
-      if (ch.challenger == caller or ch.challenged == caller) {
-        buf[i] := ch;
-        i += 1;
-      };
-    };
-    VarArray.sliceToArray<Challenge>(buf, 0, i)
+    Index.rows(challengesByParticipant, Principal.compare, caller, challenges)
   };
 
   public query func getChallenge(id : Text) : async ?Challenge {

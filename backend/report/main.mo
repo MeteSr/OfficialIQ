@@ -7,6 +7,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 
+import Index "../lib/Index";
 persistent actor Report {
 
   // ─── Types ────────────────────────────────────────────────────────────────
@@ -61,12 +62,25 @@ persistent actor Report {
   var myReportIds : Map.Map<Principal, [Text]>    = Map.empty<Principal, [Text]>();
   var shares      : Map.Map<Text, ReportShare>    = Map.empty<Text, ReportShare>();
 
+  // Secondary indexes (lib/Index.mo), built from `shares` on the upgrade
+  // that adds them.
+  var sharesByCoordinator : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, s) in Map.entries(shares)) Index.add(ix, Principal.compare, s.coordinator, id);
+    ix
+  };
+  var sharesByReport : Index.Index<Text> = do {
+    let ix = Index.empty<Text>();
+    for ((id, s) in Map.entries(shares)) Index.add(ix, Text.compare, s.reportId, id);
+    ix
+  };
+
   var nextReportId : Nat = 0;
   var nextShareId  : Nat = 0;
 
   func isSharedWith(reportId : Text, coordinator : Principal) : Bool {
-    for ((_, s) in Map.entries(shares)) {
-      if (s.reportId == reportId and s.coordinator == coordinator) return true;
+    for (s in Index.rows(sharesByReport, Text.compare, reportId, shares).values()) {
+      if (s.coordinator == coordinator) return true;
     };
     false
   };
@@ -117,6 +131,8 @@ persistent actor Report {
         nextShareId += 1;
         let s : ReportShare = { id; reportId; coordinator; sharedAt = Time.now(); seen = false };
         Map.add(shares, Text.compare, id, s);
+        Index.add(sharesByCoordinator, Principal.compare, coordinator, id);
+        Index.add(sharesByReport, Text.compare, reportId, id);
         #ok(s)
       };
     }
@@ -158,17 +174,13 @@ persistent actor Report {
   };
 
   public shared query ({ caller }) func getSharedWithMe() : async [ReportShare] {
-    let buf = List.empty<ReportShare>();
-    for ((_, s) in Map.entries(shares)) {
-      if (s.coordinator == caller) List.add(buf, s);
-    };
-    List.toArray(buf)
+    Index.rows(sharesByCoordinator, Principal.compare, caller, shares)
   };
 
   public shared query ({ caller }) func getMyUnseenShareCount() : async Nat {
     var count = 0;
-    for ((_, s) in Map.entries(shares)) {
-      if (s.coordinator == caller and not s.seen) count += 1;
+    for (s in Index.rows(sharesByCoordinator, Principal.compare, caller, shares).values()) {
+      if (not s.seen) count += 1;
     };
     count
   };

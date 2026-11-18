@@ -9,6 +9,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
 import Env "../lib/Env";
+import Index "../lib/Index";
 
 persistent actor Exam {
 
@@ -77,6 +78,14 @@ persistent actor Exam {
 
   var shareIndex : Map.Map<Text, Text> = Map.empty<Text, Text>();
 
+  // owner -> session ids (lib/Index.mo); built from `sessions` on the upgrade
+  // that adds it.
+  var sessionsByOwner : Index.Index<Principal> = do {
+    let ix = Index.empty<Principal>();
+    for ((id, s) in Map.entries(sessions)) Index.add(ix, Principal.compare, s.owner, id);
+    ix
+  };
+
   var examTemplates : Map.Map<Text, ExamTemplate> = Map.empty<Text, ExamTemplate>();
 
   var nextId         : Nat = 0;
@@ -137,6 +146,7 @@ persistent actor Exam {
       finishedAt    = null;
     };
     Map.add(sessions, Text.compare, id, session);
+    Index.add(sessionsByOwner, Principal.compare, caller, id);
     #ok(session)
   };
 
@@ -185,15 +195,7 @@ persistent actor Exam {
   };
 
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
-    let buf = VarArray.repeat<ExamSession>({
-      id = ""; owner = caller; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
-      questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;
-    }, Map.size(sessions));
-    var i = 0;
-    for ((_, s) in Map.entries(sessions)) {
-      if (s.owner == caller) { buf[i] := s; i += 1 };
-    };
-    VarArray.sliceToArray<ExamSession>(buf, 0, i)
+    examsOf(caller)
   };
 
   // An official's exam history is private: getExamsFor answers only for the
@@ -237,15 +239,7 @@ persistent actor Exam {
   };
 
   func examsOf(p : Principal) : [ExamSession] {
-    let buf = VarArray.repeat<ExamSession>({
-      id = ""; owner = p; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
-      questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;
-    }, Map.size(sessions));
-    var i = 0;
-    for ((_, s) in Map.entries(sessions)) {
-      if (s.owner == p) { buf[i] := s; i += 1 };
-    };
-    VarArray.sliceToArray<ExamSession>(buf, 0, i)
+    Index.rows(sessionsByOwner, Principal.compare, p, sessions)
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {
@@ -456,6 +450,7 @@ persistent actor Exam {
       case _ {};
     };
     Map.add(sessions, Text.compare, id, session);
+    Index.add(sessionsByOwner, Principal.compare, caller, id);
     Map.add(answerKeys, Text.compare, id, Array.map<FullQuestion, KeyEntry>(qs, func(q) {
       { questionId = q.id; correctId = q.correctId; explanation = q.explanation; citation = q.citation }
     }));
