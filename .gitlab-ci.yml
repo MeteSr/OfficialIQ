@@ -6,7 +6,7 @@
 # without GitHub" section.
 #
 # Required CI/CD variables (Settings → CI/CD → Variables, masked + protected):
-#   ICP_IDENTITY_PEM (or the older DFX_IDENTITY_PEM), VAPID_PRIVATE_KEY,
+#   ICP_IDENTITY_PEM (or the older DFX_IDENTITY_PEM), PUSH_RELAY_IDENTITY_PEM, VAPID_PRIVATE_KEY,
 #   VAPID_PUBLIC_KEY, VAPID_SUBJECT
 
 image: node:22-bookworm-slim
@@ -45,6 +45,10 @@ push-relay:
   stage: deploy
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  variables:
+    # The relay's own identity (admin-task set-push-relay), never the deploy key.
+    ICP_IDENTITY_PEM: $PUSH_RELAY_IDENTITY_PEM
+    DFX_IDENTITY_PEM: ""
   script:
     - npm ci --prefix frontend --no-audit --no-fund
     - bash scripts/send-push.sh ic

@@ -7,6 +7,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
+import Env "../lib/Env";
 
 persistent actor Association {
 
@@ -77,6 +78,15 @@ persistent actor Association {
 
   public shared ({ caller }) func createAssociation(name : Text, sport : Text) : async Result.Result<AssociationRec, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    // Only officials an admin has made coordinators may set up an
+    // association (user canister's setRole).
+    let userId = switch (Env.canisterId<system>("user")) {
+      case (?id) id;
+      case null return #err("User canister not configured");
+    };
+    let userCanister = actor (Principal.toText(userId)) : actor { isCoordinator : shared query Principal -> async Bool };
+    let allowed = try { await userCanister.isCoordinator(caller) } catch (_) { return #err("Couldn't check coordinator access, try again") };
+    if (not allowed) return #err("Ask an OfficialIQ admin for coordinator access to create an association");
     // The join code is the only gate on membership (and members can read the
     // roster and assignments), so it must not be guessable. Retry on the
     // unlikely collision with an existing code.
@@ -88,7 +98,8 @@ persistent actor Association {
     Map.add(associations, Text.compare, id, rec);
     Map.add(joinCodeIndex, Text.compare, joinCode, id);
     Map.add(members, Text.compare, id, [caller]);
-    Map.add(myAssociations, Principal.compare, caller, [id]);
+    let mine = switch (Map.get(myAssociations, Principal.compare, caller)) { case (?a) a; case null [] };
+    Map.add(myAssociations, Principal.compare, caller, Array.concat<Text>(mine, [id]));
     #ok(rec)
   };
 
@@ -241,6 +252,20 @@ persistent actor Association {
         }
       };
     }
+  };
+
+  // For other canisters (exam, ranking): is `coordinator` the coordinator of
+  // an association that `member` belongs to? Lets coordinators see their own
+  // members' history without making it public.
+  public query func isCoordinatorOf(coordinator : Principal, member : Principal) : async Bool {
+    let ids = switch (Map.get(myAssociations, Principal.compare, member)) { case (?a) a; case null [] };
+    for (id in ids.values()) {
+      switch (Map.get(associations, Text.compare, id)) {
+        case (?rec) { if (rec.coordinator == coordinator) return true };
+        case null {};
+      };
+    };
+    false
   };
 
   public query func metrics() : async { associationCount : Nat; assignmentCount : Nat } {

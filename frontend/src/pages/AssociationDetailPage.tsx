@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec, type Assignment, type Completion } from "../services/association";
-import { userService, type UserProfile } from "../services/user";
-import { rankingService, type UserStats } from "../services/ranking";
+import { userService, type PublicProfile } from "../services/user";
+import { rankingService, type PublicStats } from "../services/ranking";
 import { contentService, type Article } from "../services/content";
 import { Principal } from "@icp-sdk/core/principal";
 import { useSport } from "../lib/sport";
@@ -73,8 +73,8 @@ export default function AssociationDetailPage() {
 
       const rows = await Promise.all(memberPrincipals.map(async (p): Promise<RosterRow> => {
         const [prof, stats] = await Promise.all([
-          userService.getProfile(p).catch(() => null as UserProfile | null),
-          rankingService.getStats(p).catch(() => null as UserStats | null),
+          userService.getPublicProfile(p).catch(() => null as PublicProfile | null),
+          rankingService.getPublicStats(p).catch(() => null as PublicStats | null),
         ]);
         return {
           principal: p.toString(),

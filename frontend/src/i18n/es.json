@@ -275,6 +275,7 @@
     "joinCodePlaceholder": "ej. JOIN0",
     "coordinateNew": "Coordinar una Nueva Asociación",
     "coordinateDesc": "Crea un grupo privado para oficiales bajo tu supervisión — asigna módulos y sigue su progreso.",
+    "coordinatorAccessNeeded": "El acceso de coordinador lo otorga un administrador de OfficialIQ. Pide a tu administrador que lo active para tu cuenta y vuelve aquí para crear tu asociación.",
     "namePlaceholder": "ej. Asoc. de Árbitros de Baloncesto Metro",
     "create": "Crear"
   },

@@ -49,7 +49,7 @@ export default function ChallengePage() {
       }
 
       const opponentPrincipal = ch.challenger.toString() === principal ? ch.challenged : ch.challenger;
-      userService.getProfile(opponentPrincipal)
+      userService.getPublicProfile(opponentPrincipal)
         .then(p => setOpponentName(p?.displayName ?? t("challenge.yourOpponent")))
         .catch(() => {});
 

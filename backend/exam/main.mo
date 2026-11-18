@@ -8,6 +8,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
+import Env "../lib/Env";
 
 persistent actor Exam {
 
@@ -106,6 +107,7 @@ persistent actor Exam {
   // ─── Mutations ────────────────────────────────────────────────────────────
 
   public shared ({ caller }) func createSession(config : ExamConfig, questionIds : [Text]) : async Result.Result<ExamSession, Text> {
+    refreshEnv<system>();
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (questionIds.size() > MAX_QUESTIONS or config.articleIds.size() > MAX_QUESTIONS) return #err("Too many questions");
     // Share tokens are bearer links, so they come from raw_rand rather than
@@ -139,6 +141,7 @@ persistent actor Exam {
   };
 
   public shared ({ caller }) func submitExam(id : Text, answers : [AnswerRecord]) : async Result.Result<ExamSession, Text> {
+    refreshEnv<system>();
     switch (Map.get(sessions, Text.compare, id)) {
       case null { #err("Session not found") };
       case (?s) {
@@ -221,12 +224,30 @@ persistent actor Exam {
     VarArray.sliceToArray<ExamSession>(buf, 0, i)
   };
 
-  // Public by-principal, mirroring ranking.getStats(p)/user.getProfile(p) —
-  // association coordinators need per-exam scores for members other than
-  // themselves to compute real season-cohort trends (ranking's EloSnapshot
-  // only tracks a cumulative running-average accuracy, which is too blunt
-  // a signal for "how is this member trending recently").
-  public query func getExamsFor(p : Principal) : async [ExamSession] {
+  // An official's exam history is private: only the official and the
+  // coordinators of associations they belong to can read it (coordinators use
+  // per-exam scores for season-cohort trends). The coordinator check asks the
+  // association canister, hence a composite query.
+  // A query can't read canister environment variables (icp-cli skill,
+  // canister-env-vars), so the association canister's ID is mirrored here at
+  // init/upgrade and refreshed by every update call — on a first install the
+  // sibling may not exist yet when this canister initialises.
+  transient var ASSOCIATION_ID : ?Principal = Env.canisterId<system>("association");
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
+  };
+
+  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+
+  public shared composite query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
+    if (caller != p) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (Principal.toText(id)) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return [];
+    };
     let buf = VarArray.repeat<ExamSession>({
       id = ""; owner = p; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
       questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;

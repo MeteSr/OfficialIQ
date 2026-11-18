@@ -6,6 +6,10 @@
 //
 //   ANTHROPIC_API_KEY=sk-ant-... node scripts/set-ai-config.mjs [environment]
 //
+// Use a key from a dedicated Anthropic Console workspace with a monthly spend
+// limit: it is stored in the ai_proxy canister's state, which the subnet's
+// node operators could read (docs/DEPLOYMENT.md, "Anthropic API key").
+//
 // Optionally override the model with ANTHROPIC_MODEL=... (defaults to the
 // canister's built-in default, "claude-sonnet-5").
 

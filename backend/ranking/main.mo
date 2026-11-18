@@ -137,6 +137,20 @@ persistent actor Ranking {
     switch adminPrincipal { case (?a) a == p; case null false }
   };
 
+  // Own principal for the scheduled push relay: it may read and ack pending
+  // push events, nothing else (see user canister's setPushRelay).
+  var pushRelayPrincipal : ?Principal = null;
+
+  public shared ({ caller }) func setPushRelay(p : ?Principal) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    pushRelayPrincipal := p;
+    #ok(())
+  };
+
+  func canRelayPush(p : Principal) : Bool {
+    isAdmin(p) or (switch pushRelayPrincipal { case (?r) r == p; case null false })
+  };
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   func sortByKey(pool : [UserStats], key : SortKey) : [UserStats] {
@@ -387,8 +401,28 @@ persistent actor Ranking {
     switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] }
   };
 
-  public query func getStats(p : Principal) : async ?UserStats {
+  // Full stats are private to their owner. Everyone else sees only the
+  // fields the public leaderboards already show (getPublicStats).
+  public shared query ({ caller }) func getStats(p : Principal) : async ?UserStats {
+    if (caller != p and not isAdmin(caller)) return null;
     Map.get(stats, Principal.compare, p)
+  };
+
+  public type PublicStats = {
+    principal     : Principal;
+    displayName   : Text;
+    elo           : Float;
+    accuracy      : Float;
+    avgElapsedSec : Float;
+    streak        : Nat;
+  };
+
+  public query func getPublicStats(p : Principal) : async ?PublicStats {
+    switch (Map.get(stats, Principal.compare, p)) {
+      case (?s) ?{ principal = s.principal; displayName = s.displayName; elo = s.elo;
+                   accuracy = s.accuracy; avgElapsedSec = s.avgElapsedSec; streak = s.streak };
+      case null null;
+    }
   };
 
   public query func getNational(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
@@ -523,7 +557,7 @@ persistent actor Ranking {
   // to actually deliver it.
 
   public shared ({ caller }) func getPendingPushEvents() : async Result.Result<[(Principal, [Nat])], Text> {
-    if (not isAdmin(caller)) return #err("Admin only");
+    if (not canRelayPush(caller)) return #err("Admin only");
     let buf = List.empty<(Principal, [Nat])>();
     for ((p, events) in Map.entries(pendingPushEvents)) {
       if (events.size() > 0) List.add(buf, (p, events));
@@ -532,7 +566,7 @@ persistent actor Ranking {
   };
 
   public shared ({ caller }) func ackPushEvent(p : Principal, milestone : Nat) : async Result.Result<(), Text> {
-    if (not isAdmin(caller)) return #err("Admin only");
+    if (not canRelayPush(caller)) return #err("Admin only");
     let existing = switch (Map.get(pendingPushEvents, Principal.compare, p)) { case (?e) e; case null [] };
     Map.add(pendingPushEvents, Principal.compare, p, Array.filter<Nat>(existing, func(m) { m != milestone }));
     #ok(())

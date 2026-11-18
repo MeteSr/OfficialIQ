@@ -275,6 +275,7 @@
     "joinCodePlaceholder": "e.g. JOIN0",
     "coordinateNew": "Coordinate a New Association",
     "coordinateDesc": "Create a private group for officials under your supervision — assign modules and track completion.",
+    "coordinatorAccessNeeded": "Coordinator access is granted by an OfficialIQ admin. Ask your admin to enable it for your account, then come back here to create your association.",
     "namePlaceholder": "e.g. Metro Basketball Officials Assoc.",
     "create": "Create"
   },

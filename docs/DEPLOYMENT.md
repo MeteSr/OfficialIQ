@@ -75,8 +75,9 @@ pay for, so there's no risk of a half-finished deploy from skipping this.
 
 | Secret | Used by | Notes |
 |---|---|---|
-| `ICP_IDENTITY_PEM` | `deploy-staging.yml`, `deploy-production.yml`, `cycle-watchdog.yml`, `push-relay.yml` | PEM export from step 1 (`DFX_IDENTITY_PEM` still accepted). Set it on the `staging` and `production` environments; until it's on `staging`, the staging deploy skips instead of failing |
+| `ICP_IDENTITY_PEM` | `deploy-staging.yml`, `deploy-production.yml`, `cycle-watchdog.yml`, `admin-task.yml` | PEM export from step 1 (`DFX_IDENTITY_PEM` still accepted). Set it on the `staging` and `production` environments; until it's on `staging`, the staging deploy skips instead of failing |
 | `CI_PUSH_TOKEN` | the deploy workflows | Optional. Fine-grained PAT (this repo, Contents: read/write) used to push `.icp/data/mappings` and the `staging-*`/`mainnet-*` tags. Only needed if `main`'s branch protection blocks the default `GITHUB_TOKEN` |
+| `PUSH_RELAY_IDENTITY_PEM` | `push-relay.yml`, `admin-task.yml` | A separate key for the push relay, on the `production` environment. Create one with `openssl ecparam -name secp256k1 -genkey -noout -out push-relay.pem` (or `icp identity new push-relay` and `icp identity export push-relay`), paste the file's contents as the secret, delete the file, then run the **Admin task** workflow with `set-push-relay` (principal empty) to register it. The relay can only read push subscriptions and pending streak events; it is never the deploy key, which controls every canister. Until it's set the relay skips |
 | `VAPID_PRIVATE_KEY` | `push-relay.yml` | `npx --prefix frontend web-push generate-vapid-keys` |
 | `VAPID_PUBLIC_KEY` | `push-relay.yml` | Same command; also build-injected as `VITE_VAPID_PUBLIC_KEY` (not secret) |
 | `VAPID_SUBJECT` | `push-relay.yml` | `mailto:` address for push service abuse contact |
@@ -96,6 +97,26 @@ nobody can claim it on a freshly deployed canister before you do. The
 admin scripts (`seed-content`, `set-ai-config`, `generate-audio`,
 `send-push`) run as the active icp identity (or `ICP_IDENTITY`) and claim
 admin on first use — run them with the identity that deployed.
+
+The push relay is the exception: it runs as its own identity
+(`PUSH_RELAY_IDENTITY_PEM`) and never claims admin.
+
+### 6. Grant coordinator access
+
+Creating an association needs the Coordinator role, which only the app
+admin can grant. Run the **Admin task** workflow (Actions tab) with
+`set-role`, the official's principal (shown on their Me page) and
+`Coordinator`. Locally: `node frontend/scripts/admin.mjs <env> set-role
+<principal> Coordinator`.
+
+### 7. Anthropic API key
+
+The key `set-ai-config` stores lives in the `ai_proxy` canister's state.
+Canister memory isn't encrypted, so the subnet's node operators could read
+it. Use a key from a dedicated Anthropic Console workspace with a monthly
+spend limit, used for nothing else, so a leaked key can cost at most that
+limit. Rotate it by re-running `set-ai-config` with the new key, then
+delete the old one in the Console.
 
 ## Day-to-day usage
 
@@ -348,7 +369,7 @@ docker run --rm -e ICP_IDENTITY_PEM="$(cat ci-deploy.pem)" officialiq-deploy sta
 docker run --rm --entrypoint bash \
   -e ICP_IDENTITY_PEM="$(cat ci-deploy.pem)" \
   -e VAPID_PRIVATE_KEY=... -e VAPID_PUBLIC_KEY=... -e VAPID_SUBJECT=mailto:you@example.com \
-  officialiq-deploy -c 'bash scripts/import-identity.sh && npm install --prefix frontend && bash scripts/send-push.sh ic'
+  officialiq-deploy -c 'bash scripts/import-identity.sh && npm ci --prefix frontend && bash scripts/send-push.sh ic'
 ```
 
 The image bakes in the source present at `docker build` time — rebuild it

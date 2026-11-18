@@ -42,7 +42,7 @@ export default function HomePage() {
       const incoming = cs.filter(c => "Pending" in c.status && c.challenged.toString() === principal);
       const resolved = await Promise.all(incoming.map(async (c) => {
         const key = c.challenger.toString();
-        const prof = await userService.getProfile(c.challenger).catch(() => null);
+        const prof = await userService.getPublicProfile(c.challenger).catch(() => null);
         return [key, prof?.displayName ?? t("home.anOfficial")] as const;
       }));
       setNames(Object.fromEntries(resolved));
