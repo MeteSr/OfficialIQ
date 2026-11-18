@@ -10,10 +10,13 @@ import { contentService, type Article } from "../services/content";
 import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
 import { mentorshipService } from "../services/mentorship";
 import { reportService } from "../services/report";
-import { useSport } from "../lib/sport";
+import { levelLabel, useSport } from "../lib/sport";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
+
+// Stub until the monthly-window countdown comes from the exam canister.
+const MONTHLY_DAYS_LEFT_STUB = 4;
 
 export default function HomePage() {
   const navigate   = useNavigate();
@@ -123,12 +126,14 @@ export default function HomePage() {
       ? t("home.continueDesc", { week: schedule?.weekNumber ?? 1 })
       : t("home.allCaughtUpDesc");
 
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
   const greeting = profile?.displayName
-    ? t("home.greeting", { name: profile.displayName.split(" ")[0] })
-    : "Good evening";
+    ? t(`home.greeting${timeOfDay}`, { name: profile.displayName.split(" ")[0] })
+    : t(`home.greeting${timeOfDay}Anon`);
 
-  const weekLabel = schedule?.weekNumber ? `Week ${schedule.weekNumber}` : "Week";
-  const levelLabel = levelId ? levelId.charAt(0).toUpperCase() + levelId.slice(1) : "varsity";
+  const weekLabel = schedule?.weekNumber ? t("home.week", { week: schedule.weekNumber }) : t("home.weekPlain");
+  const levelName = levelLabel(levelId);
 
   return (
     <div style={{ paddingBottom: 64, background: T.bg, minHeight: "100dvh", fontFamily: T.font }}>
@@ -179,7 +184,7 @@ export default function HomePage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.13em", textTransform: "uppercase", color: T.faint }}>
-              {weekLabel} · {levelLabel}
+              {weekLabel} · {levelName}
             </div>
             <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 30, color: T.text, marginTop: 8, letterSpacing: "0.005em", lineHeight: 1.05 }}>
               {greeting}
@@ -201,7 +206,7 @@ export default function HomePage() {
               {streak.toString()}
             </div>
             <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>
-              DAY STREAK
+              {t("home.dayStreak").toUpperCase()}
             </div>
           </div>
           <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
@@ -209,7 +214,7 @@ export default function HomePage() {
               #47
             </div>
             <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>
-              STATE RANK
+              {t("home.stateRank").toUpperCase()}
             </div>
           </div>
           <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
@@ -217,7 +222,7 @@ export default function HomePage() {
               {accuracy}%
             </div>
             <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>
-              ACCURACY
+              {t("home.accuracy").toUpperCase()}
             </div>
           </div>
         </div>
@@ -230,21 +235,21 @@ export default function HomePage() {
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
             <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.hairline}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-                Do this next
+                {t("home.doThisNext")}
               </span>
             </div>
             <div style={{ padding: 16 }}>
               <div style={{ fontFamily: T.fontCondensed, fontWeight: 600, fontSize: 18, color: T.text, letterSpacing: "0.01em" }}>
-                Set your study pace
+                {t("home.setPaceTitle")}
               </div>
               <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.5, color: T.muted, marginTop: 6 }}>
-                Choose how many articles to cover each week. Your schedule will appear here.
+                {t("home.setPaceDesc")}
               </div>
               <button
                 onClick={() => navigate("/me")}
                 style={{ width: "100%", minHeight: 48, marginTop: 18, background: fill.accent, color: fill.onAccent, border: 0, borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 15, cursor: "pointer" }}
               >
-                Set pace
+                {t("home.setPace")}
               </button>
             </div>
           </div>
@@ -252,11 +257,11 @@ export default function HomePage() {
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
             <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.hairline}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-                Do this next
+                {t("home.doThisNext")}
               </span>
               {overdueCount > 0 && (
                 <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.06em", color: T.wrong }}>
-                  {overdueCount} OVERDUE
+                  {t("home.overdueTag", { count: overdueCount })}
                 </span>
               )}
             </div>
@@ -273,9 +278,9 @@ export default function HomePage() {
                 <div style={{ flex: 100 - weekProgressPct, height: 5, borderRadius: 3, background: T.border }} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontFamily: T.fontMono, fontWeight: 500, fontSize: 10.5, color: T.faint }}>
-                <span>WEEK {schedule?.weekNumber ?? 1} · {doneThisWeek} OF {weekTotal} DONE</span>
+                <span>{t("home.weekProgress", { week: schedule?.weekNumber ?? 1, done: doneThisWeek, total: weekTotal })}</span>
                 {dueCount > 0 && (
-                  <span>{schedule?.dueThisWeek.map(articleTitle).join(", ").toUpperCase()} DUE</span>
+                  <span>{t("home.dueList", { articles: schedule?.dueThisWeek.map(articleTitle).join(", ").toUpperCase() })}</span>
                 )}
               </div>
               <button
@@ -292,7 +297,7 @@ export default function HomePage() {
                   fontFamily: T.font, fontWeight: 600, fontSize: 15, cursor: "pointer",
                 }}
               >
-                {isCatchingUp ? t("home.catchUp", { article: "" }).trim() || "Start catch-up drill" : t("home.continueWeekStudy", { week: schedule?.weekNumber ?? 1 })}
+                {isCatchingUp ? t("home.startCatchUp") : t("home.continueWeekStudy", { week: schedule?.weekNumber ?? 1 })}
               </button>
             </div>
           </div>
@@ -302,11 +307,11 @@ export default function HomePage() {
         {isInLastFiveDaysOfMonth(new Date()) && (
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "15px 16px" }}>
             <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-              Monthly exam window
+              {t("home.monthlyWindow")}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 9, marginTop: 10 }}>
-              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 34, color: T.attention, lineHeight: 1 }}>4</span>
-              <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.3, color: T.muted }}>days left · 25 questions</span>
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 34, color: T.attention, lineHeight: 1 }}>{MONTHLY_DAYS_LEFT_STUB}</span>
+              <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.3, color: T.muted }}>{t("home.daysLeft", { count: MONTHLY_DAYS_LEFT_STUB, questions: 25 })}</span>
             </div>
             <button
               onClick={() => navigate("/monthly-quiz")}
@@ -320,12 +325,12 @@ export default function HomePage() {
         {/* Quick actions */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {[
-            { label: "Audio",       path: "/audio"    },
-            { label: "Commute",     path: "/commute"  },
-            { label: "Quick drill", path: "/quiz/ncaa_basketball:art4" },
+            { label: t("home.audio"),      path: "/audio"    },
+            { label: t("home.commute"),    path: "/commute"  },
+            { label: t("home.quickDrill"), path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (
             <button
-              key={a.label}
+              key={a.path}
               onClick={() => navigate(a.path)}
               style={{
                 minHeight: 52, background: T.surface, border: `1px solid ${T.border}`,

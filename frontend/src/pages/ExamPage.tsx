@@ -235,7 +235,7 @@ export default function ExamPage() {
             {t("exam.estDifficulty")} <strong style={{ color: T.text, fontWeight: 600 }}>{difficulty}</strong>
           </span>
           <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 11, color: T.faint }}>
-            ≈ {estMinutes} MIN
+            {t("exam.estMinutesShort", { count: estMinutes })}
           </span>
         </div>
 

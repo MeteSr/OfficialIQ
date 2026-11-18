@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
             <span style={{ fontSize: 13, fontWeight: 700, color: readinessColor(readiness.label) }}>{t(READINESS_LABEL_KEYS[readiness.label])}</span>
             {readiness.trend !== 0 && (
               <span style={{ fontSize: 12, color: readiness.trend > 0 ? T.correct : T.wrong }}>
-                {readiness.trend > 0 ? "▲" : "▼"} {Math.abs(Math.round(readiness.trend))}pt
+                {readiness.trend > 0 ? "▲" : "▼"} {t("analytics.trendPoints", { count: Math.abs(Math.round(readiness.trend)) })}
               </span>
             )}
           </div>

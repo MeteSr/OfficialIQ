@@ -14,7 +14,7 @@ import {
   type StorageBreakdown,
 } from "../lib/offlineDb";
 import { Principal } from "@icp-sdk/core/principal";
-import { useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
+import { levelLabel, sportLabel, useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { syncAllContent } from "../lib/offlineSync";
 import { aiProxyService } from "../services/aiProxy";
 import { enablePush, disablePush, isPushConfigured, isWebPushSupported } from "../lib/pushNotifications";
@@ -88,7 +88,7 @@ function ProfileForm({
             border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
           }}
         >
-          {sports.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
+          {sports.map(s => <option key={s.id} value={s.id}>{sportLabel(s.id, s.displayName)}</option>)}
         </select>
       </div>
       <div>
@@ -101,7 +101,7 @@ function ProfileForm({
             border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text,
           }}
         >
-          {levelsForSport.map(l => <option key={l.id} value={l.id}>{l.displayName}</option>)}
+          {levelsForSport.map(l => <option key={l.id} value={l.id}>{levelLabel(l.id, l.displayName)}</option>)}
         </select>
       </div>
       <div>
@@ -500,15 +500,15 @@ export default function MePage() {
           <div style={{ display: "flex", marginTop: 20, borderTop: `1px solid ${T.hairline}`, paddingTop: 16 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1 }}>{Number(stats.examCount)}</div>
-              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>EXAMS</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>{t("me.statExams")}</div>
             </div>
             <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
               <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: T.text, lineHeight: 1 }}>{Number(stats.streak)}</div>
-              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>STREAK</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>{t("me.statStreak")}</div>
             </div>
             <div style={{ flex: 1, borderLeft: `1px solid ${T.hairline}`, paddingLeft: 16 }}>
               <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 26, color: fill.accent, lineHeight: 1 }}>{Math.round(stats.accuracy * 100)}%</div>
-              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>ACCURACY</div>
+              <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 6 }}>{t("me.statAccuracy")}</div>
             </div>
           </div>
         )}
@@ -519,7 +519,7 @@ export default function MePage() {
         {/* Training group */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-            Training
+            {t("me.groupTraining")}
           </div>
           <NavRow label={t("me.viewFullProgress")} path="/progress" />
           <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />
@@ -531,7 +531,7 @@ export default function MePage() {
         {/* People group */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-            People
+            {t("me.groupPeople")}
           </div>
           <NavRow label={t("me.studyGroups")} path="/groups" />
           <NavRow label={t("me.mentorship")} path="/mentor" />
@@ -542,7 +542,7 @@ export default function MePage() {
         {/* Records group */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-            Records
+            {t("me.groupRecords")}
           </div>
           <NavRow label={t("me.reportCard")} path="/reports" />
           <NavRow label={t("me.reportCardsShared")} path="/reports/shared" />
@@ -553,7 +553,7 @@ export default function MePage() {
         {/* Friends */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-            Friends
+            {t("me.groupFriends")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <input
@@ -590,7 +590,7 @@ export default function MePage() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13.5, color: T.text, lineHeight: 1.25 }}>{f.displayName}</div>
                 <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, color: T.faint, marginTop: 5 }}>
-                  ELO {Math.round(f.accuracy * 1400)} · {Number(f.streak) > 0 ? `${Number(f.streak)} DAY STREAK` : `${Math.round(f.accuracy * 100)}% ACCURACY`}
+                  ELO {Math.round(f.accuracy * 1400)} · {Number(f.streak) > 0 ? t("me.friendStreak", { count: Number(f.streak) }) : t("me.friendAccuracy", { pct: Math.round(f.accuracy * 100) })}
                 </div>
               </div>
               <button onClick={() => handleRemoveFriend(f.principal)} style={{ minHeight: 44, background: "transparent", border: 0, color: T.faint, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: "0 2px" }}>
@@ -610,7 +610,7 @@ export default function MePage() {
         {/* Device */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-            Device
+            {t("me.groupDevice")}
           </div>
 
           {/* Offline audio */}

@@ -105,7 +105,7 @@ export default function RanksPage() {
 
       {/* Sort row */}
       <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 7 }}>
-        <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>SORT</span>
+        <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>{t("ranks.sortLabel")}</span>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -169,7 +169,7 @@ export default function RanksPage() {
                 )}
                 {isYou && (
                   <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.accent }}>
-                    YOU
+                    {t("ranks.youTag")}
                   </span>
                 )}
               </div>

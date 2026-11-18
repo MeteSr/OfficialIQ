@@ -311,7 +311,7 @@ export default function CertExamPage() {
                   <span style={{ fontFamily: T.font, fontWeight: 500, fontSize: 13, color: T.text }}>
                     {s.articleId.split(":")[1]?.toUpperCase() ?? s.articleId}
                     {weak && (
-                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.08em", color: fill.wrong }}> · WEAK AREA</span>
+                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.08em", color: fill.wrong }}> · {t("certExam.weakAreaTag")}</span>
                     )}
                   </span>
                   <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 18, color }}>{s.pct}%</span>
@@ -359,7 +359,7 @@ export default function CertExamPage() {
         </div>
         <div style={{ padding: 16 }}>
           <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 11, letterSpacing: "0.07em", color: T.faint }}>
-            {answeredCount} ANSWERED · {unansweredCount} UNANSWERED · {flagged.size} FLAGGED
+            {t("certExam.reviewCounts", { answered: answeredCount, unanswered: unansweredCount, flagged: flagged.size })}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7, marginTop: 14 }}>
             {questions.map((q, i) => {
@@ -383,7 +383,7 @@ export default function CertExamPage() {
             })}
           </div>
           <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: "rgba(243,244,241,0.32)", marginTop: 12, lineHeight: 1.6 }}>
-            FILLED ANSWERED · AMBER FLAGGED · OUTLINE UNTOUCHED
+            {t("certExam.gridLegend")}
           </div>
           <button
             onClick={() => {
@@ -426,7 +426,7 @@ export default function CertExamPage() {
           </button>
         </div>
         <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, margin: "8px 0 7px" }}>
-          QUESTION {currentIdx + 1} OF {questions.length}
+          {t("certExam.questionOf", { current: currentIdx + 1, total: questions.length }).toUpperCase()}
         </div>
         <div style={{ height: 3, borderRadius: 2, background: T.border, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${((currentIdx + 1) / questions.length) * 100}%`, background: fill.accent }} />

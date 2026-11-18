@@ -136,7 +136,7 @@ export default function ReportCardPage() {
   }
 
   function handlePrint() {
-    exportOrPrint("OfficialIQ Report Card");
+    exportOrPrint(t("reportCard.title"));
   }
 
   if (!isAuthenticated) {

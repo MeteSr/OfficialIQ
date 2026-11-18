@@ -57,7 +57,7 @@ export default function PublicReportPage() {
       `}</style>
       <ReportCardView report={report} />
       <button
-        onClick={() => exportOrPrint("OfficialIQ Report Card")}
+        onClick={() => exportOrPrint(t("reportCard.title"))}
         style={{ width: "100%", maxWidth: 430, margin: "16px auto 0", display: "block", padding: "12px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
       >
         🖨️ {t("publicReport.printExport")}

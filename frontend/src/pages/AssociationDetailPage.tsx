@@ -115,10 +115,10 @@ export default function AssociationDetailPage() {
   function exportCsv(a: Assignment) {
     const comps = completionsByAssignment[a.id] ?? [];
     const byMember = new Map(comps.map(c => [c.member.toString(), c]));
-    const rows: string[][] = [["Official", "Status", "Score", "Completed At"]];
+    const rows: string[][] = [[t("assocDetail.csvOfficial"), t("assocDetail.csvStatus"), t("assocDetail.csvScore"), t("assocDetail.csvCompletedAt")]];
     roster.forEach((r) => {
       const c = byMember.get(r.principal);
-      rows.push([r.displayName, c ? "Completed" : "Pending", c ? String(Number(c.score)) : "", c ? fmtDate(c.completedAt) : ""]);
+      rows.push([r.displayName, c ? t("assocDetail.csvCompleted") : t("assocDetail.csvPending"), c ? String(Number(c.score)) : "", c ? fmtDate(c.completedAt) : ""]);
     });
     downloadCsv(`${a.title.replace(/[^a-z0-9]+/gi, "_")}_completion.csv`, rows);
   }

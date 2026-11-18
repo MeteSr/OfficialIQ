@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { useAuthStore } from "../store/authStore";
 import { contentService } from "../services/content";
 
@@ -25,6 +27,7 @@ function titleCase(id: string): string {
 /** Display name for the current sport (e.g. "NCAA Men's Basketball"), looked up from the registry. */
 export function useSportDisplayName(): string {
   const { sportId } = useSport();
+  useTranslation(); // re-render on language change
   const [name, setName] = useState(titleCase(sportId));
   useEffect(() => {
     setName(titleCase(sportId));
@@ -33,5 +36,16 @@ export function useSportDisplayName(): string {
       if (match) setName(match.displayName);
     }).catch(() => {});
   }, [sportId]);
-  return name;
+  return sportLabel(sportId, name);
+}
+
+// Registry display names are English content data; these give the UI a
+// translated label when one exists and fall back to the registry's own name
+// (so a newly seeded sport or level still shows something sensible).
+export function sportLabel(id: string, registryName: string): string {
+  return i18n.t(`sports.${id}`, { defaultValue: registryName });
+}
+
+export function levelLabel(id: string, registryName?: string): string {
+  return i18n.t(`levels.${id}`, { defaultValue: registryName ?? titleCase(id) });
 }

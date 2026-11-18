@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { T, fill } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -24,9 +25,9 @@ function masteryColor(pct: number) {
 function parseDrills(raw: string): DrillQuestion[] {
   const start = raw.indexOf("[");
   const end = raw.lastIndexOf("]");
-  if (start === -1 || end === -1) throw new Error("AI response wasn't a JSON array");
+  if (start === -1 || end === -1) throw new Error(i18n.t("aiDrills.badResponse"));
   const parsed = JSON.parse(raw.slice(start, end + 1));
-  if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("AI returned no questions");
+  if (!Array.isArray(parsed) || parsed.length === 0) throw new Error(i18n.t("aiDrills.noQuestions"));
   return parsed;
 }
 
@@ -110,7 +111,7 @@ export default function AiDrillsPage() {
             {t("aiDrills.title")}
           </div>
           <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.attention }}>
-            EPHEMERAL
+            {t("aiDrills.ephemeral")}
           </span>
         </div>
         <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
@@ -175,7 +176,7 @@ export default function AiDrillsPage() {
           return (
             <div>
               <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint }}>
-                QUESTION {index + 1} OF {questions.length} · GENERATED
+                {t("aiDrills.questionOfGenerated", { n: index + 1, total: questions.length })}
               </div>
               <p style={{ fontFamily: T.font, fontWeight: 500, fontSize: 15.5, lineHeight: 1.55, color: T.text, margin: "12px 0 0" }}>
                 {q.stem}
@@ -239,7 +240,7 @@ export default function AiDrillsPage() {
               {correctCount}/{questions.length}
             </div>
             <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", color: T.faint, marginTop: 8 }}>
-              CORRECT
+              {t("aiDrills.correctTag")}
             </div>
             <div style={{ fontFamily: T.font, fontSize: 13, color: T.muted, marginTop: 8, marginBottom: 24 }}>
               {t("aiDrills.notSaved")}
