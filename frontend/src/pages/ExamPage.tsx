@@ -64,20 +64,18 @@ export default function ExamPage() {
   async function generate() {
     setLoading(true);
     try {
-      const qs = await questionService.sampleQuiz({
-        sportId, articleIds: selected, casebook, difficulty: [], count: BigInt(count),
-      });
-      const session = await examService.createSession(
-        { sportId, articleIds: selected, casebook, count: BigInt(qs.length), secPerQ: BigInt(secPerQ), mode: modeMap[mode] },
-        qs.map(q => q.id),
-      );
-      const token = session.shareToken.length ? session.shareToken[0] : null;
-      if (token) {
+      // The exam canister picks the questions and keeps their answers; the
+      // app never sees them before each one is answered.
+      const config = { sportId, articleIds: selected, casebook, count: BigInt(count), secPerQ: BigInt(secPerQ), mode: modeMap[mode] };
+      if (mode === "Share Link") {
+        const token = await examService.createShareLink(config, [
+          { articleIds: selected, casebook, count: BigInt(count), difficulty: [], adaptive: false },
+        ]);
         setShareToken(token);
         await navigator.clipboard.writeText(`${window.location.origin}/quiz/share/${token}`).catch(() => {});
       } else {
-        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}`, {
-          state: { sessionId: session.id, questionIds: qs.map(q => q.id), secPerQ },
+        navigate(`/quiz/${selected[0] ?? "ncaa_basketball:art4"}?count=${count}&sec=${secPerQ}`, {
+          state: { articleIds: selected, casebook, mode: config.mode },
         });
       }
     } catch (e) {

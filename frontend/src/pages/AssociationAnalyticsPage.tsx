@@ -56,7 +56,7 @@ export default function AssociationAnalyticsPage() {
       const members = await associationService.getAssociationMembers(id);
       const [passTemplates, memberExams] = await Promise.all([
         examService.listExamTemplates(rec.sport),
-        Promise.all(members.map(p => examService.getExamsFor(p).catch(() => [] as ExamSession[]))),
+        Promise.all(members.map(p => examService.getMemberExams(p).catch(() => [] as ExamSession[]))),
       ]);
       const passThreshold = passTemplates.length > 0 ? Number(passTemplates[0].passThresholdPct) : Number(DEFAULT_CERT_TEMPLATE.passThresholdPct);
       const memberScoreHistories = memberExams.map(scoredExamsChronological);

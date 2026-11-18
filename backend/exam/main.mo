@@ -140,39 +140,11 @@ persistent actor Exam {
     #ok(session)
   };
 
-  public shared ({ caller }) func submitExam(id : Text, answers : [AnswerRecord]) : async Result.Result<ExamSession, Text> {
-    refreshEnv<system>();
-    switch (Map.get(sessions, Text.compare, id)) {
-      case null { #err("Session not found") };
-      case (?s) {
-        if (s.owner != caller) return #err("Not your session");
-        if (answers.size() > MAX_QUESTIONS) return #err("Too many answers");
-        var correct : Nat = 0;
-        var elapsedTotal : Nat = 0;
-        for (a in answers.values()) {
-          if (a.isCorrect) correct += 1;
-          elapsedTotal += a.elapsedSec;
-        };
-        let pct : Nat = if (answers.size() == 0) 0
-          else (correct * 100) / answers.size();
-        let avgElapsedSec : ?Nat = if (answers.size() == 0) null
-          else ?(elapsedTotal / answers.size());
-        let updated : ExamSession = {
-          id            = s.id;
-          owner         = s.owner;
-          config        = s.config;
-          questionIds   = s.questionIds;
-          answers       = answers;
-          score         = ?pct;
-          avgElapsedSec = avgElapsedSec;
-          shareToken    = s.shareToken;
-          startedAt     = s.startedAt;
-          finishedAt    = ?Time.now();
-        };
-        Map.add(sessions, Text.compare, id, updated);
-        #ok(updated)
-      };
-    }
+  // Client-graded submission is retired: answers are graded here, one at a
+  // time (answerQuestion) or in one batch (submitGradedAnswers). Kept so
+  // older clients get a clear error.
+  public shared func submitExam(_id : Text, _answers : [AnswerRecord]) : async Result.Result<ExamSession, Text> {
+    #err("Exams are graded by OfficialIQ now. Update the app and retake this quiz.")
   };
 
   public shared ({ caller }) func upsertExamTemplate(input : ExamTemplateInput) : async Result.Result<ExamTemplate, Text> {
@@ -224,23 +196,36 @@ persistent actor Exam {
     VarArray.sliceToArray<ExamSession>(buf, 0, i)
   };
 
-  // An official's exam history is private: only the official and the
-  // coordinators of associations they belong to can read it (coordinators use
-  // per-exam scores for season-cohort trends). The coordinator check asks the
-  // association canister, hence a composite query.
+  // An official's exam history is private: getExamsFor answers only for the
+  // caller themself (and the admin). Coordinators read their members'
+  // history through getMemberExams, which checks with the association
+  // canister (hence a composite query).
   // A query can't read canister environment variables (icp-cli skill,
   // canister-env-vars), so the association canister's ID is mirrored here at
   // init/upgrade and refreshed by every update call — on a first install the
   // sibling may not exist yet when this canister initialises.
   transient var ASSOCIATION_ID : ?Principal = Env.canisterId<system>("association");
+  transient var RANKING_ID : ?Principal = Env.canisterId<system>("ranking");
+  transient var CHALLENGE_ID : ?Principal = Env.canisterId<system>("challenge");
 
   func refreshEnv<system>() {
     switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
+    switch (Env.canisterId<system>("ranking")) { case (?id) RANKING_ID := ?id; case null {} };
+    switch (Env.canisterId<system>("challenge")) { case (?id) CHALLENGE_ID := ?id; case null {} };
+  };
+
+  func isSiblingCanister(p : Principal) : Bool {
+    ASSOCIATION_ID == ?p or RANKING_ID == ?p or CHALLENGE_ID == ?p
   };
 
   type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
 
-  public shared composite query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
+  public shared query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
+    if (caller != p and not isAdmin(caller)) return [];
+    examsOf(p)
+  };
+
+  public shared composite query ({ caller }) func getMemberExams(p : Principal) : async [ExamSession] {
     if (caller != p) {
       let allowed = switch (ASSOCIATION_ID) {
         case (?id) { await (actor (Principal.toText(id)) : AssociationCheck).isCoordinatorOf(caller, p) };
@@ -248,6 +233,10 @@ persistent actor Exam {
       };
       if (not allowed) return [];
     };
+    examsOf(p)
+  };
+
+  func examsOf(p : Principal) : [ExamSession] {
     let buf = VarArray.repeat<ExamSession>({
       id = ""; owner = p; config = { sportId = ""; articleIds = []; casebook = false; count = 0; secPerQ = 0; mode = #Solo };
       questionIds = []; answers = []; score = null; avgElapsedSec = null; shareToken = null; startedAt = 0; finishedAt = null;
@@ -263,6 +252,342 @@ persistent actor Exam {
     switch (Map.get(shareIndex, Text.compare, token)) {
       case null null;
       case (?id) Map.get(sessions, Text.compare, id);
+    }
+  };
+
+  // ─── Graded sessions ───────────────────────────────────────────────────────
+  //
+  // Ranked quizzes, certification exams and challenges are graded here. The
+  // player only ever receives questions without their answers
+  // (QuestionView); each answer is checked and recorded once, here, before
+  // the correct choice is revealed. Ranking, challenge and association then
+  // read the result from this canister (gradedResult) instead of trusting a
+  // score from the browser.
+
+  public type Difficulty = { #Beginner; #Intermediate; #Advanced; #Expert };
+  public type Choice = { id : Text; text : Text };
+
+  // Mirrors question.Question (the subset this canister needs).
+  type FullQuestion = {
+    id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
+    choices : [Choice]; correctId : Text; explanation : Text; difficulty : Difficulty;
+    isCasebook : Bool; isPointOfEmphasis : Bool; createdAt : Int;
+  };
+
+  public type QuestionView = {
+    id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
+    choices : [Choice]; difficulty : Difficulty; isCasebook : Bool; isPointOfEmphasis : Bool;
+  };
+
+  public type Pick = {
+    articleIds : [Text];
+    casebook   : Bool;
+    count      : Nat;
+    difficulty : ?Difficulty;
+    adaptive   : Bool;
+  };
+
+  public type QuestionSource = {
+    #Picks      : [Pick];  // the canister picks questions (quizzes, cert exams)
+    #Ids        : [Text];  // a fixed set (challenges)
+    #ShareToken : Text;    // the same questions as a shared exam link
+  };
+
+  public type GradedStart = { session : ExamSession; questions : [QuestionView] };
+
+  public type AnswerFeedback = {
+    questionId  : Text;
+    isCorrect   : Bool;
+    correctId   : Text;
+    explanation : Text;
+    citation    : Text;
+  };
+
+  public type GradedFinish = { session : ExamSession; feedback : [AnswerFeedback] };
+
+  // What other canisters read: the server-computed result of a finished,
+  // graded session. score counts unanswered questions as wrong.
+  public type GradedResult = {
+    id            : Text;
+    owner         : Principal;
+    mode          : ExamMode;
+    sportId       : Text;
+    articleIds    : [Text];
+    questionIds   : [Text];
+    questionCount : Nat;
+    answered      : Nat;
+    correct       : Nat;
+    score         : Nat;
+    avgElapsedSec : Nat;
+    finishedAt    : Int;
+  };
+
+  type KeyEntry = { questionId : Text; correctId : Text; explanation : Text; citation : Text };
+
+  // Session id -> answer key. Only graded sessions have one.
+  var answerKeys : Map.Map<Text, [KeyEntry]> = Map.empty<Text, [KeyEntry]>();
+
+  // "<player>|<question ids>" -> session id, for fixed question sets
+  // (challenges): a player gets one graded session per set, resumed rather
+  // than restarted, so they can't retake it until they like the score.
+  var fixedSetSessions : Map.Map<Text, Text> = Map.empty<Text, Text>();
+
+  func fixedSetKey(p : Principal, ids : [Text]) : Text {
+    var k = Principal.toText(p) # "|";
+    for (id in ids.values()) { k := k # id # "," };
+    k
+  };
+
+  let MAX_PICKS : Nat = 50;
+  // Grace on top of the session's time budget for network latency.
+  let GRACE_NS : Int = 120_000_000_000;
+
+  type QuestionCanister = actor {
+    pickForExam      : shared (Text, [Pick], Principal) -> async Result.Result<[FullQuestion], Text>;
+    questionsForExam : shared [Text] -> async Result.Result<[FullQuestion], Text>;
+  };
+
+  func viewOf(q : FullQuestion) : QuestionView {
+    { id = q.id; sportId = q.sportId; articleId = q.articleId; citation = q.citation; stem = q.stem;
+      choices = q.choices; difficulty = q.difficulty; isCasebook = q.isCasebook; isPointOfEmphasis = q.isPointOfEmphasis }
+  };
+
+  func keyFor(sessionId : Text, questionId : Text) : ?KeyEntry {
+    switch (Map.get(answerKeys, Text.compare, sessionId)) {
+      case null null;
+      case (?key) Array.find<KeyEntry>(key, func(k) { k.questionId == questionId });
+    }
+  };
+
+  func feedbackOf(k : KeyEntry, isCorrect : Bool) : AnswerFeedback {
+    { questionId = k.questionId; isCorrect; correctId = k.correctId; explanation = k.explanation; citation = k.citation }
+  };
+
+  // Time budget: secPerQ per question, plus grace. Answers after it are refused.
+  func deadlineOf(s : ExamSession) : Int {
+    s.startedAt + s.config.secPerQ * s.questionIds.size() * 1_000_000_000 + GRACE_NS
+  };
+
+  public shared ({ caller }) func startGradedSession(config : ExamConfig, source : QuestionSource) : async Result.Result<GradedStart, Text> {
+    refreshEnv<system>();
+    await* startFor(caller, config, source)
+  };
+
+  func startFor<system>(caller : Principal, config : ExamConfig, source : QuestionSource) : async* Result.Result<GradedStart, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Sign in to take a ranked quiz");
+    if (config.secPerQ == 0 or config.secPerQ > 600) return #err("secPerQ must be 1-600");
+    let questionId = switch (Env.canisterId<system>("question")) {
+      case (?id) id;
+      case null return #err("Question bank not configured");
+    };
+    let qc = actor (Principal.toText(questionId)) : QuestionCanister;
+
+    // Every await happens before any state changes below.
+    let fetched : Result.Result<[FullQuestion], Text> = switch source {
+      case (#Picks(picks)) {
+        if (picks.size() == 0 or picks.size() > MAX_PICKS) return #err("1-" # Nat.toText(MAX_PICKS) # " picks");
+        var total = 0;
+        for (p in picks.values()) { total += p.count };
+        if (total > MAX_QUESTIONS) return #err("Too many questions");
+        await qc.pickForExam(config.sportId, picks, caller)
+      };
+      case (#Ids(ids)) {
+        if (ids.size() == 0 or ids.size() > MAX_QUESTIONS) return #err("1-" # Nat.toText(MAX_QUESTIONS) # " questions");
+        let r = await qc.questionsForExam(ids);
+        // Resume the player's existing session for this set, if any.
+        switch (Map.get(fixedSetSessions, Text.compare, fixedSetKey(caller, ids))) {
+          case (?sid) {
+            switch (Map.get(sessions, Text.compare, sid), r) {
+              case (?existing, #ok(qs)) return #ok({ session = existing; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
+              case _ {};
+            };
+          };
+          case null {};
+        };
+        r
+      };
+      case (#ShareToken(token)) {
+        let shared_ = switch (Map.get(shareIndex, Text.compare, token)) {
+          case (?id) Map.get(sessions, Text.compare, id);
+          case null null;
+        };
+        switch shared_ {
+          case null return #err("This exam link isn't valid");
+          case (?sh) await qc.questionsForExam(sh.questionIds);
+        }
+      };
+    };
+    let qs = switch fetched {
+      case (#ok(qs)) qs;
+      case (#err(e)) return #err(e);
+    };
+    if (qs.size() == 0) return #err("No questions match");
+
+    let token : ?Text = switch (config.mode) {
+      case (#ShareLink) ?(await Token.hex("eq"));
+      case _ null;
+    };
+
+    let id = "ex" # Nat.toText(nextId);
+    nextId += 1;
+    let questionIds = Array.map<FullQuestion, Text>(qs, func(q) { q.id });
+    let session : ExamSession = {
+      id; owner = caller;
+      config = { config with count = qs.size() };
+      questionIds; answers = []; score = null; avgElapsedSec = null;
+      shareToken = token; startedAt = Time.now(); finishedAt = null;
+    };
+    switch token { case (?t) Map.add(shareIndex, Text.compare, t, id); case null {} };
+    switch source {
+      case (#Ids(ids)) {
+        // Re-checked after the awaits: a concurrent start may have won.
+        let k = fixedSetKey(caller, ids);
+        switch (Map.get(fixedSetSessions, Text.compare, k)) {
+          case (?sid) {
+            switch (Map.get(sessions, Text.compare, sid)) {
+              case (?existing) return #ok({ session = existing; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
+              case null {};
+            };
+          };
+          case null {};
+        };
+        Map.add(fixedSetSessions, Text.compare, k, id);
+      };
+      case _ {};
+    };
+    Map.add(sessions, Text.compare, id, session);
+    Map.add(answerKeys, Text.compare, id, Array.map<FullQuestion, KeyEntry>(qs, func(q) {
+      { questionId = q.id; correctId = q.correctId; explanation = q.explanation; citation = q.citation }
+    }));
+    #ok({ session; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) })
+  };
+
+  // Shared exam links: the canister picks the questions and stores them under
+  // a token; whoever opens the link (the creator included) takes them in a
+  // graded session of their own (startGradedSession with #ShareToken).
+  public shared ({ caller }) func createShareLink(config : ExamConfig, picks : [Pick]) : async Result.Result<Text, Text> {
+    refreshEnv<system>();
+    switch (await* startFor(caller, { config with mode = #ShareLink }, #Picks(picks))) {
+      case (#ok(start)) {
+        switch (start.session.shareToken) {
+          case (?t) {
+            // The link's own session is never played; drop its key so it
+            // can't be graded or counted.
+            Map.remove(answerKeys, Text.compare, start.session.id);
+            #ok(t)
+          };
+          case null #err("No share token");
+        }
+      };
+      case (#err(e)) #err(e);
+    }
+  };
+
+  func recordGraded(s : ExamSession, questionId : Text, chosenId : Text, elapsedSec : Nat) : Result.Result<AnswerFeedback, Text> {
+    if (s.finishedAt != null) return #err("This exam is finished");
+    if (Time.now() > deadlineOf(s)) return #err("Time is up for this exam");
+    let k = switch (keyFor(s.id, questionId)) {
+      case (?k) k;
+      case null return #err("Not a question in this exam");
+    };
+    if (Array.find<AnswerRecord>(s.answers, func(a) { a.questionId == questionId }) != null) {
+      return #err("Already answered");
+    };
+    let isCorrect = chosenId == k.correctId;
+    let rec : AnswerRecord = { questionId; chosenId; isCorrect; elapsedSec = Nat.min(elapsedSec, s.config.secPerQ) };
+    Map.add(sessions, Text.compare, s.id, { s with answers = Array.concat<AnswerRecord>(s.answers, [rec]) });
+    #ok(feedbackOf(k, isCorrect))
+  };
+
+  func gradedSession(caller : Principal, sessionId : Text) : Result.Result<ExamSession, Text> {
+    switch (Map.get(sessions, Text.compare, sessionId)) {
+      case null #err("Session not found");
+      case (?s) {
+        if (s.owner != caller) return #err("Not your session");
+        if (Map.get(answerKeys, Text.compare, sessionId) == null) return #err("Not a graded session");
+        #ok(s)
+      };
+    }
+  };
+
+  /// Answers one question and reveals it. One answer per question; a
+  /// timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
+  public shared ({ caller }) func answerQuestion(sessionId : Text, questionId : Text, chosenId : Text, elapsedSec : Nat) : async Result.Result<AnswerFeedback, Text> {
+    switch (gradedSession(caller, sessionId)) {
+      case (#err(e)) #err(e);
+      case (#ok(s)) recordGraded(s, questionId, chosenId, elapsedSec);
+    }
+  };
+
+  func finish(s0 : ExamSession) : GradedFinish {
+    let s = switch (Map.get(sessions, Text.compare, s0.id)) { case (?x) x; case null s0 };
+    let finished = if (s.finishedAt != null) s else {
+      let total = s.questionIds.size();
+      var correct = 0;
+      var elapsed = 0;
+      for (a in s.answers.values()) { if (a.isCorrect) correct += 1; elapsed += a.elapsedSec };
+      let done = { s with
+        score = ?(if (total == 0) 0 else correct * 100 / total);
+        avgElapsedSec = if (s.answers.size() == 0) null else ?(elapsed / s.answers.size());
+        finishedAt = ?Time.now();
+      };
+      Map.add(sessions, Text.compare, s.id, done);
+      done
+    };
+    let key = switch (Map.get(answerKeys, Text.compare, s.id)) { case (?k) k; case null [] };
+    let feedback = Array.map<KeyEntry, AnswerFeedback>(key, func(k) {
+      let ok = switch (Array.find<AnswerRecord>(finished.answers, func(a) { a.questionId == k.questionId })) {
+        case (?a) a.isCorrect;
+        case null false;
+      };
+      feedbackOf(k, ok)
+    });
+    { session = finished; feedback }
+  };
+
+  /// Finishes a session (unanswered questions count as wrong) and returns
+  /// the full answer key. Safe to call again.
+  public shared ({ caller }) func finishSession(sessionId : Text) : async Result.Result<GradedFinish, Text> {
+    switch (gradedSession(caller, sessionId)) {
+      case (#err(e)) #err(e);
+      case (#ok(s)) #ok(finish(s));
+    }
+  };
+
+  /// Certification-style exams: answers are hidden until the end, so they
+  /// arrive as one batch, are graded here, and the session is finished.
+  public shared ({ caller }) func submitGradedAnswers(sessionId : Text, answers : [(Text, Text, Nat)]) : async Result.Result<GradedFinish, Text> {
+    if (answers.size() > MAX_QUESTIONS) return #err("Too many answers");
+    switch (gradedSession(caller, sessionId)) {
+      case (#err(e)) #err(e);
+      case (#ok(s)) {
+        for ((qid, chosenId, elapsed) in answers.values()) {
+          switch (Map.get(sessions, Text.compare, sessionId)) {
+            case (?cur) ignore recordGraded(cur, qid, chosenId, elapsed);
+            case null {};
+          };
+        };
+        #ok(finish(s))
+      };
+    }
+  };
+
+  /// The server-computed result of a finished graded session, for the
+  /// session's owner and the ranking/challenge/association canisters.
+  public shared query ({ caller }) func gradedResult(sessionId : Text) : async ?GradedResult {
+    let s = switch (Map.get(sessions, Text.compare, sessionId)) { case (?s) s; case null return null };
+    if (caller != s.owner and not isSiblingCanister(caller)) return null;
+    if (Map.get(answerKeys, Text.compare, sessionId) == null) return null;
+    let finishedAt = switch (s.finishedAt) { case (?t) t; case null return null };
+    var correct = 0;
+    for (a in s.answers.values()) { if (a.isCorrect) correct += 1 };
+    ?{
+      id = s.id; owner = s.owner; mode = s.config.mode; sportId = s.config.sportId;
+      articleIds = s.config.articleIds; questionIds = s.questionIds;
+      questionCount = s.questionIds.size(); answered = s.answers.size(); correct;
+      score = switch (s.score) { case (?x) x; case null 0 };
+      avgElapsedSec = switch (s.avgElapsedSec) { case (?x) x; case null 0 };
+      finishedAt;
     }
   };
 

@@ -44,7 +44,6 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Comp = I.Record({ assignmentId: I.Text, member: I.Principal, score: I.Nat, completedAt: I.Int });
   const ResultAssoc  = I.Variant({ ok: Assoc, err: I.Text });
   const ResultAssign = I.Variant({ ok: Assign, err: I.Text });
-  const ResultUnit   = I.Variant({ ok: I.Null, err: I.Text });
   const ResultMembers = I.Variant({ ok: I.Vec(I.Principal), err: I.Text });
   const ResultAssigns  = I.Variant({ ok: I.Vec(Assign), err: I.Text });
   const ResultComps    = I.Variant({ ok: I.Vec(Comp), err: I.Text });
@@ -52,7 +51,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     createAssociation:          I.Func([I.Text, I.Text], [ResultAssoc], []),
     joinAssociation:            I.Func([I.Text], [ResultAssoc], []),
     createAssignment:           I.Func([I.Text, I.Text, I.Vec(I.Text), I.Bool, I.Int, I.Vec(I.Principal)], [ResultAssign], []),
-    recordCompletion:           I.Func([I.Text, I.Nat], [ResultUnit], []),
+    recordGradedCompletion:     I.Func([I.Text, I.Text], [I.Variant({ ok: Comp, err: I.Text })], []),
     getMyAssociations:          I.Func([], [I.Vec(Assoc)], ["query"]),
     getMyCoordinatedAssociations: I.Func([], [I.Vec(Assoc)], ["query"]),
     getAssociation:              I.Func([I.Text], [I.Opt(Assoc)], ["query"]),
@@ -74,7 +73,7 @@ function actor() {
     createAssociation:            (name: string, sport: string) => Promise<{ ok: AssociationRec } | { err: string }>;
     joinAssociation:              (joinCode: string) => Promise<{ ok: AssociationRec } | { err: string }>;
     createAssignment:             (associationId: string, title: string, articleIds: string[], casebook: boolean, dueAt: bigint, targetMembers: any[]) => Promise<{ ok: Assignment } | { err: string }>;
-    recordCompletion:             (assignmentId: string, score: bigint) => Promise<{ ok: null } | { err: string }>;
+    recordGradedCompletion:       (assignmentId: string, sessionId: string) => Promise<{ ok: Completion } | { err: string }>;
     getMyAssociations:            () => Promise<AssociationRec[]>;
     getMyCoordinatedAssociations: () => Promise<AssociationRec[]>;
     getAssociation:                (id: string) => Promise<[] | [AssociationRec]>;
@@ -110,9 +109,11 @@ export const associationService = {
     return res.ok;
   },
 
-  async recordCompletion(assignmentId: string, score: number): Promise<void> {
+  /** Marks an assignment complete from the graded exam session it was taken in. */
+  async recordGradedCompletion(assignmentId: string, sessionId: string): Promise<void> {
     if (!CANISTER_ID) return;
-    await actor().recordCompletion(assignmentId, BigInt(Math.round(score))).catch(() => {});
+    const res = await actor().recordGradedCompletion(assignmentId, sessionId);
+    if ("err" in res) throw new Error(res.err);
   },
 
   async getMyAssociations(): Promise<AssociationRec[]> {

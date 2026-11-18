@@ -8,6 +8,8 @@ import type { ExamConfig, AnswerRecord } from "../services/exam";
 // transient error) gets queued here and replayed on reconnect. Each variant
 // carries exactly what's needed to redo the original call.
 
+// offlineExam, submitExam and recordExamResult are no longer queued (see
+// offlineSync.replay); the kinds stay so older queued entries still parse.
 export type PendingAction =
   | {
       id: string; kind: "offlineExam"; createdAt: number;

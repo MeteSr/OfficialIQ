@@ -93,7 +93,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const ResultGroup = I.Variant({ ok: GroupRec, err: I.Text });
   const ResultGroupChallenge = I.Variant({ ok: GroupChallengeRec, err: I.Text });
   return I.Service({
-    recordExamResult:      I.Func([I.Nat, I.Nat, I.Text, I.Text, I.Text, I.Nat], [I.Null], []),
+    claimExamResult:       I.Func([I.Text, I.Text, I.Text], [I.Variant({ ok: Stats, err: I.Text })], []),
     addFriend:             I.Func([I.Principal], [ResultU], []),
     removeFriend:          I.Func([I.Principal], [ResultU], []),
     getFriendPrincipals:   I.Func([], [I.Vec(I.Principal)], ["query"]),
@@ -147,7 +147,7 @@ const CANISTER_ID = canisterId("ranking");
 
 function actor() {
   return createActor<{
-    recordExamResult:    (score: bigint, qCount: bigint, name: string, sport: string, state: string, avgElapsedSec: bigint) => Promise<null>;
+    claimExamResult:     (sessionId: string, name: string, state: string) => Promise<{ ok: UserStats } | { err: string }>;
     addFriend:           (p: any) => Promise<{ ok: null } | { err: string }>;
     removeFriend:        (p: any) => Promise<{ ok: null } | { err: string }>;
     getFriendPrincipals: () => Promise<any[]>;
@@ -231,9 +231,12 @@ export const rankingService = {
     return actor().getFriendPrincipals();
   },
 
-  async recordExamResult(score: number, questionCount: number, displayName: string, sport: string, state: string, avgElapsedSec: number): Promise<void> {
-    if (!CANISTER_ID) return;
-    await actor().recordExamResult(BigInt(score), BigInt(questionCount), displayName, sport, state, BigInt(Math.round(avgElapsedSec)));
+  /** Counts a finished graded exam session (scored by the exam canister) toward the leaderboard. */
+  async claimExamResult(sessionId: string, displayName: string, state: string): Promise<UserStats | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().claimExamResult(sessionId, displayName, state);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 
   async recordQuestionsAnswered(count: number): Promise<DailyActivity | null> {

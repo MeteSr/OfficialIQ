@@ -8,6 +8,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
 import Env "../lib/Env";
+import Set "mo:core/Set";
 
 persistent actor Association {
 
@@ -144,15 +145,41 @@ persistent actor Association {
     }
   };
 
-  public shared ({ caller }) func recordCompletion(assignmentId : Text, score : Nat) : async Result.Result<(), Text> {
+  // Client-reported scores are retired: completions come from a graded exam
+  // session (recordGradedCompletion).
+  public shared func recordCompletion(_assignmentId : Text, _score : Nat) : async Result.Result<(), Text> {
+    #err("Assignments are graded by OfficialIQ now. Update the app.")
+  };
+
+  type GradedResult = {
+    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
+    sportId : Text; articleIds : [Text]; questionIds : [Text];
+    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
+  };
+
+  var usedSessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Records an assignment completion from a finished exam session graded by
+  /// the exam canister, taken on the assignment's articles. Each session
+  /// counts once; retaking replaces the earlier completion.
+  public shared ({ caller }) func recordGradedCompletion(assignmentId : Text, sessionId : Text) : async Result.Result<Completion, Text> {
+    let examId = switch (Env.canisterId<system>("exam")) { case (?e) e; case null return #err("Exam canister not configured") };
+    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let r = switch (await exam.gradedResult(sessionId)) {
+      case (?r) r;
+      case null return #err("No finished graded exam with that id");
+    };
+    if (r.owner != caller) return #err("Not your exam");
+    if (Set.contains(usedSessions, Text.compare, sessionId)) return #err("That exam was already used");
     switch (Map.get(assignments, Text.compare, assignmentId)) {
       case null #err("Assignment not found");
       case (?a) {
         if (not isTargeted(a, caller)) return #err("This module wasn't assigned to you");
-        if (score > 100) return #err("Score must be 0-100");
-        let c : Completion = { assignmentId; member = caller; score; completedAt = Time.now() };
+        if (r.articleIds != a.articleIds) return #err("That exam doesn't cover this assignment's articles");
+        let c : Completion = { assignmentId; member = caller; score = r.score; completedAt = Time.now() };
         Map.add(completions, Text.compare, completionKey(assignmentId, caller), c);
-        #ok(())
+        Set.add(usedSessions, Text.compare, sessionId);
+        #ok(c)
       };
     }
   };

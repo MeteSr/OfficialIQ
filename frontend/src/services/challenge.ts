@@ -42,7 +42,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   return I.Service({
     sendChallenge:   I.Func([I.Principal, I.Text, I.Vec(I.Text), I.Vec(I.Text), I.Nat], [ResultC], []),
     acceptChallenge: I.Func([I.Text], [ResultC], []),
-    submitResult:    I.Func([I.Text, I.Nat], [ResultC], []),
+    submitGradedResult: I.Func([I.Text, I.Text], [ResultC], []),
     getMyChallenges: I.Func([], [I.Vec(Ch)], ["query"]),
     getChallenge:    I.Func([I.Text], [I.Opt(Ch)], ["query"]),
     metrics:         I.Func([], [I.Record({ challengeCount: I.Nat })], ["query"]),
@@ -57,7 +57,7 @@ function actor() {
   return createActor<{
     sendChallenge:   (opponent: any, sport: string, articleIds: string[], questionIds: string[], count: bigint) => Promise<{ ok: Challenge } | { err: string }>;
     acceptChallenge: (id: string) => Promise<{ ok: Challenge } | { err: string }>;
-    submitResult:    (id: string, score: bigint) => Promise<{ ok: Challenge } | { err: string }>;
+    submitGradedResult: (id: string, sessionId: string) => Promise<{ ok: Challenge } | { err: string }>;
     getMyChallenges: () => Promise<Challenge[]>;
     getChallenge:    (id: string) => Promise<[] | [Challenge]>;
   }>(CANISTER_ID, idlFactory);
@@ -110,9 +110,10 @@ export const challengeService = {
     return res.ok;
   },
 
-  async submitResult(id: string, score: number): Promise<Challenge> {
+  /** Records the caller's result from the graded exam session they played this challenge in. */
+  async submitGradedResult(id: string, sessionId: string): Promise<Challenge> {
     if (!CANISTER_ID) throw new Error("Canister not deployed");
-    const res = await actor().submitResult(id, BigInt(score));
+    const res = await actor().submitGradedResult(id, sessionId);
     if ("err" in res) throw new Error(res.err);
     return res.ok;
   },

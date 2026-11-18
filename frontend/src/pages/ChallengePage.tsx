@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
-import { questionService, type Question } from "../services/question";
+import { type Question } from "../services/question";
+import { examService, unrevealed } from "../services/exam";
 import { challengeService, type Challenge } from "../services/challenge";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
@@ -24,10 +25,13 @@ export default function ChallengePage() {
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [chosen,     setChosen]     = useState<string | null>(null);
-  const [correct,    setCorrect]    = useState(0);
   const [timeLeft,   setTimeLeft]   = useState(SECONDS_PER_Q);
 
   const [submitting, setSubmitting] = useState(false);
+  // Challenges are played in a graded exam session: the canister holds the
+  // answers and reveals each one after it's answered.
+  const [sessionId,  setSessionId]  = useState<string | null>(null);
+  const [checking,   setChecking]   = useState(false);
   const [result,     setResult]     = useState<ResultView | null>(null);
 
   function resultFrom(ch: Challenge): ResultView {
@@ -59,10 +63,23 @@ export default function ChallengePage() {
         return;
       }
 
-      const qs = (await Promise.all(ch.questionIds.map(qid => questionService.getQuestion(qid))))
-        .filter((q): q is Question => q !== null);
-      if (qs.length === 0) { setError(t("challenge.noQuestions")); return; }
-      setQuestions(qs);
+      if (!principal) { setError(t("challenge.notYours")); return; }
+      const start = await examService.startGradedSession({
+        sportId: ch.sport, articleIds: ch.articleIds, casebook: false,
+        count: BigInt(ch.questionIds.length), secPerQ: BigInt(SECONDS_PER_Q), mode: { Timed: null },
+      }, { Ids: ch.questionIds });
+      if (start.questions.length === 0) { setError(t("challenge.noQuestions")); return; }
+      setSessionId(start.session.id);
+      setQuestions(start.questions.map(unrevealed));
+      // One session per player per challenge: reopening resumes it.
+      const answeredIds = new Set(start.session.answers.map(a => a.questionId));
+      const firstOpen = start.questions.findIndex(q => !answeredIds.has(q.id));
+      if (start.session.finishedAt.length || firstOpen === -1) {
+        await examService.finishSession(start.session.id);
+        setResult(resultFrom(await challengeService.submitGradedResult(ch.id, start.session.id)));
+        return;
+      }
+      setCurrentIdx(firstOpen);
     })
       .catch(() => setError(t("challenge.loadFailed")))
       .finally(() => setLoading(false));
@@ -78,35 +95,49 @@ export default function ChallengePage() {
   // Countdown timer
   useEffect(() => {
     if (chosen !== null || loading || result || questions.length === 0) return;
-    if (timeLeft === 0) { setChosen("__timeout__"); return; }
+    if (timeLeft === 0) { handleChoiceRef.current("__timeout__"); return; }
     const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [timeLeft, chosen, loading, result, questions.length]);
 
   const currentQ = questions[currentIdx];
 
-  const handleChoice = useCallback((choiceId: string) => {
-    if (chosen !== null || !currentQ) return;
+  const handleChoice = useCallback(async (choiceId: string) => {
+    if (chosen !== null || !currentQ || !sessionId) return;
     setChosen(choiceId);
-    if (choiceId === currentQ.correctId) setCorrect(c => c + 1);
-  }, [chosen, currentQ]);
+    setChecking(true);
+    try {
+      const fb = await examService.answerQuestion(sessionId, currentQ.id, choiceId, SECONDS_PER_Q - timeLeft);
+      setQuestions(qs => qs.map(q => q.id === fb.questionId ? { ...q, correctId: fb.correctId, explanation: fb.explanation, citation: fb.citation } : q));
+    } catch (e: any) {
+      setChosen(null);
+      setError(e?.message ?? t("challenge.submitFailed"));
+    } finally {
+      setChecking(false);
+    }
+  }, [chosen, currentQ, sessionId, timeLeft]);
+
+  const handleChoiceRef = useRef(handleChoice);
+  handleChoiceRef.current = handleChoice;
 
   const handleNext = useCallback(async () => {
     const isLast = currentIdx + 1 >= questions.length;
     if (!isLast) { setCurrentIdx(i => i + 1); return; }
     if (!id) return;
 
-    const score = Math.round((correct / questions.length) * 100);
+    if (!sessionId) return;
     setSubmitting(true);
     try {
-      const updated = await challengeService.submitResult(id, score);
+      // The score comes from the exam canister's grading of this session.
+      await examService.finishSession(sessionId);
+      const updated = await challengeService.submitGradedResult(id, sessionId);
       setResult(resultFrom(updated));
     } catch (e: any) {
       setError(e.message ?? t("challenge.submitFailed"));
     } finally {
       setSubmitting(false);
     }
-  }, [currentIdx, questions.length, id, correct]);
+  }, [currentIdx, questions.length, id, sessionId]);
 
   if (loading) {
     return (
@@ -177,7 +208,7 @@ export default function ChallengePage() {
 
   if (!currentQ) return null;
 
-  const revealed = chosen !== null;
+  const revealed = chosen !== null && !checking;
   const timerPct = (timeLeft / SECONDS_PER_Q) * 100;
 
   return (
@@ -207,7 +238,7 @@ export default function ChallengePage() {
             return (
               <button
                 key={c.id}
-                disabled={revealed}
+                disabled={chosen !== null}
                 onClick={() => handleChoice(c.id)}
                 style={{
                   padding: "13px 16px", background: bg, border: `2px solid ${border}`,

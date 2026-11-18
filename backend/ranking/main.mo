@@ -11,6 +11,8 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
+import Env "../lib/Env";
+import Set "mo:core/Set";
 
 persistent actor Ranking {
 
@@ -199,19 +201,49 @@ persistent actor Ranking {
     else 1.0
   };
 
-  public shared ({ caller }) func recordExamResult(
-    score         : Nat,
-    questionCount : Nat,
-    displayName   : Text,
-    sport         : Text,
-    state         : Text,
-    avgElapsedSec : Nat,
+  // Client-reported scores are no longer accepted: results come from the
+  // exam canister's grading (claimExamResult). Kept so older clients fail
+  // loudly instead of with a missing-method error.
+  public shared func recordExamResult(
+    _score : Nat, _questionCount : Nat, _displayName : Text, _sport : Text, _state : Text, _avgElapsedSec : Nat,
   ) : async () {
-    // Scores are still client-reported (see the security audit), but at least
-    // keep them in range: an unbounded score turns into an unbounded ELO jump.
-    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
-    if (score > 100) Runtime.trap("Score must be 0-100");
-    if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(sport) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) Runtime.trap("Field too long");
+    Runtime.trap("Exam results are graded by OfficialIQ now. Update the app.")
+  };
+
+  // ─── Graded results (from the exam canister) ───────────────────────────────
+
+  type GradedResult = {
+    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
+    sportId : Text; articleIds : [Text]; questionIds : [Text];
+    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
+  };
+
+  // Exam sessions already counted, so one good session can't be claimed twice.
+  var claimedSessions : Set.Set<Text> = Set.empty<Text>();
+
+  let MIN_RANKED_QUESTIONS : Nat = 5;
+
+  /// Counts a finished, canister-graded exam session toward the caller's
+  /// ELO, accuracy and streak. The score comes from the exam canister, never
+  /// from the browser; each session counts once.
+  public shared ({ caller }) func claimExamResult(sessionId : Text, displayName : Text, state : Text) : async Result.Result<UserStats, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
+    let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err("Exam canister not configured") };
+    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let r = switch (await exam.gradedResult(sessionId)) {
+      case (?r) r;
+      case null return #err("No finished graded exam with that id");
+    };
+    // Re-checked after the await: another call may have claimed it meanwhile.
+    if (r.owner != caller) return #err("Not your exam");
+    if (Set.contains(claimedSessions, Text.compare, sessionId)) return #err("Already counted");
+    if (r.questionCount < MIN_RANKED_QUESTIONS) return #err("Ranked exams need at least " # Nat.toText(MIN_RANKED_QUESTIONS) # " questions");
+    Set.add(claimedSessions, Text.compare, sessionId);
+    #ok(applyExamResult(caller, r.score, displayName, r.sportId, state, r.avgElapsedSec))
+  };
+
+  func applyExamResult(caller : Principal, score : Nat, displayName : Text, sport : Text, state : Text, avgElapsedSec : Nat) : UserStats {
     let prev : UserStats = switch (Map.get(stats, Principal.compare, caller)) {
       case (?s) s;
       case null {
@@ -247,6 +279,7 @@ persistent actor Ranking {
       Array.sliceToArray<EloSnapshot>(appended, appended.size() - MAX_HISTORY, appended.size())
       else appended;
     Map.add(examHistory, Principal.compare, caller, trimmed);
+    switch (Map.get(stats, Principal.compare, caller)) { case (?st) st; case null Runtime.unreachable() }
   };
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
