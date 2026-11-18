@@ -37,3 +37,12 @@ const BUILD_TIME_IDS: Partial<Record<CanisterName, string>> =
 export function canisterId(name: CanisterName): string {
   return cookieEnv?.[`PUBLIC_CANISTER_ID:${name}`] ?? BUILD_TIME_IDS[name] ?? "";
 }
+
+/**
+ * The web app's origin, baked in at build time for the native app's sign-in:
+ * Internet Identity returns to `<origin>/native-callback`, and that origin is
+ * what a user's principal is derived from, so it must be the same one the
+ * website is served on (src/lib/nativeAuth.ts). Empty in dev builds.
+ */
+export const NATIVE_WEB_ORIGIN: string =
+  typeof __NATIVE_WEB_ORIGIN__ !== "undefined" ? __NATIVE_WEB_ORIGIN__ : "";

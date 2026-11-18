@@ -7,8 +7,12 @@ android {
         applicationId "app.officialiq.study"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The release workflow sets these (versionCode = the run number);
+        // local builds keep 1 / 1.0.
+        versionCode((System.getenv("ANDROID_VERSION_CODE") ?: "1").toInteger())
+        versionName System.getenv("APP_VERSION_NAME") ?: "1.0"
+        // Host of the web origin native sign-in returns to (AndroidManifest.xml).
+        manifestPlaceholders = [appLinkHost: System.getenv("APP_LINK_HOST") ?: "localhost"]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +20,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Upload-key signing for release bundles, from the release workflow's
+    // secrets (.github/workflows/mobile-release.yml). Without them the release
+    // build is unsigned, which is fine for CI's compile check.
+    def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    signingConfigs {
+        if (keystorePath) {
+            release {
+                storeFile file(keystorePath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystorePath) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

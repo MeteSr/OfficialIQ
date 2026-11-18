@@ -22,6 +22,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Internet Identity returns native sign-in here (src/lib/nativeAuth.ts).
+                 A verified App Link: Android checks the origin's
+                 /.well-known/assetlinks.json, so no other app can take it.
+                 The host comes from APP_LINK_HOST at build time (app/build.gradle). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="${appLinkHost}" />
+                <data android:path="/native-callback" />
+            </intent-filter>
+
         </activity>
 
         <provider

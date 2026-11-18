@@ -1,0 +1,226 @@
+name: Mobile release
+
+# Builds signed store builds of the Capacitor apps against the production
+# canisters and uploads them for testers:
+#   Android  signed .aab → Google Play internal testing track
+#   iOS      signed archive → App Store Connect / TestFlight
+# Promotion to production happens by hand in each store's console.
+#
+# Run it manually (Actions → Mobile release → Run workflow). Each platform
+# skips with a notice until its secrets exist, so this is safe to run before
+# the store accounts are set up. What to create, and where to put it:
+# docs/MOBILE.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which apps to build
+        type: choice
+        options: [both, android, ios]
+        default: both
+      version_name:
+        description: User-facing version (e.g. 1.0.0); the build number is the run number
+        type: string
+        default: "1.0.0"
+      play_release_status:
+        description: Play release status. Use draft until the app's first release has been sent for review in Play Console.
+        type: choice
+        options: [draft, completed]
+        default: draft
+
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # The apps talk to production. Its canister IDs (and the frontend's, which
+  # is the sign-in origin) come from the mappings the first production deploy
+  # commits; NATIVE_WEB_ORIGIN overrides the origin for a custom domain.
+  ICP_ENVIRONMENT: ic
+  NATIVE_WEB_ORIGIN: ${{ vars.NATIVE_WEB_ORIGIN }}
+  # Build number for both stores: grows with every run.
+  BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  android:
+    name: Android → Play internal testing
+    if: inputs.platform != 'ios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_SECRETS: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+      HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Skip until the Android signing secrets exist
+        if: env.HAS_SECRETS != 'true'
+        working-directory: .
+        run: echo "::notice::Android signing secrets are not set — skipping (docs/MOBILE.md)."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_SECRETS == 'true'
+
+      - name: Check production is deployed
+        if: env.HAS_SECRETS == 'true'
+        id: origin
+        run: bash ../scripts/mobile-origin.sh
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_SECRETS == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        if: env.HAS_SECRETS == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build web assets against production and sync
+        if: env.HAS_SECRETS == 'true'
+        run: npm ci && npx vite build && npx cap sync android
+
+      - name: Build the signed release bundle
+        if: env.HAS_SECRETS == 'true'
+        working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_VERSION_CODE: ${{ env.BUILD_NUMBER }}
+          APP_VERSION_NAME: ${{ inputs.version_name }}
+          APP_LINK_HOST: ${{ steps.origin.outputs.host }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+          rm -f "$ANDROID_KEYSTORE_PATH"
+
+      # Kept for 30 days. Play only accepts API uploads once the app has had
+      # one bundle uploaded by hand, so the first one comes from here.
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_SECRETS == 'true'
+        with:
+          name: officialiq-android-${{ inputs.version_name }}-${{ env.BUILD_NUMBER }}
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Upload to Play internal testing
+        if: env.HAS_SECRETS == 'true' && env.HAS_PLAY == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.officialiq.study
+          releaseFiles: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: ${{ inputs.play_release_status }}
+
+      - name: Note the missing Play upload key
+        if: env.HAS_SECRETS == 'true' && env.HAS_PLAY != 'true'
+        working-directory: .
+        run: echo "::notice::PLAY_SERVICE_ACCOUNT_JSON is not set — the signed bundle is attached to this run but was not uploaded to Play."
+
+  ios:
+    name: iOS → TestFlight
+    if: inputs.platform != 'android'
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      HAS_SECRETS: ${{ secrets.APP_STORE_CONNECT_KEY_ID != '' && secrets.APP_STORE_CONNECT_ISSUER_ID != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' && vars.APPLE_TEAM_ID != '' }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Skip until the App Store Connect key exists
+        if: env.HAS_SECRETS != 'true'
+        working-directory: .
+        run: echo "::notice::App Store Connect API key or APPLE_TEAM_ID is not set — skipping (docs/MOBILE.md)."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_SECRETS == 'true'
+
+      - name: Check production is deployed
+        if: env.HAS_SECRETS == 'true'
+        id: origin
+        run: bash ../scripts/mobile-origin.sh
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_SECRETS == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build web assets against production and sync
+        if: env.HAS_SECRETS == 'true'
+        run: npm ci && npx vite build && npx cap sync ios
+
+      # Signing is Xcode's automatic, cloud-managed signing, authorised by the
+      # App Store Connect API key: Xcode registers the app ID and its
+      # associated domain, and makes the distribution certificate and profile
+      # itself. No certificates or profiles are stored in this repo or its
+      # secrets. The key needs the Admin role for that.
+      - name: Archive and upload to App Store Connect
+        if: env.HAS_SECRETS == 'true'
+        working-directory: frontend/ios/App
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          APP_LINK_HOST: ${{ steps.origin.outputs.host }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          printf '%s' "$KEY_P8" > "$KEY_PATH"
+          AUTH=(-allowProvisioningUpdates
+                -authenticationKeyPath "$KEY_PATH"
+                -authenticationKeyID "$KEY_ID"
+                -authenticationKeyIssuerID "$ISSUER_ID")
+
+          xcodebuild archive \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            "${AUTH[@]}" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$VERSION_NAME" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            APP_LINK_HOST="$APP_LINK_HOST"
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            "${AUTH[@]}"
+
+          rm -f "$KEY_PATH"
+          echo "::notice::Uploaded build $BUILD_NUMBER ($VERSION_NAME). It appears in TestFlight once Apple finishes processing (usually 10–30 minutes)."

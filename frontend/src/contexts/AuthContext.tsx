@@ -7,6 +7,14 @@ import { useAuthStore } from "../store/authStore";
 import { syncAllContent } from "../lib/offlineSync";
 import { DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { setLanguage } from "../i18n";
+import {
+  completeNativeSignIn,
+  isNativeApp,
+  nativeSignIn,
+  nativeSignOut,
+  pendingLaunchCallback,
+  restoreNativeSession,
+} from "../lib/nativeAuth";
 
 type AuthContextValue = {
   login:    () => Promise<void>;
@@ -20,6 +28,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // which is also what the user-sign-in skill recommends for local development —
 // icp-cli's local network trusts mainnet II delegations — so no
 // identityProvider is configured here.
+//
+// The Capacitor app can't open II's pop-up, so it signs in through the system
+// browser instead (src/lib/nativeAuth.ts); everything after the identity is
+// the same.
 
 // Fixed-seed dev identity — survives hot-reloads without re-auth
 const DEV_SEED = new Uint8Array(32).fill(0xab);
@@ -38,7 +50,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    // The native session ended under us (expired or revoked at II).
+    const onNativeSessionGone = () => { resetAgent(); clear(); };
+
+    async function initNative() {
+      // Relaunched by the OS to finish a sign-in after the app was killed
+      // while the browser was open.
+      const callback = await pendingLaunchCallback();
+      const identity = callback
+        ? await completeNativeSignIn(callback, onNativeSessionGone)
+        : await restoreNativeSession(onNativeSessionGone);
+      if (!identity) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      initAgent(identity);
+      const profile = await userService.getMyProfile();
+      if (!cancelled) completeAuth(identity.getPrincipal().toText(), profile);
+    }
+
     async function init() {
+      if (isNativeApp()) return initNative();
       const client = new AuthClient();
       clientRef.current = client;
 
@@ -71,6 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login() {
+    if (isNativeApp()) {
+      // Rejects with NativeSignInCanceled when the user closes the browser (callers catch).
+      const identity = await nativeSignIn(() => { resetAgent(); clear(); });
+      initAgent(identity);
+      completeAuth(identity.getPrincipal().toText(), await userService.getMyProfile());
+      return;
+    }
     const client = clientRef.current ?? new AuthClient();
     clientRef.current = client;
 
@@ -96,7 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     const client = clientRef.current;
-    if (client) await client.signOut(); // ends the session in every tab
+    if (isNativeApp()) await nativeSignOut();
+    else if (client) await client.signOut(); // ends the session in every tab
     resetAgent();
     clear();
   }

@@ -1,0 +1,94 @@
+name: Mobile CI
+
+# Compiles the Capacitor apps on every change that can affect them, so a
+# broken native build shows up on the PR rather than on release day:
+#   Android  debug APK (Gradle, Ubuntu)
+#   iOS      simulator build, unsigned (Xcode, macOS) — no Mac needed locally
+# Neither needs a secret. Signed builds and store uploads are
+# mobile-release.yml.
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/mobile-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/mobile-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - run: npm ci
+
+      # No canister IDs or web origin in CI: the bundle builds on stub data,
+      # which is enough to prove the native project compiles around it.
+      - name: Build web assets and sync them into the Android project
+        run: npx vite build && npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+  ios:
+    name: iOS build
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build web assets and sync them into the iOS project
+        run: npx vite build && npx cap sync ios
+
+      - name: Build for the simulator (unsigned)
+        working-directory: frontend/ios/App
+        run: |
+          xcodebuild build \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
