@@ -13,6 +13,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 2. **Mete:** confirm the rights to the NCAA rules content, or replace it with licensed text. The seed data says it was written from scratch for development (`frontend/scripts/seedData.mjs`, issue #1).
 3. **Mete + Claude:** run the staging smoke test (ranked quiz, cert exam, challenge) once staging is up.
 4. **Mete:** set up the production accounts and keys: a spend-capped Anthropic key, VAPID keys and the push relay identity.
+5. **Mete + Claude:** ship Android and iOS. Mete opens the Apple and Google developer accounts; Claude adds the iOS project, fixes sign-in inside the app, and builds the release workflows (§7).
 
 ## 1. Features
 
@@ -39,7 +40,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | Weekly quiz "agree %" is hardcoded to 68% | `WeeklyQuizPage.tsx` `AGREE_PCT_STUB` | Not ready | Claude |
 | Services fall back to stub data when a canister ID is missing | `frontend/src/lib/icEnv.ts` | Ready (only affects dev builds; staging smoke test confirms) | Claude |
 | Case-play video clips | Player and moderation queue built, no clips (issue #29) | Not ready; can launch without, hide the entry point | Mete |
-| Badges UI | Dropped in the design handoff; fetch removed in #53 | Decision needed: bring back or drop | Mete |
+| Badges UI | Dropped in the design handoff; fetch removed in #53. Mete decided 2026-11-18 to bring them back on the Me page | Not ready | Claude |
 | Assigning-platform schedule sync | Manual entry works; no ArbiterSports/RefTown API (issue #30) | Ready for launch with manual entry | Mete |
 | French / Portuguese | Intentionally not offered | Ready (out of scope for launch) | Mete |
 
@@ -81,7 +82,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | NCAA Men's Basketball content cleared for commercial use (issue #1, BUSINESS.md #1) | **Not ready, launch blocker** | Mete |
 | FIBA / FIFA / World Rugby content (issue #50): needs licensed rulebooks; Claude won't write rules text without them | Not ready; launch can go NCAA-only if these sports are hidden | Mete |
 | NFHS Basketball is registered with no content | Not ready: hide empty sports at launch | Claude |
-| Privacy policy and terms pages (none in the app today; also needed for store listings) | Not ready | Mete (text), Claude (pages) |
+| Privacy policy and terms pages (none in the app today; both stores require a privacy policy URL) | Not ready | Mete (text), Claude (pages) |
 
 ## 6. Quality and review findings
 
@@ -98,20 +99,35 @@ From the engineering review ([doc](https://claude.ai/artifact/G4rXTTcTA2JB9Cd5eg
 | 7 | API types double as stored types; ranking trusts client name/state | Not ready | After launch | Claude |
 | 8 | 114 silent `.catch(() => …)`, no error boundary | Not ready | **Yes**: one bad render blanks the app | Claude |
 | 9 | One 958 kB bundle, no code splitting; N+1 offline sync | Not ready | Recommended for a mobile PWA | Claude |
-| 10 | Badges UI dropped; "ELO" is a fixed ±16 | Decision needed | Decide | Mete |
+| 10 | Badges UI dropped; "ELO" is a fixed ±16 | Badges coming back (Mete, 2026-11-18); rating formula still open | Badges yes; rating after launch | Claude |
 | 11 | Large page components, `.gitlab-ci.yml` drift | Not ready | After launch (GitLab file in §3) | Claude |
 
 Known gaps from the security audit (#51) that Mete accepted: practice mode still shows answers, players can abandon a bad ranked quiz, and streak and badge counters are client-reported.
 
-## 7. Mobile (Android / iOS)
+## 7. Mobile (Android and iOS are part of the launch)
+
+The apps wrap the same React build with Capacitor (`frontend/capacitor.config.ts`, app ID `app.officialiq.study`). There is no separate native codebase.
 
 | Item | Status | Owner |
 |---|---|---|
-| Decide whether native apps are part of the Q3 launch or PWA-only (issue #31) | Decision needed | Mete |
-| Capacitor wrapper and Android project (`frontend/android`) | Ready in code | Claude |
-| Google Play developer account ($25) and Apple Developer Program ($99/yr, plus a macOS build runner) | Not ready | Mete |
-| Store listing: privacy policy, data-safety form, icons, screenshots | Not ready | Mete |
-| Release pipeline for store builds | Not ready. HomeGentic's mobile pipeline uses Expo/EAS, which doesn't apply to Capacitor; a Capacitor build would use Gradle (Android) and fastlane or Xcode Cloud (iOS) in GitHub Actions | Claude |
+| Android project (`frontend/android`) | Ready in code; never built in CI | Claude |
+| iOS project (`frontend/ios`) | **Missing**: add `@capacitor/ios` and generate it with `npx cap add ios` (no Mac needed to generate, only to build) | Claude |
+| Sign-in inside the app: Internet Identity opens a pop-up window and returns by `postMessage`, which an app web view doesn't support | **Not ready, likely blocker**: needs a native flow (system browser plus a deep link back into the app). Verify on a device first | Claude |
+| Canister IDs baked into the app at build time (the app gets no `ic_env` cookie) | Not ready: needs mainnet IDs, so it waits for the first production deploy | Claude |
+| Android build and signing in GitHub Actions: Gradle builds a signed release bundle (`.aab`) and uploads it to Play's internal testing track | Not ready | Claude (workflow), Mete (secrets below) |
+| iOS build and signing in GitHub Actions: a macOS runner builds with Xcode, signs with fastlane, uploads to TestFlight | Not ready | Claude (workflow), Mete (secrets below) |
+| Google Play developer account ($25 one-time) | Not ready | Mete |
+| Apple Developer Program ($99/yr) | Not ready | Mete |
+| Android upload keystore, and its passwords as repo secrets (Claude can generate it in a workflow if you prefer) | Not ready | Mete |
+| Play service-account JSON for uploads, as a repo secret | Not ready | Mete |
+| App Store Connect API key (issuer ID, key ID, `.p8`) as repo secrets; fastlane match manages certificates and profiles from it | Not ready | Mete |
+| Native push: Firebase project (`google-services.json`) for Android, APNs key for iOS. The relay currently skips native tokens (`send-pending-push.mjs`) | Not ready: Mete creates the accounts, Claude wires the sending | Mete, Claude |
+| App icons and splash screens for both platforms | Not ready: Claude can generate them from one source image with `@capacitor/assets` | Mete (source art), Claude |
+| Store listings: description, screenshots, privacy policy URL, Play data-safety form, App Store privacy labels, push permission reason | Not ready | Mete (text, forms), Claude (screenshots, draft copy) |
+| Apple review risk: apps that only wrap a website can be rejected (guideline 4.2). Offline study, native push and share help make the case | Watch | Mete |
+| Version numbering: `versionCode` / build number bumped by the release workflow | Not ready | Claude |
+
+HomeGentic's mobile pipeline is built on Expo/EAS, which doesn't apply to Capacitor. Its shape (CI builds, internal track and TestFlight first, manual promotion to production) still carries over.
 
 ## 8. Launch-day checks
 
