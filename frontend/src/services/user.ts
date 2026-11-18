@@ -4,7 +4,7 @@ import { createActor } from "./actor";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null, Coordinator: I.Null });
   const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text, createdAt: I.Int });
   const PublicProfile = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });

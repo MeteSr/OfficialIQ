@@ -33,7 +33,7 @@ export type Completion = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Assoc = I.Record({
     id: I.Text, name: I.Text, sport: I.Text, coordinator: I.Principal, joinCode: I.Text, createdAt: I.Int,
   });

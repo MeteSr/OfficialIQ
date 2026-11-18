@@ -62,7 +62,7 @@ export type UserQuestionHistory = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Diff   = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
   const Choice = I.Record({ id: I.Text, text: I.Text });
   const Q      = I.Record({

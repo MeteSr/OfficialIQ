@@ -74,3 +74,49 @@ jobs:
           icp build "${BACKEND_CANISTERS[@]}"
         env:
           DO_NOT_TRACK: "1"
+
+  canister-tests:
+    name: Canister integration tests
+    # Deploys every backend canister to a local icp network and drives them
+    # through the app's own IDL (frontend/src/integration): graded sessions,
+    # ranking claims, challenges, association completions, the per-user
+    # indexes. These are the tests that guard the grading logic.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        run: mops install --locked
+
+      - name: Start a local network and deploy the backend
+        run: |
+          source scripts/lib/canisters.sh
+          icp network start -d
+          icp deploy "${BACKEND_CANISTERS[@]}" -e local
+        env:
+          DO_NOT_TRACK: "1"
+          # The network launcher is fetched from GitHub releases; an
+          # authenticated request avoids the shared runners' API rate limit.
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Integration tests
+        working-directory: frontend
+        run: npm run test:integration
+
+      - name: Stop the local network
+        if: always()
+        run: icp network stop || true
