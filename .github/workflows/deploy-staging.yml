@@ -52,12 +52,12 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # workflow_run checks out main's tip by default, which may be newer
           # than the commit CI passed on. Deploy exactly that commit.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install icp-cli, ic-wasm and mops
@@ -85,13 +85,13 @@ jobs:
       # persist-credentials: false keeps any token out of .git/config while
       # npm and deploy.sh run; the push token is only handed to the steps
       # that push.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.HAS_IDENTITY == 'true'
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: env.HAS_IDENTITY == 'true'
         with:
           node-version: "22"

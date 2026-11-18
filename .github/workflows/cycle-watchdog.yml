@@ -41,7 +41,7 @@ jobs:
       NETWORK: ${{ inputs.network || 'ic' }}
       HAS_IDENTITY: ${{ secrets.ICP_IDENTITY_PEM != '' || secrets.DFX_IDENTITY_PEM != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Is there anything to watch?
         id: gate
@@ -56,7 +56,7 @@ jobs:
             echo "assets=$ASSETS_ID" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.gate.outputs.run == 'true'
         with:
           node-version: "22"
