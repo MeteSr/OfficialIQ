@@ -19,3 +19,15 @@ describe("most-missed questions", () => {
     expect(missed.find(([id]) => id === easy)).toEqual([easy, 0n, 3n]);
   });
 });
+
+describe("answer rates", () => {
+  it("returns wrong and answered counts for the asked questions only", async () => {
+    const [, , third] = bank.ruleIds;
+    for (let i = 0; i < 4; i++) {
+      const q = await canister("question", newIdentity());
+      await q.recordAnswer(third, i === 0 ? false : true);
+    }
+    const rates = (await (await canister("question", newIdentity())).getAnswerRates([third, "no-such-question"])) as [string, bigint, bigint][];
+    expect(rates).toEqual([[third, 1n, 4n]]);
+  });
+});

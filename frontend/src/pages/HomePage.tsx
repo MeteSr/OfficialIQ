@@ -7,16 +7,13 @@ import { challengeService, type Challenge } from "../services/challenge";
 import { rankingService, type UserStats, type DailyActivity } from "../services/ranking";
 import { userService, type StudyPace, type WeeklySchedule, type UpcomingGame } from "../services/user";
 import { contentService, type Article } from "../services/content";
-import { isInLastFiveDaysOfMonth } from "./MonthlyQuizPage";
+import { MONTHLY_QUIZ_QUESTIONS, isInLastFiveDaysOfMonth, monthlyWindowDaysLeft } from "../lib/monthlyWindow";
 import { mentorshipService } from "../services/mentorship";
 import { reportService } from "../services/report";
 import { levelLabel, useSport } from "../lib/sport";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
-
-// Stub until the monthly-window countdown comes from the exam canister.
-const MONTHLY_DAYS_LEFT_STUB = 4;
 
 export default function HomePage() {
   const navigate   = useNavigate();
@@ -310,8 +307,8 @@ export default function HomePage() {
               {t("home.monthlyWindow")}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 9, marginTop: 10 }}>
-              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 34, color: T.attention, lineHeight: 1 }}>{MONTHLY_DAYS_LEFT_STUB}</span>
-              <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.3, color: T.muted }}>{t("home.daysLeft", { count: MONTHLY_DAYS_LEFT_STUB, questions: 25 })}</span>
+              <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 34, color: T.attention, lineHeight: 1 }}>{monthlyWindowDaysLeft(new Date())}</span>
+              <span style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, lineHeight: 1.3, color: T.muted }}>{t("home.daysLeft", { count: monthlyWindowDaysLeft(new Date()), questions: MONTHLY_QUIZ_QUESTIONS })}</span>
             </div>
             <button
               onClick={() => navigate("/monthly-quiz")}

@@ -38,8 +38,8 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// Stub until per-question agreement rates come from the question canister.
-const AGREE_PCT_STUB = 68;
+// Below this many answers across all officials, a percentage would mostly be noise.
+const MIN_ANSWERS_FOR_RATE = 10;
 
 export default function WeeklyQuizPage() {
   const navigate = useNavigate();
@@ -57,6 +57,7 @@ export default function WeeklyQuizPage() {
   const [chosen,      setChosen]      = useState<string | null>(null);
   const [timeLeft,    setTimeLeft]    = useState(SECONDS_PER_Q);
   const [answered,    setAnswered]    = useState<{ q: TaggedQuestion; correct: boolean }[]>([]);
+  const [answerRates, setAnswerRates] = useState<Map<string, { wrongCount: number; totalCount: number }>>(new Map());
 
   useEffect(() => {
     if (!isAuthenticated) { setPhase("error"); setError(t("weeklyQuiz.signInRequired")); return; }
@@ -148,6 +149,9 @@ export default function WeeklyQuizPage() {
         return;
       }
       setQuestions(tagged);
+      setAnswerRates(new Map());
+      // Best effort: the reveal just leaves the percentage out without it.
+      questionService.getAnswerRates(tagged.map(q => q.id)).then(setAnswerRates).catch(() => {});
       setCurrentIdx(0);
       setAnswered([]);
       setChosen(null);
@@ -168,6 +172,10 @@ export default function WeeklyQuizPage() {
   }, [phase, timeLeft, chosen]);
 
   const currentQ = questions[currentIdx];
+  const currentRate = currentQ ? answerRates.get(currentQ.id) : undefined;
+  const pctCorrect = currentRate && currentRate.totalCount >= MIN_ANSWERS_FOR_RATE
+    ? Math.round(100 * (currentRate.totalCount - currentRate.wrongCount) / currentRate.totalCount)
+    : null;
 
   const handleChoice = useCallback((choiceId: string) => {
     if (chosen !== null || !currentQ) return;
@@ -469,9 +477,11 @@ export default function WeeklyQuizPage() {
               <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 14, letterSpacing: "0.07em", textTransform: "uppercase", color: fill.onAccent }}>
                 {correct ? t("weeklyQuiz.correctCall") : t("weeklyQuiz.missedCall")}
               </span>
-              <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: "rgba(13,16,18,0.6)" }}>
-                {correct ? t("weeklyQuiz.agreePct", { pct: AGREE_PCT_STUB }) : t("weeklyQuiz.onlyPct", { pct: 100 - AGREE_PCT_STUB })}
-              </span>
+              {pctCorrect !== null && (
+                <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: "rgba(13,16,18,0.6)" }}>
+                  {correct ? t("weeklyQuiz.agreePct", { pct: pctCorrect }) : t("weeklyQuiz.onlyPct", { pct: pctCorrect })}
+                </span>
+              )}
             </div>
             <div style={{ padding: "14px 16px", background: T.surface }}>
               {currentQ.citation && (
