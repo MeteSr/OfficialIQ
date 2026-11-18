@@ -66,7 +66,7 @@ jobs:
         run: bash scripts/install-icp.sh
 
       - name: Install Motoko dependencies
-        run: if [ -f mops.lock ]; then mops install --locked; else mops install; fi
+        run: mops install --locked
 
       - name: Type-check canisters
         run: mops check --no-lint

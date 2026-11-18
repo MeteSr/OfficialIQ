@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Motoko dependencies
         if: steps.base.outputs.skip != 'true'
-        run: if [ -f mops.lock ]; then mops install --locked; else mops install; fi
+        run: mops install --locked
 
       - name: Check stable-memory compatibility
         if: steps.base.outputs.skip != 'true'

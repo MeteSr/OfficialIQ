@@ -32,7 +32,7 @@ MOC="${MOC:-$(mops toolchain bin moc 2>/dev/null || true)}"
 
 # Package flags for a tree, resolved in that tree so a mops.toml change is honoured.
 package_flags() {   # $1 tree
-  (cd "$1" && { [ -d .mops ] || mops install >/dev/null 2>&1 || true; } && mops sources) | tr '\n' ' '
+  (cd "$1" && { [ -d .mops ] || { if [ -f mops.lock ]; then mops install --locked; else mops install; fi; } >/dev/null 2>&1 || true; } && mops sources) | tr '\n' ' '
 }
 
 BASE_SHA=$(git rev-parse --verify "$BASE_REF^{commit}") || { echo "❌ unknown base ref: $BASE_REF"; exit 2; }
