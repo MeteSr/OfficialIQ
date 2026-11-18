@@ -13,6 +13,7 @@ import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizS
 import { useAuthStore } from "../store/authStore";
 import type { ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
+import { claimRankedResult } from "../lib/offlineSync";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
 import { associationService } from "../services/association";
 import { useSport } from "../lib/sport";
@@ -254,7 +255,8 @@ export default function QuizPage() {
         const done = await examService.finishSession(sessionId);
         setServerScore(done.session.score.length ? Number(done.session.score[0]) : 0);
         if (profile) {
-          await rankingService.claimExamResult(sessionId, profile.displayName, profile.state || "TX").catch(() => {});
+          // No state on the profile means national boards only, not Texas.
+          await claimRankedResult(sessionId, profile.displayName, profile.state);
         }
         if (assignmentId) {
           await associationService.recordGradedCompletion(assignmentId, sessionId).catch(() => {});

@@ -70,7 +70,6 @@ export default function RuleAssistantPage() {
   }
 
   const outOfQuestions = !!rateLimit && rateLimit.used >= rateLimit.limitPerDay;
-  const selectedArticle = articles.find(a => a.id === articleId);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: T.bg, fontFamily: T.font }}>

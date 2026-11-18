@@ -9,6 +9,7 @@ import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Random "mo:core/Random";
 import Env "../lib/Env";
 
 persistent actor Question {
@@ -75,6 +76,23 @@ persistent actor Question {
   // key type, so the pair is flattened into one Text rather than using a
   // tuple key.
   var history : Map.Map<Text, UserQuestionHistory> = Map.empty<Text, UserQuestionHistory>();
+
+  // questionId -> (timesAnswered, timesWrong), summed over every official.
+  // Kept up to date by recordAnswer so getMostMissedQuestions reads one
+  // entry per question instead of scanning `history` (officials x questions),
+  // which would exceed a query's instruction limit as the user base grows.
+  // A new stable var's initializer runs on the upgrade that introduces it,
+  // so this backfills itself from the existing history once.
+  public type AnswerTotals = { answered : Nat; wrong : Nat };
+  var answerTotals : Map.Map<Text, AnswerTotals> = do {
+    let m = Map.empty<Text, AnswerTotals>();
+    for ((_, h) in Map.entries(history)) {
+      let prev = switch (Map.get(m, Text.compare, h.questionId)) { case (?t) t; case null ({ answered = 0; wrong = 0 }) };
+      let wrong = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
+      Map.add(m, Text.compare, h.questionId, { answered = prev.answered + h.timesAnswered; wrong = prev.wrong + wrong });
+    };
+    m
+  };
 
   let DAY_NS : Int = 86_400_000_000_000;
 
@@ -164,6 +182,11 @@ persistent actor Question {
       intervalDays  = newIntervalDays;
     };
     Map.add(history, Text.compare, key, entry);
+    let totals = switch (Map.get(answerTotals, Text.compare, questionId)) { case (?t) t; case null ({ answered = 0; wrong = 0 }) };
+    Map.add(answerTotals, Text.compare, questionId, {
+      answered = totals.answered + 1;
+      wrong    = totals.wrong + (if (isCorrect) 0 else 1);
+    });
   };
 
   func matchesFilter(q : Question, filter : QuizFilter) : Bool {
@@ -264,33 +287,19 @@ persistent actor Question {
     VarArray.sliceToArray<Question>(buf, 0, i)
   };
 
-  // Aggregates the (already-global, not caller-scoped) history map by
-  // question, for association coordinators to spot content that needs
+  // Per-question miss rates across every official (answerTotals),
+  // for association coordinators to spot content that needs
   // re-explanation across their whole membership. Miss-rate needs at least
   // 3 answers to surface — otherwise one unlucky guess on a rarely-seen
   // question would dominate the list.
   public query func getMostMissedQuestions(sportId : Text, limit : Nat) : async [(Text, Nat, Nat)] {
-    let wrongCounts = Map.empty<Text, Nat>();
-    let totalCounts = Map.empty<Text, Nat>();
-    for ((_, h) in Map.entries(history)) {
-      switch (Map.get(questions, Text.compare, h.questionId)) {
-        case (?q) {
-          if (q.sportId == sportId) {
-            let prevTotal = switch (Map.get(totalCounts, Text.compare, h.questionId)) { case (?n) n; case null 0 };
-            Map.add(totalCounts, Text.compare, h.questionId, prevTotal + h.timesAnswered);
-            let prevWrong = switch (Map.get(wrongCounts, Text.compare, h.questionId)) { case (?n) n; case null 0 };
-            let wrongForThisHistory = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
-            Map.add(wrongCounts, Text.compare, h.questionId, prevWrong + wrongForThisHistory);
-          };
-        };
-        case null {};
-      };
-    };
     let entries = List.empty<(Text, Nat, Nat)>();
-    for ((qid, total) in Map.entries(totalCounts)) {
-      if (total >= 3) {
-        let wrong = switch (Map.get(wrongCounts, Text.compare, qid)) { case (?n) n; case null 0 };
-        List.add(entries, (qid, wrong, total));
+    for ((qid, t) in Map.entries(answerTotals)) {
+      if (t.answered >= 3) {
+        switch (Map.get(questions, Text.compare, qid)) {
+          case (?q) { if (q.sportId == sportId) List.add(entries, (qid, t.wrong, t.answered)) };
+          case null {};
+        };
       };
     };
     let sorted = List.sort<(Text, Nat, Nat)>(entries, func((_, wa, ta), (_, wb, tb)) {
@@ -321,8 +330,25 @@ persistent actor Question {
     switch (Env.canisterId<system>("exam")) { case (?id) id == caller; case null false }
   };
 
+  // Fisher-Yates shuffle in place.
+  func shuffle(xs : List.List<Question>, rng : Random.Random) {
+    var i = List.size(xs);
+    while (i > 1) {
+      let j = rng.natRange(0, i);
+      i -= 1;
+      let tmp = List.at(xs, i);
+      List.put(xs, i, List.at(xs, j));
+      List.put(xs, j, tmp);
+    };
+  };
+
   public shared ({ caller }) func pickForExam(sportId : Text, picks : [ExamPick], player : Principal) : async Result.Result<[Question], Text> {
     if (not isExamCanister<system>(caller)) return #err("Exam canister only");
+    // Without shuffling, every official got the same first-N questions (in
+    // id order) for an article, so certification exams and ranked quizzes
+    // were identical on every attempt. Seeded from raw_rand per call; no
+    // state is read or written before this await.
+    let rng = Random.seed(await Random.nat64());
     let out = List.empty<Question>();
     for (pick in picks.values()) {
       let filter : QuizFilter = { sportId; articleIds = pick.articleIds; casebook = pick.casebook; difficulty = pick.difficulty; count = pick.count };
@@ -331,6 +357,9 @@ persistent actor Question {
         // A question already taken by an earlier pick isn't repeated.
         if (matchesFilter(q, filter) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
       };
+      // Shuffled first in both modes: for adaptive picks the sort below is
+      // stable, so ties (e.g. never-answered questions) stay in random order.
+      shuffle(matches, rng);
       if (pick.adaptive) {
         List.sortInPlace<Question>(matches, func(a, b) { Int.compare(dueDate(player, a.id), dueDate(player, b.id)) });
       };

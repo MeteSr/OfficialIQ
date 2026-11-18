@@ -42,12 +42,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # `npm run build` also runs `tsc`, which currently fails on unrelated
-      # unused-variable errors in MePage / RuleAssistantPage /
-      # ScenarioGeneratorPage. Bundle with Vite directly until those are
-      # cleaned up, then switch this step to `npm run build`.
-      - name: Build
-        run: npx vite build
+      # `npm run build` is `tsc && vite build`, so type errors fail CI.
+      - name: Type-check + build
+        run: npm run build
 
   backend:
     name: Backend canisters build

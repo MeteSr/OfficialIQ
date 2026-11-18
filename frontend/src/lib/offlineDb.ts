@@ -30,6 +30,10 @@ export type PendingAction =
   | {
       id: string; kind: "recordAnswer"; createdAt: number;
       questionId: string; isCorrect: boolean;
+    }
+  | {
+      id: string; kind: "claimExamResult"; createdAt: number;
+      sessionId: string; displayName: string; state: string;
     };
 
 export type AudioBlobRecord = { id: string; bytes: Uint8Array; sizeBytes: number; downloadedAt: number };

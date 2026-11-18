@@ -5,6 +5,7 @@ import { T, fill } from "../tokens";
 import { type Question } from "../services/question";
 import { examService, unrevealed, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecord, type Pick } from "../services/exam";
 import { rankingService } from "../services/ranking";
+import { claimRankedResult } from "../lib/offlineSync";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
@@ -97,7 +98,8 @@ export default function CertExamPage() {
       });
 
       if (profile) {
-        rankingService.claimExamResult(sessionId, profile.displayName, profile.state || "TX").catch(() => {});
+        // No state on the profile means national boards only, not Texas.
+        claimRankedResult(sessionId, profile.displayName, profile.state);
         rankingService.recordQuestionsAnswered(answers.length).catch(() => {});
 
         const byArticle = new Map<string, { correct: number; total: number }>();
