@@ -41,7 +41,7 @@ describe("challenges", () => {
     await play(b, bank, sb, 2);
     const done = ok(await (await canister("challenge", b)).submitGradedResult(ch.id, sb.session.id)) as Challenge;
     expect(Object.keys(done.status)).toEqual(["Completed"]);
-    expect(done.results.map(r => r.score).sort()).toEqual([40n, 100n]);
+    expect(done.results.map(r => r.score).sort((x, y) => Number(x - y))).toEqual([40n, 100n]);
   });
 
   it("refuses a session on other questions", async () => {
