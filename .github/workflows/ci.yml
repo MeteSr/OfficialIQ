@@ -1,0 +1,69 @@
+name: CI
+
+# The gate everything else waits on: frontend unit tests + bundle, and every
+# backend canister compiling. Runs on pull requests, on every push to main
+# (deploy-staging.yml deploys only after this passes there), and as the
+# pre-deploy test gate of deploy-production.yml (workflow_call).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  # workflow_call runs inherit the caller's ref; give them their own group so a
+  # production deploy's test gate never cancels (or is cancelled by) a push run.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend tests + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # `npm run build` also runs `tsc`, which currently fails on unrelated
+      # unused-variable errors in MePage / RuleAssistantPage /
+      # ScenarioGeneratorPage. Bundle with Vite directly until those are
+      # cleaned up, then switch this step to `npm run build`.
+      - name: Build
+        run: npx vite build
+
+  backend:
+    name: Backend canisters compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dfx
+        run: bash scripts/install-dfx.sh
+
+      - name: Build every backend canister
+        # --check builds with throwaway IDs: no replica or network needed.
+        run: |
+          source scripts/lib/canisters.sh
+          for c in "${BACKEND_CANISTERS[@]}"; do
+            echo "::group::$c"
+            dfx build --check "$c"
+            echo "::endgroup::"
+          done

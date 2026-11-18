@@ -10,6 +10,10 @@ set -euo pipefail
 #   DFX_IDENTITY_PEM="$(cat my-key.pem)" bash scripts/import-identity.sh
 #   bash scripts/import-identity.sh path/to/my-key.pem
 #
+# Optional: DFX_WALLET_ID + DFX_WALLET_NETWORK (staging | ic) also point the
+# identity at its cycles wallet on that network, for hosts that don't keep
+# dfx's wallets.json between runs (every CI runner).
+#
 # The PEM itself is never written anywhere durable — it's read from the
 # environment variable or the given file, dropped into a temp file only
 # long enough for `dfx identity import`, then deleted.
@@ -32,4 +36,8 @@ fi
 
 dfx identity import "$IDENTITY_NAME" "$TMP_PEM" --storage-mode plaintext --force
 dfx identity use "$IDENTITY_NAME"
+if [ -n "${DFX_WALLET_ID:-}" ]; then
+  : "${DFX_WALLET_NETWORK:?DFX_WALLET_NETWORK (staging or ic) must be set with DFX_WALLET_ID}"
+  DFX_WARNING="-mainnet_plaintext_identity" dfx identity set-wallet "$DFX_WALLET_ID" --network "$DFX_WALLET_NETWORK"
+fi
 echo "==> Using dfx identity '$IDENTITY_NAME' ($(dfx identity get-principal))"

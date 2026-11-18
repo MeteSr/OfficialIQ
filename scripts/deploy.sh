@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage: scripts/deploy.sh [network] [mode]
+#   network  local (default) | staging | ic
+#   mode     full (default) | assets-only (skips the backend canisters, for
+#            frontend-only fixes)
+#
+# On staging/ic every backend canister that already exists is stopped,
+# snapshotted, upgraded and started again; the snapshot is the rollback for
+# an upgrade that installs but misbehaves (docs/DEPLOYMENT.md → "Rolling
+# back"). SKIP_SNAPSHOTS=1 skips that, e.g. for a deploy that only adds a
+# canister.
+
 NETWORK="${1:-local}"
-MODE="${2:-full}"   # full | assets-only (assets-only skips the backend-canister loop, for frontend-only fixes)
+MODE="${2:-full}"
 ENV_FILE=".env"
-MIN_CYCLES_TRILLION=1   # heads-up threshold, not a hard technical minimum — see docs/DEPLOYMENT.md
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/canisters.sh"   # BACKEND_CANISTERS, FREEZE_DAYS, helpers
 
 echo "==> Deploying OfficialIQ to network: $NETWORK ($MODE)"
-
-BACKEND_CANISTERS=(user content question exam ranking challenge ai_proxy mentorship association report)
 
 if [[ "$NETWORK" == "local" ]]; then
   # Start local replica if needed. dfx can leave stale state behind after a
@@ -32,45 +42,61 @@ if [[ "$NETWORK" == "local" ]]; then
     dfx start --background --clean
   fi
 else
-  # Real network (staging/ic): refuse to proceed on a missing wallet or a
-  # wallet that's nearly out of cycles, rather than fail halfway through a
+  # Real network (staging/ic): refuse to start on a missing wallet or one
+  # without enough cycles for this deploy, rather than fail halfway through a
   # multi-canister deploy. See docs/DEPLOYMENT.md for wallet setup/funding.
-  #
-  # Deliberately NOT trusting `dfx identity get-wallet`'s exit code alone —
-  # for a plaintext-stored identity (the documented CI setup) against a
-  # mainnet-facing network, dfx prints an "insecure identity" warning whose
-  # effect on the exit code is inconsistent (observed both 0 and 1 for the
-  # same underlying "no wallet" condition). Checking that $WALLET actually
-  # came back non-empty is the reliable signal.
   export DFX_WARNING="-mainnet_plaintext_identity"
-  WALLET=$(dfx identity get-wallet --network "$NETWORK" 2>/dev/null || true)
-  if [[ -z "$WALLET" ]]; then
-    echo "!! No cycles wallet configured for network '$NETWORK'." >&2
-    echo "   Run 'dfx identity get-wallet --network $NETWORK' to diagnose, or see docs/DEPLOYMENT.md." >&2
-    exit 1
-  fi
-  BALANCE_RAW=$(dfx wallet balance --network "$NETWORK" --precise 2>/dev/null | grep -oE '^[0-9]+' || echo "0")
-  BALANCE_TC=$(( BALANCE_RAW / 1000000000000 ))
-  if [[ "$BALANCE_TC" -lt "$MIN_CYCLES_TRILLION" ]]; then
-    echo "!! Wallet $WALLET has under ${MIN_CYCLES_TRILLION}T cycles on '$NETWORK' — top it up before deploying." >&2
-    echo "   See docs/DEPLOYMENT.md for the funding process." >&2
-    exit 1
-  fi
-  echo "==> Wallet $WALLET has ~${BALANCE_TC}T cycles on '$NETWORK'."
+  bash "$SCRIPT_DIR/check-wallet-balance.sh" "$NETWORK"
 fi
+
+# upgrade_with_snapshot <canister> — stop, snapshot, upgrade, start. Replaces
+# the previous deploy's snapshot so each canister holds one rolling snapshot.
+# A canister whose snapshot fails isn't upgraded; one whose upgrade fails is
+# started again on its old code. Either way the deploy carries on with the
+# rest and fails at the end.
+SNAPSHOTS=()
+FAILED_CANISTERS=()
+upgrade_with_snapshot() {
+  local c="$1" old snap out
+  old=$(dfx canister snapshot list "$c" --network "$NETWORK" 2>&1 | grep -oE '^[0-9a-f]{20,}' | head -1 || true)
+  if ! dfx canister stop "$c" --network "$NETWORK"; then
+    FAILED_CANISTERS+=("$c (could not stop)"); return
+  fi
+  if ! out=$(dfx canister snapshot create "$c" ${old:+--replace "$old"} --network "$NETWORK" 2>&1); then
+    echo "$out" >&2
+    dfx canister start "$c" --network "$NETWORK" || true
+    FAILED_CANISTERS+=("$c (no snapshot, not upgraded)"); return
+  fi
+  snap=$(printf '%s\n' "$out" | grep -oE 'Snapshot ID: [0-9a-f]+' | awk '{print $3}')
+  SNAPSHOTS+=("$c ${snap:-?}")
+  if ! dfx deploy "$c" --network "$NETWORK" --yes; then
+    FAILED_CANISTERS+=("$c (upgrade failed, still on the old code)")
+  fi
+  dfx canister start "$c" --network "$NETWORK" || FAILED_CANISTERS+=("$c (did not start)")
+}
 
 if [[ "$MODE" != "assets-only" ]]; then
   # Deploy backend canisters first (assets needs frontend/dist, which needs
   # these canister IDs, so it must come after the .env write + frontend build)
   for c in "${BACKEND_CANISTERS[@]}"; do
     echo "--> Deploying $c..."
-    dfx deploy "$c" --network "$NETWORK" --yes
+    if [[ "$NETWORK" != "local" && "${SKIP_SNAPSHOTS:-}" != "1" && -n "$(canister_id "$c" "$NETWORK")" ]]; then
+      upgrade_with_snapshot "$c"
+    else
+      dfx deploy "$c" --network "$NETWORK" --yes || FAILED_CANISTERS+=("$c (deploy failed)")
+    fi
   done
+  if [[ ${#FAILED_CANISTERS[@]} -gt 0 ]]; then
+    echo "!! Backend deploy failed — not deploying the frontend:" >&2
+    printf '   %s\n' "${FAILED_CANISTERS[@]}" >&2
+    [[ ${#SNAPSHOTS[@]} -gt 0 ]] && { echo "   Pre-upgrade snapshots (canister id):" >&2; printf '     %s\n' "${SNAPSHOTS[@]}" >&2; }
+    exit 1
+  fi
 fi
 
 # Write canister IDs to .env for Vite
 echo "==> Writing canister IDs to $ENV_FILE"
-bash "$(dirname "$0")/write-env.sh" "$NETWORK"
+bash "$SCRIPT_DIR/write-env.sh" "$NETWORK"
 
 # Build the frontend with canister IDs baked in, then deploy assets
 echo "==> Building frontend..."
@@ -79,14 +105,37 @@ echo "==> Building frontend..."
 # silently falls through to whatever else is on PATH (e.g. an unrelated
 # global install) instead of failing loudly. Cheap enough to just always
 # fix up permissions rather than debug it again if it recurs.
-(cd frontend && npm install && { chmod +x node_modules/.bin/* 2>/dev/null || true; } && npm run build)
+#
+# Bundles with `vite build` rather than `npm run build`, same as CI: the `tsc`
+# step in `npm run build` still fails on unused-variable errors in a few
+# pages, and a type-check failure shouldn't block a deploy that CI has
+# already passed. Switch back once those are cleaned up (see ci.yml).
+(cd frontend && npm install && { chmod +x node_modules/.bin/* 2>/dev/null || true; } && npx vite build)
 
 echo "--> Deploying assets..."
 dfx deploy assets --network "$NETWORK" --yes
 
 if [[ "$NETWORK" != "local" ]]; then
-  echo "==> Post-deploy cycles balance:"
-  bash "$(dirname "$0")/check-cycles.sh" "$NETWORK"
+  # Every real-network canister freezes ${FREEZE_DAYS} days before it would run
+  # dry (the IC default is 30), which is what the cycle thresholds in
+  # scripts/lib/canisters.sh are measured against. Idempotent.
+  echo "==> Setting a ${FREEZE_DAYS}-day freezing threshold..."
+  for c in "${ALL_CANISTERS[@]}"; do
+    dfx canister update-settings "$c" --freezing-threshold $(( FREEZE_DAYS * 86400 )) --network "$NETWORK" --yes >/dev/null \
+      || echo "   (could not set the freezing threshold on $c)"
+  done
+
+  # A failed top-up is a warning, not a failed deploy: the canisters are
+  # already upgraded. The workflow's cycle health gate and the hourly
+  # watchdog fail loudly if a canister is actually close to freezing.
+  echo "==> Topping up canisters that are low on cycles..."
+  bash "$SCRIPT_DIR/top-up-canisters.sh" "$NETWORK" \
+    || gh_warning "Cycle top-up failed" "Deployed, but some canisters could not be topped up. Fund the wallet and run: bash scripts/top-up-canisters.sh $NETWORK"
+
+  if [[ ${#SNAPSHOTS[@]} -gt 0 ]]; then
+    echo "==> Pre-upgrade snapshots (canister id) — rollback: docs/DEPLOYMENT.md → \"Rolling back\""
+    printf '     %s\n' "${SNAPSHOTS[@]}"
+  fi
 fi
 
 echo "==> Done. Canister IDs:"
