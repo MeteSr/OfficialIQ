@@ -145,7 +145,7 @@ persistent actor Association {
   public shared query ({ caller }) func getMyAssociations() : async [AssociationRec] {
     let ids = switch (Map.get(myAssociations, Principal.compare, caller)) { case (?a) a; case null [] };
     let buf = List.empty<AssociationRec>();
-    for (id in ids.vals()) {
+    for (id in ids.values()) {
       switch (Map.get(associations, Text.compare, id)) { case (?rec) List.add(buf, rec); case null {} };
     };
     List.toArray(buf)
@@ -183,7 +183,7 @@ persistent actor Association {
         if (rec.coordinator != caller and not isMember(id, caller)) return #err("Not authorized");
         let ids = switch (Map.get(assignmentsByAssoc, Text.compare, id)) { case (?xs) xs; case null [] };
         let buf = List.empty<Assignment>();
-        for (aid in ids.vals()) {
+        for (aid in ids.values()) {
           switch (Map.get(assignments, Text.compare, aid)) { case (?a) List.add(buf, a); case null {} };
         };
         #ok(List.toArray(buf))
@@ -196,9 +196,9 @@ persistent actor Association {
   public shared query ({ caller }) func getMyAssignments() : async [Assignment] {
     let ids = switch (Map.get(myAssociations, Principal.compare, caller)) { case (?a) a; case null [] };
     let buf = List.empty<Assignment>();
-    for (id in ids.vals()) {
+    for (id in ids.values()) {
       let assignmentIds = switch (Map.get(assignmentsByAssoc, Text.compare, id)) { case (?xs) xs; case null [] };
-      for (aid in assignmentIds.vals()) {
+      for (aid in assignmentIds.values()) {
         switch (Map.get(assignments, Text.compare, aid)) {
           case (?a) { if (isTargeted(a, caller)) List.add(buf, a) };
           case null {};

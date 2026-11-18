@@ -1,4 +1,5 @@
 import { IDL } from "@icp-sdk/core/candid";
+import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ const MOCK_PROFILE: UserProfile = {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-const CANISTER_ID = typeof CANISTER_ID_USER !== "undefined" ? CANISTER_ID_USER : "";
+const CANISTER_ID = canisterId("user");
 
 function actor() {
   return createActor<{

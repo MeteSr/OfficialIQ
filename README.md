@@ -4,7 +4,7 @@ A mobile-first study and certification platform for sports officials (referees/u
 
 ## Architecture
 
-**Backend:** 10 Motoko canisters + a static asset canister, all `persistent actor`s (implicitly stable state — no manual stable-var plumbing).
+**Backend:** 10 Motoko canisters + a certified-assets frontend canister, all `persistent actor`s (implicitly stable state — no manual stable-var plumbing).
 
 | Canister       | Responsibility |
 |----------------|----------------|
@@ -18,7 +18,7 @@ A mobile-first study and certification platform for sports officials (referees/u
 | `mentorship`   | Mentor links, shared exam answer snapshots, mentor annotations |
 | `association`  | Officiating associations, join codes, coordinator-assigned study assignments, completion tracking |
 | `report`       | Shareable performance report cards (public link or shared-with-coordinator) |
-| `assets`       | Serves the built `frontend/dist` |
+| `frontend`     | Serves the built `frontend/dist` (`@dfinity/static-site`, certified assets) |
 
 Every canister exports a `metrics()` query for basic observability.
 
@@ -28,8 +28,10 @@ Every canister exports a `metrics()` query for basic observability.
 
 ## Prerequisites
 
-- [dfx](https://internetcomputer.org/docs/current/developer-docs/getting-started/install) (the DFINITY Canister SDK)
-- Node.js + npm
+- Node.js 22+ and npm
+- [icp-cli](https://cli.internetcomputer.org), ic-wasm and mops:
+  `npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm ic-mops`
+  (CI installs the versions pinned in `tools/package.json` via `scripts/install-icp.sh`)
 
 ## Getting started
 
@@ -40,23 +42,30 @@ make dev        # deploy all canisters + start the Vite dev server
 Other useful targets:
 
 ```bash
-make start      # dfx start --background (network only)
+make start      # icp network start -d (project-local network at :8000)
 make deploy     # bash scripts/deploy.sh local
 make frontend   # cd frontend && npm run dev  (Vite at :5173)
-make clean      # reset local dfx state
+make clean      # reset the local network's state
 make status     # show canister status
 make cycles     # show remaining cycles per canister (local)
 ```
 
-Canister IDs are written to `.env` by `scripts/deploy.sh` and read into the frontend at build time via `vite.config.ts`.
+There is no `.env` with canister IDs: `icp deploy` injects them into the canisters, and the frontend reads them (plus the network's root key) from the `ic_env` cookie — set by the frontend canister, or by `vite dev` from the local network. See `frontend/src/lib/icEnv.ts`.
+
+The admin scripts (`scripts/seed-content.sh`, `set-ai-config.sh`, …) run as your active icp identity, which must be the one that deployed (only a controller can claim app admin). Locally that means a named identity rather than the default anonymous one:
+
+```bash
+icp identity new dev && icp identity default dev
+make deploy && bash scripts/seed-content.sh
+```
 
 ## Deploying beyond local
 
-`make deploy-staging` / `make deploy-ic` deploy to a real IC network (a
-second canister set used as staging, and production mainnet, respectively —
-see `dfx.json`'s `staging`/`ic` network entries). Both require a funded
-cycles wallet first; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
-one-time identity/wallet setup, the CI pipeline (`.github/workflows/`), and
+`make deploy-staging` / `make deploy-ic` deploy to IC mainnet (a second
+canister set used as staging, and production, respectively — see
+`icp.yaml`'s `staging` environment; `ic` is built in). Both need an identity
+holding cycles first; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
+one-time identity/funding setup, the CI pipeline (`.github/workflows/`), and
 canister-upgrade safety notes.
 
 None of this is tied to GitHub specifically — `scripts/*.sh` hold all the
@@ -71,12 +80,14 @@ do the same thing with no GitHub involvement at all.
 backend/    Motoko canisters, one directory per canister (main.mo)
 frontend/   React + TypeScript app (Vite)
 scripts/    deploy, content seeding, audio generation, push relay
+tools/      pinned icp-cli / ic-wasm / mops versions for CI
 tests/      end-to-end / integration tests
 docs/       deployment and other operational docs
 .github/    CI workflows (staging/production deploy, push relay)
 docker/     portable deploy container (GitHub-free CI/hosts)
 deploy/     self-hosted systemd units (GitHub-free push relay)
-dfx.json    canister definitions
+icp.yaml    canisters and environments (icp-cli)
+mops.toml   Motoko compiler, dependencies, canister entry points
 Makefile    common dev commands
 ```
 

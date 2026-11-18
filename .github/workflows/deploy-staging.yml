@@ -1,13 +1,14 @@
 name: Deploy (staging)
 
-# Staging is a second canister set on IC mainnet (see dfx.json's "staging"
-# network) — ICP has no separate public testnet, so this is the closest
+# Staging is a second canister set on IC mainnet (icp.yaml's "staging"
+# environment) — ICP has no separate public testnet, so this is the closest
 # real-network equivalent. Runs automatically on every push to main so
 # staging always reflects the latest merged code.
 #
 # Requires repo secrets (none of this runs until they're set — see
 # docs/DEPLOYMENT.md):
-#   DFX_IDENTITY_PEM  — PEM-encoded identity with a funded staging wallet
+#   ICP_IDENTITY_PEM  — PEM-encoded identity whose cycles-ledger balance pays
+#                       for staging (the old DFX_IDENTITY_PEM name works too)
 
 on:
   push:
@@ -15,7 +16,10 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
-      - "dfx.json"
+      - "icp.yaml"
+      - "mops.toml"
+      - "mops.lock"
+      - "tools/**"
       - "scripts/deploy.sh"
       - "scripts/check-cycles.sh"
       - ".github/workflows/deploy-staging.yml"
@@ -26,7 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write   # needed to commit an updated canister_ids.json
+  contents: write   # needed to commit updated .icp/data/mappings
 
 jobs:
   deploy:
@@ -39,18 +43,19 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+          # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Deploy to staging
         run: bash scripts/deploy.sh staging
 
-      - name: Commit canister_ids.json if it changed
+      - name: Commit canister ID mappings if they changed
         run: bash scripts/commit-canister-ids.sh main
         env:
           GIT_AUTHOR_NAME: "github-actions[bot]"

@@ -1,0 +1,43 @@
+# Motoko toolchain, dependencies and canisters (mops-cli skill).
+# `icp build` compiles each canister below via the @dfinity/motoko recipe,
+# which runs `mops build <name>` — keys here must match the canister names in
+# icp.yaml. Change dependency versions with `mops add` / `mops update` and
+# the compiler with `mops toolchain update moc`, never by hand-editing, so
+# mops.lock stays in sync. Commit mops.lock.
+
+[toolchain]
+moc = "2.2.3"
+
+[dependencies]
+core = "2.7.0"
+ic = "6.0.0"
+
+[canisters.user]
+main = "backend/user/main.mo"
+
+[canisters.content]
+main = "backend/content/main.mo"
+
+[canisters.question]
+main = "backend/question/main.mo"
+
+[canisters.exam]
+main = "backend/exam/main.mo"
+
+[canisters.ranking]
+main = "backend/ranking/main.mo"
+
+[canisters.challenge]
+main = "backend/challenge/main.mo"
+
+[canisters.ai_proxy]
+main = "backend/ai_proxy/main.mo"
+
+[canisters.mentorship]
+main = "backend/mentorship/main.mo"
+
+[canisters.association]
+main = "backend/association/main.mo"
+
+[canisters.report]
+main = "backend/report/main.mo"

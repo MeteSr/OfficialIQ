@@ -9,7 +9,8 @@ name: Push relay (streak milestones)
 #
 # Requires repo secrets (none of this runs until they're set — see
 # docs/DEPLOYMENT.md):
-#   DFX_IDENTITY_PEM   — PEM-encoded identity, same one used for deploys is fine
+#   ICP_IDENTITY_PEM   — PEM-encoded identity, same one used for deploys is fine
+#                        (the old DFX_IDENTITY_PEM name works too)
 #   VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT — from
 #     `npx --prefix frontend web-push generate-vapid-keys`
 
@@ -32,16 +33,14 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
-
-      - name: Resolve canister IDs
-        run: bash scripts/write-env.sh ic
+          # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Install frontend deps
         run: npm install --prefix frontend

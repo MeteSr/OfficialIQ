@@ -84,7 +84,13 @@ persistent actor Question {
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
     switch adminPrincipal {
-      case null { adminPrincipal := ?p; #ok(()) };
+      case null {
+        // Bootstrap is controller-only, so nobody can claim admin on a freshly
+        // deployed canister before its deployer does (canister-security skill).
+        if (not Principal.isController(caller)) return #err("Only a canister controller can set the first admin");
+        adminPrincipal := ?p;
+        #ok(())
+      };
       case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
     }
   };
@@ -143,7 +149,7 @@ persistent actor Question {
         let r = prevReps + 1;
         if (r <= 1) (r, 1)
         else if (r == 2) (r, 6)
-        else (r, Int.abs(Float.toInt(Float.nearest(Float.fromInt(prevIntervalDays) * newEF))));
+        else (r, Int.abs(Float.toInt(Float.nearest(Int.toFloat(prevIntervalDays) * newEF))));
       };
 
     let entry : UserQuestionHistory = {

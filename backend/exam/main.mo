@@ -85,7 +85,13 @@ persistent actor Exam {
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
     switch adminPrincipal {
-      case null { adminPrincipal := ?p; #ok(()) };
+      case null {
+        // Bootstrap is controller-only, so nobody can claim admin on a freshly
+        // deployed canister before its deployer does (canister-security skill).
+        if (not Principal.isController(caller)) return #err("Only a canister controller can set the first admin");
+        adminPrincipal := ?p;
+        #ok(())
+      };
       case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
     }
   };
@@ -132,7 +138,7 @@ persistent actor Exam {
         if (s.owner != caller) return #err("Not your session");
         var correct : Nat = 0;
         var elapsedTotal : Nat = 0;
-        for (a in answers.vals()) {
+        for (a in answers.values()) {
           if (a.isCorrect) correct += 1;
           elapsedTotal += a.elapsedSec;
         };

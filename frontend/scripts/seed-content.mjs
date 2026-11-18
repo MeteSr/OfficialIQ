@@ -1,37 +1,15 @@
 // Seeds the content and question canisters with practice NCAA Men's Basketball
-// officiating data (see seedData.mjs). Run after `make deploy` / `dfx deploy`.
+// officiating data (see seedData.mjs). Run after `icp deploy`.
 //
-// Usage: node scripts/seed-content.mjs [network]   (default network: local)
+// Usage: node scripts/seed-content.mjs [environment]   (local | staging | ic; default local)
+// Runs as the active icp identity (or ICP_IDENTITY) — see scripts/lib/icp.mjs.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { Actor, HttpAgent } from "@icp-sdk/core/agent";
+import { Actor } from "@icp-sdk/core/agent";
+import { connect, ensureAdmin, environmentFromArgs } from "./lib/icp.mjs";
 import { IDL } from "@icp-sdk/core/candid";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS, MECHANICS_ARTICLE_ID, MECHANICS_QUESTIONS, MECHANICS_SCENARIOS, SPORTS } from "./seedData.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const NETWORK = process.argv[2] ?? "local";
-const IC_HOST = NETWORK === "local" ? "http://127.0.0.1:4943" : "https://ic0.app";
-
-// Fixed-seed identity dedicated to seeding — becomes canister admin on first run.
-const SEED_IDENTITY_SEED = new Uint8Array(32).fill(0xcd);
-
-function readEnvFile() {
-  const envPath = path.join(REPO_ROOT, ".env");
-  const text = readFileSync(envPath, "utf8");
-  const env = {};
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    env[trimmed.slice(0, idx)] = trimmed.slice(idx + 1);
-  }
-  return env;
-}
+const NETWORK = environmentFromArgs();
 
 const contentIdlFactory = ({ IDL: I }) => {
   const ArticleInput = I.Record({ sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text, language: I.Text });
@@ -129,31 +107,11 @@ function toDifficultyVariant(name) {
   return { [name]: null };
 }
 
-async function ensureAdmin(name, actor, principal) {
-  const res = await actor.setAdmin(principal);
-  if ("err" in res && res.err !== "Unauthorized") {
-    throw new Error(`${name}.setAdmin failed: ${res.err}`);
-  }
-  if ("err" in res) {
-    console.log(`  (${name} admin already set to a different principal — assuming it's this identity from a prior run)`);
-  } else {
-    console.log(`  ${name} admin set to ${principal.toText()}`);
-  }
-}
-
 async function main() {
-  const env = readEnvFile();
-  const contentId = env.CANISTER_ID_CONTENT;
-  const questionId = env.CANISTER_ID_QUESTION;
-  const examId = env.CANISTER_ID_EXAM;
-  if (!contentId || !questionId) {
-    throw new Error("CANISTER_ID_CONTENT / CANISTER_ID_QUESTION not found in .env — run `make deploy` first.");
-  }
-
-  const identity = Ed25519KeyIdentity.generate(SEED_IDENTITY_SEED);
-  const principal = identity.getPrincipal();
-  const agent = new HttpAgent({ host: IC_HOST, identity });
-  if (NETWORK === "local") await agent.fetchRootKey();
+  const { agent, principal, ids } = await connect(NETWORK, ["content", "question", "exam"]);
+  const contentId = ids.content;
+  const questionId = ids.question;
+  const examId = ids.exam;
 
   const content = Actor.createActor(contentIdlFactory, { agent, canisterId: contentId });
   const question = Actor.createActor(questionIdlFactory, { agent, canisterId: questionId });

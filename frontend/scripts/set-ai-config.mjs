@@ -4,41 +4,15 @@
 // ANTHROPIC_API_KEY environment variable at run time — it is never written
 // to disk, never logged, and never hardcoded — pass it inline:
 //
-//   ANTHROPIC_API_KEY=sk-ant-... node scripts/set-ai-config.mjs [network]
+//   ANTHROPIC_API_KEY=sk-ant-... node scripts/set-ai-config.mjs [environment]
 //
 // Optionally override the model with ANTHROPIC_MODEL=... (defaults to the
 // canister's built-in default, "claude-sonnet-5").
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { Actor, HttpAgent } from "@icp-sdk/core/agent";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
+import { Actor } from "@icp-sdk/core/agent";
+import { connect, ensureAdmin, environmentFromArgs } from "./lib/icp.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "..", "..");
-
-const args = process.argv.slice(2);
-const NETWORK = args.find((a) => !a.startsWith("--")) ?? "local";
-const IC_HOST = NETWORK === "local" ? "http://127.0.0.1:4943" : "https://ic0.app";
-
-// Same fixed-seed identity used by seed-content.mjs / generate-audio.mjs —
-// already admin on the other canisters from the initial seeding run.
-const SEED_IDENTITY_SEED = new Uint8Array(32).fill(0xcd);
-
-function readEnvFile() {
-  const envPath = path.join(REPO_ROOT, ".env");
-  const text = readFileSync(envPath, "utf8");
-  const env = {};
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    env[trimmed.slice(0, idx)] = trimmed.slice(idx + 1);
-  }
-  return env;
-}
+const NETWORK = environmentFromArgs();
 
 const aiProxyIdlFactory = ({ IDL: I }) => {
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
@@ -49,18 +23,6 @@ const aiProxyIdlFactory = ({ IDL: I }) => {
   });
 };
 
-async function ensureAdmin(actor, principal) {
-  const res = await actor.setAdmin(principal);
-  if ("err" in res && res.err !== "Unauthorized") {
-    throw new Error(`ai_proxy.setAdmin failed: ${res.err}`);
-  }
-  if ("err" in res) {
-    console.log("  (ai_proxy admin already set to a different principal — assuming it's this identity from a prior run)");
-  } else {
-    console.log(`  ai_proxy admin set to ${principal.toText()}`);
-  }
-}
-
 async function main() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -68,21 +30,13 @@ async function main() {
   }
   const model = process.env.ANTHROPIC_MODEL;
 
-  const env = readEnvFile();
-  const aiProxyId = env.CANISTER_ID_AI_PROXY;
-  if (!aiProxyId) {
-    throw new Error("CANISTER_ID_AI_PROXY not found in .env — run `make deploy` first.");
-  }
-
-  const identity = Ed25519KeyIdentity.generate(SEED_IDENTITY_SEED);
-  const principal = identity.getPrincipal();
-  const agent = new HttpAgent({ host: IC_HOST, identity });
-  if (NETWORK === "local") await agent.fetchRootKey();
+  const { agent, principal, ids } = await connect(NETWORK, ["ai_proxy"]);
+  const aiProxyId = ids.ai_proxy;
 
   const aiProxy = Actor.createActor(aiProxyIdlFactory, { agent, canisterId: aiProxyId });
 
   console.log(`Configuring ai_proxy as principal ${principal.toText()} on network "${NETWORK}"`);
-  await ensureAdmin(aiProxy, principal);
+  await ensureAdmin("ai_proxy", aiProxy, principal);
 
   const keyRes = await aiProxy.setAnthropicKey(apiKey);
   if ("err" in keyRes) throw new Error(`setAnthropicKey failed: ${keyRes.err}`);
