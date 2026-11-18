@@ -203,12 +203,15 @@ persistent actor Exam {
   // history through getMemberExams, which checks with the association
   // canister (hence a composite query).
   // A query can't read canister environment variables (icp-cli skill,
-  // canister-env-vars), so the association canister's ID is mirrored here at
-  // init/upgrade and refreshed by every update call — on a first install the
-  // sibling may not exist yet when this canister initialises.
-  transient var ASSOCIATION_ID : ?Principal = Env.canisterId<system>("association");
-  transient var RANKING_ID : ?Principal = Env.canisterId<system>("ranking");
-  transient var CHALLENGE_ID : ?Principal = Env.canisterId<system>("challenge");
+  // canister-env-vars), so the sibling canisters' IDs are copied into stable
+  // vars by every update call (refreshEnv) and read from there by queries.
+  // They can't be read while the canister initialises either: reading an
+  // environment variable during install traps with "ic0.env_var_name_exists:
+  // Variable name is not a valid UTF-8 string" and the install fails (found by
+  // the canister integration tests). Stable, so an upgrade keeps them.
+  var ASSOCIATION_ID : ?Principal = null;
+  var RANKING_ID : ?Principal = null;
+  var CHALLENGE_ID : ?Principal = null;
 
   func refreshEnv<system>() {
     switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
@@ -508,6 +511,7 @@ persistent actor Exam {
   /// Answers one question and reveals it. One answer per question; a
   /// timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
   public shared ({ caller }) func answerQuestion(sessionId : Text, questionId : Text, chosenId : Text, elapsedSec : Nat) : async Result.Result<AnswerFeedback, Text> {
+    refreshEnv<system>();
     switch (gradedSession(caller, sessionId)) {
       case (#err(e)) #err(e);
       case (#ok(s)) recordGraded(s, questionId, chosenId, elapsedSec);
@@ -543,6 +547,7 @@ persistent actor Exam {
   /// Finishes a session (unanswered questions count as wrong) and returns
   /// the full answer key. Safe to call again.
   public shared ({ caller }) func finishSession(sessionId : Text) : async Result.Result<GradedFinish, Text> {
+    refreshEnv<system>();
     switch (gradedSession(caller, sessionId)) {
       case (#err(e)) #err(e);
       case (#ok(s)) #ok(finish(s));
