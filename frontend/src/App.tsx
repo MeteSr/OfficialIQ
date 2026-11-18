@@ -7,6 +7,7 @@ import { registerNativePushListener } from "./lib/pushNotifications";
 import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LandingPage from "./pages/LandingPage";
+import NativeCallbackPage from "./pages/NativeCallbackPage";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
 import ExamPage from "./pages/ExamPage";
@@ -104,6 +105,9 @@ export default function App() {
   useEffect(() => { registerOfflineSync(); registerNativePushListener(); }, []);
   const location = useLocation();
   const isLandingRoute = location.pathname === "/";
+
+  // Outside the auth provider: nothing here needs a session.
+  if (location.pathname === "/native-callback") return <NativeCallbackPage />;
 
   return (
     <AuthProvider>

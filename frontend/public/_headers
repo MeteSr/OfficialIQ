@@ -32,3 +32,16 @@
 
 /manifest.webmanifest
   Cache-Control: public, max-age=3600
+
+# Native sign-in (src/lib/nativeAuth.ts, files built by build-config/wellKnown.ts).
+# Internet Identity fetches ii-auth-callbacks from id.ai, so it needs CORS;
+# the extensionless files need an explicit JSON content type.
+/.well-known/ii-auth-callbacks
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
+
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+
+/.well-known/assetlinks.json
+  Content-Type: application/json

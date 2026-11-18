@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
+import { wellKnownFiles } from "./build-config/wellKnown";
 
 // Backend canisters the frontend calls (names as in icp.yaml).
 const CANISTER_NAMES = [
@@ -42,6 +44,39 @@ function buildTimeCanisterIds(): Record<string, string> {
   return {};
 }
 
+// The frontend canister's ID, for the native app's sign-in origin below.
+function frontendCanisterId(): string | undefined {
+  if (process.env.ICP_CLI_CID_FRONTEND) return process.env.ICP_CLI_CID_FRONTEND;
+  for (const dir of ["data", "cache"]) {
+    const file = path.join(REPO_ROOT, ".icp", dir, "mappings", `${ICP_ENVIRONMENT}.ids.json`);
+    if (existsSync(file)) return (JSON.parse(readFileSync(file, "utf-8")) as Record<string, string>).frontend;
+  }
+  return undefined;
+}
+
+// The origin the website is served on, which native sign-in returns to
+// (src/lib/nativeAuth.ts). NATIVE_WEB_ORIGIN overrides it, e.g. for a custom
+// domain; otherwise it's the frontend canister's icp0.io address. Local builds
+// have none, and the app then can't sign in natively.
+function nativeWebOrigin(): string {
+  if (process.env.NATIVE_WEB_ORIGIN) return new URL(process.env.NATIVE_WEB_ORIGIN).origin;
+  if (ICP_ENVIRONMENT === "local") return "";
+  const id = frontendCanisterId();
+  return id ? `https://${id}.icp0.io` : "";
+}
+
+function wellKnownPlugin(origin: string): Plugin {
+  return {
+    name: "officialiq-well-known",
+    apply: "build",
+    generateBundle() {
+      for (const [name, source] of Object.entries(wellKnownFiles(process.env, origin))) {
+        this.emitFile({ type: "asset", fileName: `.well-known/${name}`, source });
+      }
+    },
+  };
+}
+
 // `vite dev` stands in for the frontend canister: it sets the same `ic_env`
 // cookie (canister IDs + root key) and proxies /api to the local network
 // (icp-cli skill, references/dev-server.md). Needs `icp network start -d` and
@@ -68,9 +103,12 @@ function devServerConfig() {
   }
 }
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command }) => {
+  const webOrigin = command === "build" ? nativeWebOrigin() : "";
+  return {
   plugins: [
     react(),
+    wellKnownPlugin(webOrigin),
     VitePWA({
       registerType: "autoUpdate",
       // injectManifest (not the default generateSW) — issue #28 needs a
@@ -107,6 +145,7 @@ export default defineConfig(({ command }) => ({
   },
   define: {
     __ICP_CANISTER_IDS__: JSON.stringify(command === "build" ? buildTimeCanisterIds() : {}),
+    __NATIVE_WEB_ORIGIN__: JSON.stringify(webOrigin),
     // VAPID public key is not secret (it's the whole point of VAPID — see
     // scripts/send-pending-push.mjs for the private key, which must never
     // be build-injected or committed).
@@ -121,4 +160,5 @@ export default defineConfig(({ command }) => ({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
   },
-}));
+};
+});

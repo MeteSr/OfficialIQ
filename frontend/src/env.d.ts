@@ -5,3 +5,5 @@
 // cookie takes precedence whenever the page is served with one.
 declare const __ICP_CANISTER_IDS__: Partial<Record<import("./lib/icEnv").CanisterName, string>>;
 declare const VITE_VAPID_PUBLIC_KEY: string;
+// The web origin native sign-in returns to (src/lib/nativeAuth.ts).
+declare const __NATIVE_WEB_ORIGIN__: string;
