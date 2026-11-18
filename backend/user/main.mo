@@ -7,6 +7,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
+import Runtime "mo:core/Runtime";
 
 persistent actor User {
 
@@ -152,8 +153,19 @@ persistent actor User {
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
+  // Profile fields are shown to other users (leaderboards, groups), so keep
+  // them to a sane size.
+  let MAX_FIELD_CHARS : Nat = 100;
+
+  func validProfile(req : ProfileUpdate) : Bool {
+    Text.size(req.displayName) <= MAX_FIELD_CHARS and Text.size(req.sport) <= MAX_FIELD_CHARS and
+    Text.size(req.level) <= MAX_FIELD_CHARS and Text.size(req.state) <= MAX_FIELD_CHARS and
+    Text.size(req.preferredLanguage) <= 16
+  };
+
   public shared ({ caller }) func createProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
 
     let p : Profile = {
@@ -171,6 +183,7 @@ persistent actor User {
   };
 
   public shared ({ caller }) func updateProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
+    if (not validProfile(req)) return #err("Profile field too long");
     switch (Map.get(profiles, Principal.compare, caller)) {
       case null { #err("Profile not found") };
       case (?existing) {
@@ -215,6 +228,8 @@ persistent actor User {
   };
 
   public shared ({ caller }) func recordArticleStudied(articleId : Text, score : Nat) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    if (score > 100) Runtime.trap("Score must be 0-100");
     let existing = switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] };
     let now = Time.now();
     var found = false;
@@ -233,12 +248,14 @@ persistent actor User {
   };
 
   public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let existing = switch (Map.get(weeklyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
     let entry : WeeklyQuizResult = { weekNumber; newScore; retentionScore; completedAt = Time.now() };
     Map.add(weeklyQuizHistory, Principal.compare, caller, Array.concat<WeeklyQuizResult>(existing, [entry]));
   };
 
   public shared ({ caller }) func recordMonthlyQuizResult(month : Nat, score : Nat, articleScores : [(Text, Nat)]) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let existing = switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
     let entry : MonthlyQuizResult = { month; score; articleScores; completedAt = Time.now() };
     Map.add(monthlyQuizHistory, Principal.compare, caller, Array.concat<MonthlyQuizResult>(existing, [entry]));

@@ -41,6 +41,7 @@ persistent actor Challenge {
   var nextId : Nat = 0;
 
   let TTL_NS : Int = 72 * 3600 * 1_000_000_000;
+  let MAX_QUESTIONS : Nat = 200;
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -51,7 +52,9 @@ persistent actor Challenge {
     questionIds : [Text],
     count       : Nat,
   ) : async Result.Result<Challenge, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (caller == opponent) return #err("Cannot challenge yourself");
+    if (questionIds.size() > MAX_QUESTIONS or articleIds.size() > MAX_QUESTIONS) return #err("Too many questions");
     let id  = "ch" # Nat.toText(nextId);
     nextId += 1;
     let now = Time.now();
@@ -103,6 +106,16 @@ persistent actor Challenge {
       case null { #err("Challenge not found") };
       case (?ch) {
         if (ch.challenger != caller and ch.challenged != caller) return #err("Not a participant");
+        // One result per participant, only on a live challenge: otherwise
+        // either side could overwrite the outcome or complete the challenge
+        // on their own by submitting twice.
+        switch (ch.status) {
+          case (#Pending or #Accepted) {};
+          case _ return #err("Challenge is closed");
+        };
+        if (Time.now() > ch.expiresAt) return #err("Challenge expired");
+        if (Array.find<ChallengeResult>(ch.results, func(r) { r.principal == caller }) != null) return #err("Result already submitted");
+        if (score > 100) return #err("Score must be 0-100");
         let res : ChallengeResult = { principal = caller; score; finishedAt = Time.now() };
         let newResults = Array.concat<ChallengeResult>(ch.results, [res]);
         let done = newResults.size() == 2;

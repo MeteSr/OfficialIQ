@@ -6,6 +6,7 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Token "../lib/Token";
 
 persistent actor Association {
 
@@ -76,8 +77,12 @@ persistent actor Association {
 
   public shared ({ caller }) func createAssociation(name : Text, sport : Text) : async Result.Result<AssociationRec, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    // The join code is the only gate on membership (and members can read the
+    // roster and assignments), so it must not be guessable. Retry on the
+    // unlikely collision with an existing code.
+    var joinCode = await Token.code(10);
+    while (Map.get(joinCodeIndex, Text.compare, joinCode) != null) { joinCode := await Token.code(10) };
     let id       = "asc" # Nat.toText(nextAssociationId);
-    let joinCode = "JOIN" # Nat.toText(nextAssociationId);
     nextAssociationId += 1;
     let rec : AssociationRec = { id; name; sport; coordinator = caller; joinCode; createdAt = Time.now() };
     Map.add(associations, Text.compare, id, rec);
@@ -89,7 +94,7 @@ persistent actor Association {
 
   public shared ({ caller }) func joinAssociation(joinCode : Text) : async Result.Result<AssociationRec, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
-    switch (Map.get(joinCodeIndex, Text.compare, joinCode)) {
+    switch (Map.get(joinCodeIndex, Text.compare, Token.normalizeCode(joinCode))) {
       case null #err("Invalid join code");
       case (?id) {
         switch (Map.get(associations, Text.compare, id)) {
@@ -133,6 +138,7 @@ persistent actor Association {
       case null #err("Assignment not found");
       case (?a) {
         if (not isTargeted(a, caller)) return #err("This module wasn't assigned to you");
+        if (score > 100) return #err("Score must be 0-100");
         let c : Completion = { assignmentId; member = caller; score; completedAt = Time.now() };
         Map.add(completions, Text.compare, completionKey(assignmentId, caller), c);
         #ok(())

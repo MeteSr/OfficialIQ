@@ -10,6 +10,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Order "mo:core/Order";
+import Runtime "mo:core/Runtime";
 
 persistent actor Ranking {
 
@@ -111,6 +112,8 @@ persistent actor Ranking {
   var nextGroupChallengeId : Nat = 0;
 
   let MAX_HISTORY : Nat = 60;
+  let MAX_NAME_CHARS : Nat = 100;
+  let MAX_QUESTIONS_PER_CALL : Nat = 200;
   let DAY_NS : Int = 86_400_000_000_000;
 
   var adminPrincipal : ?Principal = null;
@@ -190,6 +193,11 @@ persistent actor Ranking {
     state         : Text,
     avgElapsedSec : Nat,
   ) : async () {
+    // Scores are still client-reported (see the security audit), but at least
+    // keep them in range: an unbounded score turns into an unbounded ELO jump.
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    if (score > 100) Runtime.trap("Score must be 0-100");
+    if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(sport) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) Runtime.trap("Field too long");
     let prev : UserStats = switch (Map.get(stats, Principal.compare, caller)) {
       case (?s) s;
       case null {
@@ -228,6 +236,7 @@ persistent actor Ranking {
   };
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (caller == friend) return #err("Cannot friend yourself");
     let existing = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
     let already = Array.find<Principal>(existing, func(p) { p == friend }) != null;
@@ -270,6 +279,8 @@ persistent actor Ranking {
   // count. A day first crosses the >=5 threshold exactly once; from then on
   // extra answers that day just accumulate in answeredToday for display.
   public shared ({ caller }) func recordQuestionsAnswered(count : Nat) : async DailyActivity {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    if (count > MAX_QUESTIONS_PER_CALL) Runtime.trap("Count out of range");
     let today = Time.now() / DAY_NS;
     let prev = switch (Map.get(dailyActivity, Principal.compare, caller)) { case (?a) a; case null defaultActivity() };
     let answeredToday = if (prev.activityDay == today) prev.answeredToday + count else count;
@@ -292,6 +303,7 @@ persistent actor Ranking {
 
   // Per-answer signal used for the "Speed Demon" and "Casebook King" badges.
   public shared ({ caller }) func recordAnswerSignal(isCorrect : Bool, elapsedSec : Nat, isCasebook : Bool) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let prev = switch (Map.get(skillCounters, Principal.compare, caller)) {
       case (?c) c;
       case null { { casebookCorrect = 0; casebookTotal = 0; speedStreak = 0; bestSpeedStreak = 0 } };
@@ -306,6 +318,8 @@ persistent actor Ranking {
   // ─── Study groups ───────────────────────────────────────────────────────────
 
   public shared ({ caller }) func createGroup(name : Text, sport : Text, state : Text, isPrivate : Bool) : async Result.Result<Group, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(name) > MAX_NAME_CHARS or Text.size(sport) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
     let id = "grp" # Nat.toText(nextGroupId);
     nextGroupId += 1;
     let g : Group = { id; name; sport; state; isPrivate; owner = caller; memberCount = 1; createdAt = Time.now() };
@@ -356,6 +370,7 @@ persistent actor Ranking {
       case null #err("Group not found");
       case (?g) {
         if (g.owner != caller) return #err("Only the group owner can post a challenge");
+        if (Text.size(title) > 200) return #err("Title is too long");
         let id = "gch" # Nat.toText(nextGroupChallengeId);
         nextGroupChallengeId += 1;
         let ch : GroupChallenge = { id; groupId; title; deadline; createdAt = Time.now() };

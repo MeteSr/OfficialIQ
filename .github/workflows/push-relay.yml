@@ -26,6 +26,9 @@ jobs:
   relay:
     runs-on: ubuntu-latest
     environment: production
+    # Holds a production identity and runs the ref's own scripts, so only
+    # main may run it (a manual dispatch could otherwise pick any branch).
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
@@ -42,8 +45,11 @@ jobs:
           # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
           ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
+      # `npm ci`, not `npm install`: installs exactly what package-lock.json
+      # pins, so a newly published (or compromised) package version can't run
+      # its install scripts next to the production identity.
       - name: Install frontend deps
-        run: npm install --prefix frontend
+        run: npm ci --prefix frontend --no-audit --no-fund
 
       - name: Send pending pushes
         run: bash scripts/send-push.sh ic

@@ -46,5 +46,5 @@ push-relay:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
   script:
-    - npm install --prefix frontend
+    - npm ci --prefix frontend --no-audit --no-fund
     - bash scripts/send-push.sh ic

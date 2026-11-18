@@ -5,6 +5,7 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Token "../lib/Token";
 
 persistent actor Mentorship {
 
@@ -59,6 +60,8 @@ persistent actor Mentorship {
   var nextAnnotationId : Nat = 0;
 
   let TTL_NS : Int = 30 * 24 * 3600 * 1_000_000_000;
+  let MAX_ANSWERS : Nat = 200;
+  let MAX_NOTE_CHARS : Nat = 2_000;
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
@@ -70,8 +73,11 @@ persistent actor Mentorship {
     answers       : [AnswerSnapshot],
   ) : async Result.Result<MentorLink, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (answers.size() > MAX_ANSWERS) return #err("Too many answers");
+    // Whoever opens the link first becomes its mentor (openMentorLink), so
+    // the token must be unguessable, not derived from the link counter.
+    let token = await Token.hex("tok");
     let id    = "mtl" # Nat.toText(nextLinkId);
-    let token = "tok" # Nat.toText(nextLinkId);
     nextLinkId += 1;
     let now = Time.now();
     let link : MentorLink = {
@@ -134,6 +140,9 @@ persistent actor Mentorship {
           case null #err("No mentor has claimed this link yet");
           case (?m) {
             if (m != caller) return #err("Not the mentor for this link");
+            if (l.revoked) return #err("This link has been revoked");
+            if (Time.now() > l.expiresAt) return #err("This link has expired");
+            if (Text.size(note) > MAX_NOTE_CHARS) return #err("Note is too long");
             let id = "an" # Nat.toText(nextAnnotationId);
             nextAnnotationId += 1;
             let a : Annotation = { id; linkId; questionId; mentor = caller; note; seen = false; createdAt = Time.now() };
@@ -174,7 +183,8 @@ persistent actor Mentorship {
   public shared query ({ caller }) func getMentorDashboard() : async [MentorLink] {
     let buf = List.empty<MentorLink>();
     for ((_, l) in Map.entries(links)) {
-      if (l.mentorPrincipal == ?caller) List.add(buf, l);
+      // Revoking a link must also take it off the mentor's dashboard.
+      if (l.mentorPrincipal == ?caller and not l.revoked) List.add(buf, l);
     };
     List.toArray(buf)
   };

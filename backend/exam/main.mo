@@ -7,6 +7,7 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Token "../lib/Token";
 
 persistent actor Exam {
 
@@ -81,6 +82,8 @@ persistent actor Exam {
   var nextTemplateId : Nat = 0;
   var adminPrincipal : ?Principal = null;
 
+  let MAX_QUESTIONS : Nat = 200;
+
   // ─── Admin guard ──────────────────────────────────────────────────────────
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
@@ -104,16 +107,20 @@ persistent actor Exam {
 
   public shared ({ caller }) func createSession(config : ExamConfig, questionIds : [Text]) : async Result.Result<ExamSession, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (questionIds.size() > MAX_QUESTIONS or config.articleIds.size() > MAX_QUESTIONS) return #err("Too many questions");
+    // Share tokens are bearer links, so they come from raw_rand rather than
+    // the session counter (a counter-derived "eqex0", "eqex1", ... can be
+    // enumerated). Drawn before the id so no state changes across the await.
+    let token : ?Text = switch (config.mode) {
+      case (#ShareLink) ?(await Token.hex("eq"));
+      case _ null;
+    };
     let id  = "ex" # Nat.toText(nextId);
     nextId += 1;
     let now = Time.now();
-    let shareToken : ?Text = switch (config.mode) {
-      case (#ShareLink) {
-        let t = "eq" # id;
-        Map.add(shareIndex, Text.compare, t, id);
-        ?t
-      };
-      case _ null;
+    let shareToken : ?Text = switch token {
+      case (?t) { Map.add(shareIndex, Text.compare, t, id); ?t };
+      case null null;
     };
     let session : ExamSession = {
       id            = id;
@@ -136,6 +143,7 @@ persistent actor Exam {
       case null { #err("Session not found") };
       case (?s) {
         if (s.owner != caller) return #err("Not your session");
+        if (answers.size() > MAX_QUESTIONS) return #err("Too many answers");
         var correct : Nat = 0;
         var elapsedTotal : Nat = 0;
         for (a in answers.values()) {

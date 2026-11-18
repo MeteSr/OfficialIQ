@@ -67,7 +67,9 @@ jobs:
 
       - name: Open a PR recording the skills review
         if: steps.check.outputs.skills_changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        # Third-party action with write access: pinned to a commit, not a
+        # movable tag (Dependabot still bumps it).
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           add-paths: .github/icp-skills.json
           branch: chore/icp-skills-review
