@@ -730,7 +730,7 @@
     "heroSubtitle": "OfficialIQ convierte el reglamento en diez minutos al día. Cuestionarios semanales sobre los artículos que cubre tu asociación, repetición espaciada sobre las jugadas que fallas y un simulador de examen completo antes de la certificación.",
     "heroCtaSecondary": "Ver una semana de muestra",
     "heroCtaSub": "Inicia sesión de forma segura con Internet Identity — sin contraseña, sin correo electrónico.",
-    "statOfficials": "2,400+",
+    "statOfficials": "2.400+",
     "statOfficialsLabel": "OFICIALES ENTRENANDO",
     "statAssociations": "31",
     "statAssociationsLabel": "ASOCIACIONES",
@@ -808,6 +808,20 @@
     "footerPrivacy": "Privacidad",
     "footerTerms": "Términos",
     "footerSupport": "Soporte",
-    "footerCopyright": "© {{year}} OfficialIQ"
+    "footerCopyright": "© {{year}} OfficialIQ",
+    "navLabel": "Principal",
+    "languageLabel": "Idioma",
+    "mockAlt": "Vista previa de la pantalla de inicio de OfficialIQ en un teléfono: racha de 14 días, puesto estatal #47, 84% de precisión y un repaso de atraso del Artículo 7.",
+    "mockDay": "VIE",
+    "mockStreak": "DÍAS DE RACHA",
+    "mockRank": "PUESTO ESTATAL",
+    "mockAccuracy": "PRECISIÓN",
+    "mockOverdue": "1 ATRASADO",
+    "mockNav": { "home": "INICIO", "study": "ESTUDIO", "ranks": "RANKING", "exam": "EXAMEN", "me": "YO" },
+    "examBreakdown": { "art4": "Art. 4 — Definiciones", "art9": "Art. 9 — Violaciones", "art7": "Art. 7 — Tiempo", "art10": "Art. 10 — Faltas y sanciones" },
+    "examCardLabel": "Resultado de examen simulado de muestra: 86% en total, desglosado por artículo.",
+    "rosterCaption": "Plantilla de coordinador de muestra",
+    "rosterCurrent": "VIGENTE",
+    "rosterLapsed": "VENCIDA"
   }
 }

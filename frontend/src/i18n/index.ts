@@ -24,6 +24,14 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false }, // React already escapes
 });
 
+// Keep <html lang> in step with the UI language so screen readers pick the
+// right pronunciation rules (index.html hardcodes "en").
+function syncDocumentLang(lang: string) {
+  if (typeof document !== "undefined") document.documentElement.lang = lang;
+}
+syncDocumentLang(i18n.language);
+i18n.on("languageChanged", syncDocumentLang);
+
 // Persisted locally for instant load next visit, ahead of the on-chain
 // profile.preferredLanguage fetch (which is the durable, cross-device
 // source of truth — see AuthContext's post-login sync).
