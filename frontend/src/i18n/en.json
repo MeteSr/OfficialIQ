@@ -993,5 +993,46 @@
     "jv": "Junior Varsity",
     "collegiate": "Collegiate",
     "senior": "Senior"
+  },
+  "badges": {
+    "title": "Badges",
+    "earnedCount": "{{earned}} of {{total}} earned",
+    "streak7": {
+      "name": "7-Day Streak",
+      "description": "Answer questions 7 days in a row"
+    },
+    "streak30": {
+      "name": "30-Day Streak",
+      "description": "Answer questions 30 days in a row"
+    },
+    "streak100": {
+      "name": "100-Day Streak",
+      "description": "Answer questions 100 days in a row"
+    },
+    "speedDemon": {
+      "name": "Speed Demon",
+      "description": "10 correct answers in a row, each under 10 seconds"
+    },
+    "perfectWeek": {
+      "name": "Perfect Week",
+      "description": "Score 100% on the weekly new-material quiz"
+    },
+    "casebookKing": {
+      "name": "Casebook King",
+      "description": "90%+ accuracy across 20+ casebook questions"
+    },
+    "challenger": {
+      "name": "Challenger",
+      "description": "Win 10 peer challenges"
+    },
+    "centuryClub": {
+      "name": "Century Club",
+      "description": "Complete 100 exams"
+    }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "body": "This screen hit an error. Your progress is saved. Try again, or go back to Home.",
+    "goHome": "Back to Home"
   }
 }

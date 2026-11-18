@@ -7,20 +7,12 @@ import { questionService, type Question } from "../services/question";
 import { userService, type MonthlyQuizResult } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
+import { MONTHLY_QUIZ_QUESTIONS, daysInMonthUTC, isInLastFiveDaysOfMonth, monthKeyUTC } from "../lib/monthlyWindow";
 
-const TOTAL_QUESTIONS = 50;
+const TOTAL_QUESTIONS = MONTHLY_QUIZ_QUESTIONS;
 const CASEBOOK_RATIO = 0.4;
 const DEFAULT_SEC_PER_Q = 45;
 
-function monthKeyUTC(d: Date): number {
-  return d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1);
-}
-function daysInMonthUTC(d: Date): number {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-}
-export function isInLastFiveDaysOfMonth(d: Date): boolean {
-  return d.getUTCDate() >= daysInMonthUTC(d) - 4;
-}
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {

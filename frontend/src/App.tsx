@@ -1,10 +1,11 @@
 import { useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useAuthStore } from "./store/authStore";
 import { registerOfflineSync } from "./lib/offlineSync";
 import { registerNativePushListener } from "./lib/pushNotifications";
 import BottomNav from "./components/BottomNav";
+import ErrorBoundary from "./components/ErrorBoundary";
 import LandingPage from "./pages/LandingPage";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
@@ -51,9 +52,12 @@ function LandingRoute() {
 }
 
 function AppShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", maxWidth: 430, margin: "0 auto" }}>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 64 }}>
+        <ErrorBoundary key={location.pathname} onGoHome={() => navigate("/home")}>
         <Routes>
           <Route path="/home"  element={<HomePage />} />
           <Route path="/study" element={<StudyPage />} />
@@ -89,6 +93,7 @@ function AppShell() {
           <Route path="/quiz/share/:token" element={<QuizPage />} />
           <Route path="/quiz/:articleId" element={<QuizPage />} />
         </Routes>
+        </ErrorBoundary>
       </div>
       <BottomNav />
     </div>

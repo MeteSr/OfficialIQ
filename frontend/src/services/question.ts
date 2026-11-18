@@ -96,6 +96,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     recordAnswer:       I.Func([I.Text, I.Bool],              [], []),
     addQuestion:        I.Func([QInput],                     [ResultQ], []),
     getMostMissedQuestions: I.Func([I.Text, I.Nat],           [I.Vec(I.Tuple(I.Text, I.Nat, I.Nat))], ["query"]),
+    getAnswerRates:         I.Func([I.Vec(I.Text)],            [I.Vec(I.Tuple(I.Text, I.Nat, I.Nat))], ["query"]),
     metrics:            I.Func([],                            [I.Record({ questionCount: I.Nat })], ["query"]),
   });
 };
@@ -158,6 +159,7 @@ function actor() {
     recordAnswer:      (questionId: string, isCorrect: boolean) => Promise<void>;
     addQuestion:       (input: QuestionInput) => Promise<{ ok: Question } | { err: string }>;
     getMostMissedQuestions: (sportId: string, limit: bigint) => Promise<[string, bigint, bigint][]>;
+    getAnswerRates:         (questionIds: string[]) => Promise<[string, bigint, bigint][]>;
   }>(CANISTER_ID, idlFactory);
 }
 
@@ -242,5 +244,16 @@ export const questionService = {
     if (!CANISTER_ID) return [];
     const rows = await actor().getMostMissedQuestions(sportId, BigInt(limit));
     return rows.map(([questionId, wrongCount, totalCount]) => ({ questionId, wrongCount: Number(wrongCount), totalCount: Number(totalCount) }));
+  },
+
+  /** How often every official got each question right, keyed by question id. Missing ids have no answers yet. */
+  async getAnswerRates(questionIds: string[]): Promise<Map<string, { wrongCount: number; totalCount: number }>> {
+    const out = new Map<string, { wrongCount: number; totalCount: number }>();
+    if (!CANISTER_ID || questionIds.length === 0) return out;
+    for (let i = 0; i < questionIds.length; i += 100) {
+      const rows = await actor().getAnswerRates(questionIds.slice(i, i + 100));
+      for (const [id, wrong, total] of rows) out.set(id, { wrongCount: Number(wrong), totalCount: Number(total) });
+    }
+    return out;
   },
 };

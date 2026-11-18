@@ -993,5 +993,46 @@
     "jv": "Junior Varsity",
     "collegiate": "Universitario",
     "senior": "Sénior"
+  },
+  "badges": {
+    "title": "Insignias",
+    "earnedCount": "{{earned}} de {{total}} obtenidas",
+    "streak7": {
+      "name": "Racha de 7 días",
+      "description": "Responde preguntas 7 días seguidos"
+    },
+    "streak30": {
+      "name": "Racha de 30 días",
+      "description": "Responde preguntas 30 días seguidos"
+    },
+    "streak100": {
+      "name": "Racha de 100 días",
+      "description": "Responde preguntas 100 días seguidos"
+    },
+    "speedDemon": {
+      "name": "Rayo",
+      "description": "10 respuestas correctas seguidas, cada una en menos de 10 segundos"
+    },
+    "perfectWeek": {
+      "name": "Semana perfecta",
+      "description": "Saca 100% en el cuestionario semanal de material nuevo"
+    },
+    "casebookKing": {
+      "name": "Rey del casebook",
+      "description": "90%+ de aciertos en más de 20 preguntas del casebook"
+    },
+    "challenger": {
+      "name": "Retador",
+      "description": "Gana 10 desafíos contra otros árbitros"
+    },
+    "centuryClub": {
+      "name": "Club de los cien",
+      "description": "Completa 100 exámenes"
+    }
+  },
+  "errorBoundary": {
+    "title": "Algo salió mal",
+    "body": "Esta pantalla tuvo un error. Tu progreso está guardado. Inténtalo de nuevo o vuelve al inicio.",
+    "goHome": "Volver al inicio"
   }
 }

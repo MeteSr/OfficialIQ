@@ -9,9 +9,16 @@ name: Admin task
 #   set-push-relay  — register the push relay's own identity. Leave
 #                     `principal` empty to use PUSH_RELAY_IDENTITY_PEM's
 #                     principal; "none" clears it.
+#   seed-content    — load the rules content, casebook plays and question
+#                     bank (frontend/scripts/seedData.mjs). Safe to re-run:
+#                     questions are only added to an empty bank.
+#   set-ai-config   — store the Anthropic key from the ANTHROPIC_API_KEY
+#                     secret in ai_proxy (re-run to rotate it). The optional
+#                     ANTHROPIC_MODEL variable overrides the model.
 #
-# Secrets: ICP_IDENTITY_PEM (and PUSH_RELAY_IDENTITY_PEM for set-push-relay)
-# on the chosen environment.
+# Secrets on the chosen environment: ICP_IDENTITY_PEM, plus
+# PUSH_RELAY_IDENTITY_PEM for set-push-relay and ANTHROPIC_API_KEY for
+# set-ai-config.
 
 on:
   workflow_dispatch:
@@ -26,9 +33,9 @@ on:
         description: "Task"
         required: true
         type: choice
-        options: [set-role, set-push-relay]
+        options: [set-role, set-push-relay, seed-content, set-ai-config]
       principal:
-        description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none)"
+        description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none; unused otherwise)"
         required: false
         default: ""
         type: string
@@ -91,14 +98,31 @@ jobs:
           ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Run
+        env:
+          ANTHROPIC_API_KEY: ${{ inputs.task == 'set-ai-config' && secrets.ANTHROPIC_API_KEY || '' }}
+          ANTHROPIC_MODEL: ${{ inputs.task == 'set-ai-config' && vars.ANTHROPIC_MODEL || '' }}
         run: |
           # Inputs arrive through env, never interpolated into the script.
+          cd frontend
+          case "$TASK" in
+            seed-content)
+              node scripts/seed-content.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            set-ai-config)
+              if [ -z "$ANTHROPIC_API_KEY" ]; then
+                echo "::error::ANTHROPIC_API_KEY is not set on this environment (docs/DEPLOYMENT.md, Anthropic API key)."
+                exit 1
+              fi
+              node scripts/set-ai-config.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+          esac
           PRINCIPAL="${RELAY_PRINCIPAL:-$PRINCIPAL}"
           if ! [[ "$PRINCIPAL" =~ ^([a-z0-9]{5}-)+[a-z0-9]{1,5}$ || "$PRINCIPAL" == "none" ]]; then
             echo "::error::'$PRINCIPAL' is not a principal."
             exit 1
           fi
-          cd frontend
           if [ "$TASK" = "set-role" ]; then
             node scripts/admin.mjs "$ENVIRONMENT" set-role "$PRINCIPAL" "$ROLE"
           else

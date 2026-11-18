@@ -311,6 +311,23 @@ persistent actor Question {
     List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(limit, List.size(sorted)))
   };
 
+  // (questionId, wrong, answered) across every official for the given
+  // questions, so the app can show how many officials made the same call.
+  // Unknown or never-answered ids are left out. Capped at 100 ids per call.
+  public query func getAnswerRates(questionIds : [Text]) : async [(Text, Nat, Nat)] {
+    let out = List.empty<(Text, Nat, Nat)>();
+    var n = 0;
+    label scan for (qid in questionIds.values()) {
+      if (n >= 100) break scan;
+      n += 1;
+      switch (Map.get(answerTotals, Text.compare, qid)) {
+        case (?t) { if (t.answered > 0) List.add(out, (qid, t.wrong, t.answered)) };
+        case null {};
+      };
+    };
+    List.sliceToArray<(Text, Nat, Nat)>(out, 0, List.size(out))
+  };
+
   // ─── Graded exams (exam canister only) ──────────────────────────────────────
   //
   // Ranked quizzes, certification exams and challenges are graded by the exam
