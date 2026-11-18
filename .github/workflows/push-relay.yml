@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v7
         if: env.HAS_RELAY_IDENTITY == 'true'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: env.HAS_RELAY_IDENTITY == 'true'
         with:
           node-version: "22"
