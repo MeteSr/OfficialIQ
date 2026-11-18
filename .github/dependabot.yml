@@ -16,6 +16,10 @@ updates:
         patterns: ["@icp-sdk/*"]
       capacitor:
         patterns: ["@capacitor/*"]
+      # @vitest/coverage-v8 peers the exact vitest version, so a lone bump
+      # of either fails npm ci.
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
 
   # Pinned ICP toolchain used by CI and scripts/install-icp.sh
   # (icp-cli, ic-wasm, mops).
