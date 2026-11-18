@@ -18,9 +18,8 @@ MIN_CYCLES_TRILLION=1   # heads-up threshold, not a hard technical minimum — s
 cd "$(dirname "$0")/.."
 echo "==> Deploying OfficialIQ to environment: $ENVIRONMENT ($MODE)"
 
-# Reproducible Motoko dependencies: with a committed mops.lock, fail rather
-# than silently re-resolve.
-if [[ -f mops.lock ]]; then mops install --locked; else mops install; fi
+# Reproducible Motoko dependencies: fail rather than silently re-resolve.
+mops install --locked
 
 if [[ "$ENVIRONMENT" == "local" ]]; then
   # The local network is per project; starting one that's already running
