@@ -298,6 +298,27 @@ priority). Once one exists, the IC-side steps are:
    `.well-known/ii-alternative-origins` (see the `user-sign-in` skill) —
    otherwise every user gets a different principal on the domain.
 
+## Keeping the ICP stack current
+
+Three things keep the stack from drifting behind DFINITY's guidance:
+
+- **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for the
+  frontend's npm packages — the `@icp-sdk/*` packages always together, since
+  `@icp-sdk/auth` peers one `@icp-sdk/core` major — for the pinned CI
+  toolchain in `tools/package.json` (icp-cli, ic-wasm, mops), and monthly for
+  GitHub Actions.
+- **ICP freshness** (`.github/workflows/icp-freshness.yml`, Mondays) runs
+  `scripts/check-icp-freshness.sh`, which covers what Dependabot can't: the
+  moc compiler pin, mops packages, icp-cli recipe versions in `icp.yaml`, and
+  DFINITY's published ICP skills. Updates land in one "ICP stack updates
+  available" issue. When a skill changes, it also opens a PR updating
+  `.github/icp-skills.json` that lists the changed skills; merge it once the
+  app has been checked against them. The first run records a baseline.
+  This needs "Allow GitHub Actions to create and approve pull requests"
+  enabled under Settings → Actions → General.
+- **Backend CI** and **Frontend CI** build and test every one of those PRs,
+  so a bump that breaks the build fails before it merges.
+
 ## Verifying icp-cli details
 
 icp-cli is moving fast. `tools/package.json` pins the versions CI uses

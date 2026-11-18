@@ -14,9 +14,9 @@ make status     # show canister status
 ```
 
 Tooling is icp-cli (`icp`, config in `icp.yaml`) and mops (`mops.toml`) —
-never dfx. Follow the ICP skills in `.claude/skills/` (synced from
-skills.internetcomputer.org every session); they win over older patterns in
-this file or the code.
+never dfx. Follow DFINITY's ICP skills (https://skills.internetcomputer.org);
+they win over older patterns in this file or the code. The weekly
+"ICP freshness" workflow flags when they or the toolchain move on.
 
 ## Architecture
 
