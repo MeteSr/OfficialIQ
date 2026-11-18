@@ -78,7 +78,7 @@ const sortKeyToVariant = (key: SortKey): SortKeyVariant => ({ [key]: null } as S
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Entry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
   const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, bestStreak: I.Nat, accuracy: I.Float64, avgElapsedSec: I.Float64, examCount: I.Nat, updatedAt: I.Int });
   const PublicStats = I.Record({ principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
@@ -174,6 +174,9 @@ function actor() {
   }>(CANISTER_ID, idlFactory);
 }
 
+/** The ranking canister refused a claim; retrying the same claim won't succeed. */
+export class ClaimRefused extends Error {}
+
 export const rankingService = {
   async getNational(sport: string, limit: number, sortBy: SortKey = "Elo"): Promise<LeaderboardEntry[]> {
     if (!CANISTER_ID) return sortMock(sortBy);
@@ -231,11 +234,15 @@ export const rankingService = {
     return actor().getFriendPrincipals();
   },
 
-  /** Counts a finished graded exam session (scored by the exam canister) toward the leaderboard. */
+  /**
+   * Counts a finished graded exam session (scored by the exam canister) toward the leaderboard.
+   * Throws ClaimRefused when the canister answers with an error (already counted, too few
+   * questions, ...), which retrying won't fix; any other error is a failed call.
+   */
   async claimExamResult(sessionId: string, displayName: string, state: string): Promise<UserStats | null> {
     if (!CANISTER_ID) return null;
     const res = await actor().claimExamResult(sessionId, displayName, state);
-    if ("err" in res) throw new Error(res.err);
+    if ("err" in res) throw new ClaimRefused(res.err);
     return res.ok;
   },
 

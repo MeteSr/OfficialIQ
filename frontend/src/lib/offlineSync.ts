@@ -1,9 +1,10 @@
 import { contentService } from "../services/content";
 import { questionService } from "../services/question";
 import { userService } from "../services/user";
+import { rankingService, ClaimRefused } from "../services/ranking";
 import {
   cacheArticles, cachePlays, cacheQuestions,
-  getPendingActions, removePendingAction, type PendingAction,
+  enqueuePendingAction, getPendingActions, removePendingAction, type PendingAction,
 } from "./offlineDb";
 
 /**
@@ -39,6 +40,31 @@ async function replay(action: PendingAction): Promise<void> {
     case "recordAnswer":
       await questionService.recordAnswer(action.questionId, action.isCorrect);
       return;
+    case "claimExamResult":
+      try {
+        await rankingService.claimExamResult(action.sessionId, action.displayName, action.state);
+      } catch (e) {
+        // Already counted (or not countable): done with this entry.
+        if (e instanceof ClaimRefused) return;
+        throw e;
+      }
+      return;
+  }
+}
+
+/**
+ * Counts a finished ranked session toward the leaderboard. A ranked result
+ * used to be lost if this one call failed (a dropped connection right after
+ * the last question); now a failed call is queued and replayed like other
+ * offline actions. The ranking canister counts each session once, so a
+ * replay of a claim that did land is refused and dropped.
+ */
+export async function claimRankedResult(sessionId: string, displayName: string, state: string): Promise<void> {
+  try {
+    await rankingService.claimExamResult(sessionId, displayName, state);
+  } catch (e) {
+    if (e instanceof ClaimRefused) return;
+    await enqueuePendingAction({ kind: "claimExamResult", sessionId, displayName, state }).catch(() => {});
   }
 }
 

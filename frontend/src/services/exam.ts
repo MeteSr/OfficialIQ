@@ -72,7 +72,7 @@ export function unrevealed(v: QuestionView): import("./question").Question {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Mode    = I.Variant({ Solo: I.Null, ShareLink: I.Null, Timed: I.Null, Certification: I.Null });
   const Config  = I.Record({ sportId: I.Text, articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, secPerQ: I.Nat, mode: Mode });
   const Answer  = I.Record({ questionId: I.Text, chosenId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat });

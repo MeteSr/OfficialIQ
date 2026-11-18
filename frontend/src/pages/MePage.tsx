@@ -6,8 +6,6 @@ import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
 import { rankingService, type UserStats } from "../services/ranking";
 import { userService } from "../services/user";
-import { challengeService } from "../services/challenge";
-import { computeBadges, type Badge } from "../lib/badges";
 import { contentService, type Article, type Sport } from "../services/content";
 import {
   getStorageBreakdown, getDownloadedAudioIds, deleteAudioBlob, clearAllDownloads,
@@ -163,7 +161,6 @@ export default function MePage() {
   const [addFriendInput, setAddFriendInput] = useState("");
   const [addFriendError, setAddFriendError] = useState<string | null>(null);
   const [copied,         setCopied]         = useState(false);
-  const [badges,         setBadges]         = useState<Badge[]>([]);
 
   const [storage,           setStorage]           = useState<StorageBreakdown | null>(null);
   const [downloadedArticles, setDownloadedArticles] = useState<Article[]>([]);
@@ -232,19 +229,6 @@ export default function MePage() {
       setClearingStorage(false);
     }
   }
-
-  useEffect(() => {
-    if (!isAuthenticated || !principal) return;
-    Promise.all([
-      rankingService.getDailyStreak().catch(() => null),
-      rankingService.getSkillCounters().catch(() => null),
-      rankingService.getMyStats().catch(() => null),
-      userService.getWeeklyQuizHistory().catch(() => []),
-      challengeService.getMyChallenges().catch(() => []),
-    ]).then(([dailyStreak, skills, myStats, weeklyHistory, challenges]) => {
-      setBadges(computeBadges({ dailyStreak, skills, stats: myStats, weeklyHistory, challenges, myPrincipal: principal }));
-    });
-  }, [isAuthenticated, principal]);
 
   async function loadFriends() {
     setFriendsLoading(true);

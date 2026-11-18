@@ -30,7 +30,7 @@ export type Challenge = {
 
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Status  = I.Variant({ Pending: I.Null, Accepted: I.Null, Completed: I.Null, Declined: I.Null, Expired: I.Null });
   const CRes    = I.Record({ principal: I.Principal, score: I.Nat, finishedAt: I.Int });
   const Ch      = I.Record({

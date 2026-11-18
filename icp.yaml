@@ -63,8 +63,8 @@ canisters:
         # vite.config.ts bakes them in as a fallback for clients that get no
         # `ic_env` cookie (the Capacitor Android app, service worker).
         presync:
-          # `vite build`, not `npm run build`: tsc still fails on known
-          # unused-variable errors (see .github/workflows/ci.yml).
+          # `vite build` only: CI's frontend job (`npm run build`) already
+          # type-checks every commit before it can reach a deploy.
           - cd frontend && npm ci && npx vite build
 
 networks:

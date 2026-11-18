@@ -133,9 +133,6 @@ export default function ScenarioGeneratorPage() {
     }
   }
 
-  const selectedSport = sports.find(s => s.id === sportId);
-  const selectedArticle = articles.find(a => a.id === articleId);
-
   return (
     <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 24 }}>
       {/* Header */}
@@ -306,7 +303,7 @@ export default function ScenarioGeneratorPage() {
                   ) : (
                     <>
                       <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint }}>
-                        {q.citation} · {q.difficulty.toUpperCase()}
+                        {q.citation} · {String(q.difficulty ?? "").toUpperCase()}
                       </div>
                       <div style={{ fontFamily: T.font, fontWeight: 500, fontSize: 14, lineHeight: 1.45, color: T.text, margin: "8px 0" }}>
                         {q.stem}
@@ -323,17 +320,17 @@ export default function ScenarioGeneratorPage() {
                       </div>
                       <button
                         onClick={() => handleApprove(i)}
-                        disabled={state === "saving" || state === "saved"}
+                        disabled={state === "saving"}
                         style={{
                           width: "100%", minHeight: 44, marginTop: 12, background: "transparent",
                           border: `1px solid ${state === "error" ? fill.wrong : T.border}`,
                           borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13,
                           color: state === "error" ? fill.wrong : T.text,
                           opacity: state === "saving" ? 0.6 : 1,
-                          cursor: state === "saving" || state === "saved" ? "default" : "pointer",
+                          cursor: state === "saving" ? "default" : "pointer",
                         }}
                       >
-                        {state === "saving" ? t("scenarioGen.saving") : state === "saved" ? t("scenarioGen.saved") : state === "error" ? t("scenarioGen.retryFailed") : t("scenarioGen.approve")}
+                        {state === "saving" ? t("scenarioGen.saving") : state === "error" ? t("scenarioGen.retryFailed") : t("scenarioGen.approve")}
                       </button>
                     </>
                   )}
