@@ -6,47 +6,21 @@
 // environment variable at run time. It is never written to disk, never
 // logged, and never hardcoded — pass it inline:
 //
-//   ELEVENLABS_API_KEY=sk_... node scripts/generate-audio.mjs [network] [--force]
+//   ELEVENLABS_API_KEY=sk_... node scripts/generate-audio.mjs [environment] [--force]
 //
 // Skips articles that already have stored audio unless --force is passed.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { Actor, HttpAgent } from "@icp-sdk/core/agent";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
+import { Actor } from "@icp-sdk/core/agent";
+import { connect, ensureAdmin, environmentFromArgs } from "./lib/icp.mjs";
 import { ARTICLES, SPORT_ID, LEVEL_ID } from "./seedData.mjs";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 const args = process.argv.slice(2);
 const FORCE = args.includes("--force");
-const NETWORK = args.find((a) => !a.startsWith("--")) ?? "local";
-const IC_HOST = NETWORK === "local" ? "http://127.0.0.1:4943" : "https://ic0.app";
+const NETWORK = environmentFromArgs();
 
 const ELEVENLABS_VOICE_ID = "onwK4e9ZLuTAKqWW03F9"; // "Daniel" — premade voice, accessible on free-tier API keys
 const ELEVENLABS_MODEL_ID = "eleven_turbo_v2_5";
 const MAX_RESPONSE_BYTES = 1_800_000n; // stays under the IC's 2MB http-outcall cap
-const HTTP_OUTCALL_CYCLES = 30_000_000_000n; // comfortably covers the fee for MAX_RESPONSE_BYTES
-
-// Same fixed-seed identity used by seed-content.mjs — already admin on
-// content/question from the initial seeding run.
-const SEED_IDENTITY_SEED = new Uint8Array(32).fill(0xcd);
-
-function readEnvFile() {
-  const envPath = path.join(REPO_ROOT, ".env");
-  const text = readFileSync(envPath, "utf8");
-  const env = {};
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    env[trimmed.slice(0, idx)] = trimmed.slice(idx + 1);
-  }
-  return env;
-}
 
 const contentIdlFactory = ({ IDL: I }) => {
   const Article = I.Record({
@@ -68,21 +42,9 @@ const aiProxyIdlFactory = ({ IDL: I }) => {
   const ResultBlob = I.Variant({ ok: I.Vec(I.Nat8), err: I.Text });
   return I.Service({
     setAdmin: I.Func([I.Principal], [ResultUnit], []),
-    httpPost: I.Func([I.Text, I.Vec(HttpHeader), I.Text, I.Nat64, I.Nat], [ResultBlob], []),
+    httpPost: I.Func([I.Text, I.Vec(HttpHeader), I.Text, I.Nat64], [ResultBlob], []),
   });
 };
-
-async function ensureAdmin(name, actor, principal) {
-  const res = await actor.setAdmin(principal);
-  if ("err" in res && res.err !== "Unauthorized") {
-    throw new Error(`${name}.setAdmin failed: ${res.err}`);
-  }
-  if ("err" in res) {
-    console.log(`  (${name} admin already set to a different principal — assuming it's this identity from a prior run)`);
-  } else {
-    console.log(`  ${name} admin set to ${principal.toText()}`);
-  }
-}
 
 async function main() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -90,17 +52,9 @@ async function main() {
     throw new Error("ELEVENLABS_API_KEY environment variable is not set. Run as: ELEVENLABS_API_KEY=sk_... node scripts/generate-audio.mjs");
   }
 
-  const env = readEnvFile();
-  const contentId = env.CANISTER_ID_CONTENT;
-  const aiProxyId = env.CANISTER_ID_AI_PROXY;
-  if (!contentId || !aiProxyId) {
-    throw new Error("CANISTER_ID_CONTENT / CANISTER_ID_AI_PROXY not found in .env — run `make deploy` first.");
-  }
-
-  const identity = Ed25519KeyIdentity.generate(SEED_IDENTITY_SEED);
-  const principal = identity.getPrincipal();
-  const agent = new HttpAgent({ host: IC_HOST, identity });
-  if (NETWORK === "local") await agent.fetchRootKey();
+  const { agent, principal, ids } = await connect(NETWORK, ["content", "ai_proxy"]);
+  const contentId = ids.content;
+  const aiProxyId = ids.ai_proxy;
 
   const content = Actor.createActor(contentIdlFactory, { agent, canisterId: contentId });
   const aiProxy = Actor.createActor(aiProxyIdlFactory, { agent, canisterId: aiProxyId });
@@ -148,7 +102,6 @@ async function main() {
         ],
         bodyJson,
         MAX_RESPONSE_BYTES,
-        HTTP_OUTCALL_CYCLES,
       );
       if ("err" in res) {
         console.error(`  ✗ Art. ${article.number} TTS request: ${res.err}`);

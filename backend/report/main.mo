@@ -148,7 +148,7 @@ persistent actor Report {
   public shared query ({ caller }) func getMyReports() : async [ReportSnapshot] {
     let ids = switch (Map.get(myReportIds, Principal.compare, caller)) { case (?xs) xs; case null [] };
     let buf = List.empty<ReportSnapshot>();
-    for (id in ids.vals()) {
+    for (id in ids.values()) {
       switch (Map.get(reports, Text.compare, id)) { case (?r) List.add(buf, r); case null {} };
     };
     List.toArray(buf)

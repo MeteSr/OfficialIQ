@@ -1,4 +1,5 @@
 import { IDL } from "@icp-sdk/core/candid";
+import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { cacheQuestions, getCachedQuestion, getCachedQuestionsFor } from "../lib/offlineDb";
 
@@ -145,7 +146,7 @@ export const MOCK_QUESTIONS: Question[] = [
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-const CANISTER_ID = typeof CANISTER_ID_QUESTION !== "undefined" ? CANISTER_ID_QUESTION : "";
+const CANISTER_ID = canisterId("question");
 
 function actor() {
   return createActor<{

@@ -119,7 +119,13 @@ persistent actor Ranking {
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
     switch adminPrincipal {
-      case null { adminPrincipal := ?p; #ok(()) };
+      case null {
+        // Bootstrap is controller-only, so nobody can claim admin on a freshly
+        // deployed canister before its deployer does (canister-security skill).
+        if (not Principal.isController(caller)) return #err("Only a canister controller can set the first admin");
+        adminPrincipal := ?p;
+        #ok(())
+      };
       case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
     }
   };
@@ -141,8 +147,8 @@ persistent actor Ranking {
         };
         case (#Speed) {
           // Lower average time per question ranks first; treat "never answered" (0.0) as slowest.
-          let aTime = if (a.avgElapsedSec <= 0.0) Float.fromInt(1_000_000) else a.avgElapsedSec;
-          let bTime = if (b.avgElapsedSec <= 0.0) Float.fromInt(1_000_000) else b.avgElapsedSec;
+          let aTime = if (a.avgElapsedSec <= 0.0) Int.toFloat(1_000_000) else a.avgElapsedSec;
+          let bTime = if (b.avgElapsedSec <= 0.0) Int.toFloat(1_000_000) else b.avgElapsedSec;
           if (aTime < bTime) #less else if (aTime > bTime) #greater else #equal
         };
       }
@@ -404,7 +410,7 @@ persistent actor Ranking {
       state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, all.size());
     var i = 0;
-    for (p in all.vals()) {
+    for (p in all.values()) {
       switch (Map.get(stats, Principal.compare, p)) {
         case (?s) { if (s.sport == sport) { buf[i] := s; i += 1 } };
         case null {};
@@ -471,8 +477,8 @@ persistent actor Ranking {
       switch (Map.get(stats, Principal.compare, p)) { case (?s) s.accuracy; case null 0.0 }
     } else {
       var sum = 0.0;
-      for (s in recent.vals()) { sum += s.accuracy };
-      sum / Float.fromInt(recent.size())
+      for (s in recent.values()) { sum += s.accuracy };
+      sum / Int.toFloat(recent.size())
     }
   };
 
@@ -481,7 +487,7 @@ persistent actor Ranking {
   public query func getGroupLeaderboard(groupId : Text) : async [GroupLeaderboardEntry] {
     let members = switch (Map.get(groupMembers, Text.compare, groupId)) { case (?m) m; case null [] };
     let buf = List.empty<GroupLeaderboardEntry>();
-    for (p in members.vals()) {
+    for (p in members.values()) {
       let displayName = switch (Map.get(stats, Principal.compare, p)) { case (?s) s.displayName; case null "Member" };
       List.add(buf, { rank = 0; principal = p; displayName; weeklyAccuracy = weeklyAccuracy(p) });
     };

@@ -1,0 +1,49 @@
+name: Backend CI
+
+# Type-checks and builds every Motoko canister with the pinned toolchain
+# (mops.toml / tools/package.json) on pull requests that touch the backend
+# or the build config, so a moc/core/recipe bump that breaks the build is
+# caught before it reaches staging.
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "icp.yaml"
+      - "mops.toml"
+      - "mops.lock"
+      - "tools/**"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        run: mops install --locked
+
+      - name: Type-check canisters
+        run: mops check --no-lint
+
+      - name: Build canisters
+        run: icp build user content question exam ranking challenge ai_proxy mentorship association report
+        env:
+          DO_NOT_TRACK: "1"
+

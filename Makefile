@@ -3,14 +3,14 @@
 dev: deploy frontend
 
 start:
-	dfx start --background
+	icp network start -d
 
 deploy:
 	bash scripts/deploy.sh local
 
-# Real-network deploys — see docs/DEPLOYMENT.md for one-time identity/wallet
-# setup. Both require a funded cycles wallet; scripts/deploy.sh refuses to
-# run without one rather than fail partway through.
+# Mainnet deploys — see docs/DEPLOYMENT.md for one-time identity setup.
+# Both spend the deploying identity's cycles balance; scripts/deploy.sh
+# refuses to start when it's nearly empty rather than fail partway through.
 deploy-staging:
 	bash scripts/deploy.sh staging
 
@@ -20,11 +20,12 @@ deploy-ic:
 frontend:
 	cd frontend && npm install && npm run dev
 
+# Wipes the project-local network's state (canisters and data).
 clean:
-	dfx stop; dfx start --background --clean
+	icp network stop; rm -rf .icp/cache; icp network start -d
 
 status:
-	dfx canister status --all --network local 2>/dev/null || echo "No local replica running"
+	icp canister status -e local 2>/dev/null || echo "No local network running (make start)"
 
 cycles:
 	bash scripts/check-cycles.sh local

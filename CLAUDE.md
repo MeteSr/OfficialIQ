@@ -6,16 +6,21 @@ Guidance for Claude Code when working in this repository.
 
 ```bash
 make dev        # deploy all canisters + start Vite dev server
-make start      # dfx start --background (network only)
+make start      # icp network start -d (project-local network, :8000)
 make deploy     # bash scripts/deploy.sh local
 make frontend   # cd frontend && npm run dev (Vite at :5173)
-make clean      # reset local dfx state
+make clean      # reset local network state
 make status     # show canister status
 ```
 
+Tooling is icp-cli (`icp`, config in `icp.yaml`) and mops (`mops.toml`) —
+never dfx. Follow DFINITY's ICP skills (https://skills.internetcomputer.org);
+they win over older patterns in this file or the code. The weekly
+"ICP freshness" workflow flags when they or the toolchain move on.
+
 ## Architecture
 
-### Canister Map (10 canisters + assets)
+### Canister Map (10 canisters + frontend)
 
 | Canister   | Responsibility |
 |------------|----------------|
@@ -29,9 +34,11 @@ make status     # show canister status
 | **mentorship**  | Mentor links, shared exam answer snapshots, mentor annotations |
 | **association** | Officiating associations, join codes, coordinator-assigned study assignments |
 | **report**      | Shareable performance report cards |
-| **assets**    | Serves frontend/dist |
+| **frontend**  | Serves frontend/dist (`@dfinity/static-site`, certified assets; `_headers` / `_redirects` in frontend/public) |
 
 All canisters use `persistent actor` — all variables are implicitly stable.
+Use `mo:core` (never `mo:base`), `.values()` (not `.vals()`), and the `ic`
+mops package's `Call.httpRequest` builder for HTTPS outcalls.
 Each exports a `metrics()` query.
 
 ### Sport + Level keying
@@ -57,7 +64,11 @@ Routes: `/home`, `/study`, `/exam`, `/ranks`, `/me`, `/quiz/:articleId`
 
 ### Canister IDs
 
-Written to `.env` by `scripts/deploy.sh`. Vite reads them via `define` in `vite.config.ts` as `CANISTER_ID_*` globals.
+`icp deploy` injects `PUBLIC_CANISTER_ID:<name>` into every canister; the
+frontend reads them and the root key from the `ic_env` cookie via
+`canisterId(name)` in `frontend/src/lib/icEnv.ts` (build-time fallback for
+the Capacitor app). Never call `fetchRootKey()`. Mainnet IDs live in
+`.icp/data/mappings/<env>.ids.json` and must be committed.
 
 ### Stub data pattern
 
@@ -65,4 +76,4 @@ Pages use local stub constants (e.g. `STUB_QUESTIONS`, `STUB_ENTRIES`) while can
 
 ## IDL maintenance
 
-Whenever you add or rename a Motoko type, update the matching IDL in `frontend/src/declarations/<canister>/index.ts` (create the file if it doesn't exist yet — `dfx generate` will scaffold it after first deploy).
+Whenever you add or rename a Motoko type, update the matching IDL in `frontend/src/declarations/<canister>/index.ts` (create the file if it doesn't exist yet). `mops generate candid <canister>` prints the canister's current Candid interface to compare against.

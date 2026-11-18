@@ -1,4 +1,5 @@
 import { IDL } from "@icp-sdk/core/candid";
+import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ function sortMock(sortBy: SortKey): LeaderboardEntry[] {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-const CANISTER_ID = typeof CANISTER_ID_RANKING !== "undefined" ? CANISTER_ID_RANKING : "";
+const CANISTER_ID = canisterId("ranking");
 
 function actor() {
   return createActor<{

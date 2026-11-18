@@ -16,10 +16,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// Skill: always include /authorize — omitting it silently fails
-const II_URL = import.meta.env.DEV
-  ? "http://id.ai.localhost:8000/authorize"
-  : "https://id.ai/authorize";
+// Internet Identity: @icp-sdk/auth 11 defaults to mainnet II (https://id.ai),
+// which is also what the user-sign-in skill recommends for local development —
+// icp-cli's local network trusts mainnet II delegations — so no
+// identityProvider is configured here.
 
 // Fixed-seed dev identity — survives hot-reloads without re-auth
 const DEV_SEED = new Uint8Array(32).fill(0xab);
@@ -39,13 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function init() {
-      // 7.x: pass identityProvider to constructor, not per-call
-      const client = new AuthClient({ identityProvider: II_URL });
+      const client = new AuthClient();
       clientRef.current = client;
 
-      // 7.x: isAuthenticated() is synchronous
+      // isAuthenticated() is synchronous
       if (client.isAuthenticated()) {
-        // 7.x: getIdentity() is async
+        // getIdentity() is async
         const identity = await client.getIdentity();
         initAgent(identity);
         const principal = identity.getPrincipal().toText();
@@ -72,13 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login() {
-    const client = clientRef.current ?? new AuthClient({ identityProvider: II_URL });
+    const client = clientRef.current ?? new AuthClient();
     clientRef.current = client;
 
-    // 7.x: signIn() returns the identity directly, rejects on failure
-    const identity = await client.signIn({
-      maxTimeToLive: BigInt(8) * BigInt(3_600_000_000_000), // 8 hours
-    });
+    // signIn() returns the identity directly and rejects if the user closes
+    // the II window or authentication fails (callers catch). Session length
+    // is left to II's defaults (7 days idle / 30 days total) — maxTimeToLive
+    // bounds the II session, not the signing key (user-sign-in skill).
+    const identity = await client.signIn();
     initAgent(identity);
     const principal = identity.getPrincipal().toText();
     const profile   = await userService.getMyProfile();
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     const client = clientRef.current;
-    if (client) await client.signOut(); // 7.x: signOut() not logout()
+    if (client) await client.signOut(); // ends the session in every tab
     resetAgent();
     clear();
   }

@@ -9,7 +9,8 @@ name: Deploy (production)
 #
 # Requires repo secrets (none of this runs until they're set — see
 # docs/DEPLOYMENT.md):
-#   DFX_IDENTITY_PEM  — PEM-encoded identity with a funded production wallet
+#   ICP_IDENTITY_PEM  — PEM-encoded identity whose cycles-ledger balance pays
+#                       for production (the old DFX_IDENTITY_PEM name works too)
 
 on:
   push:
@@ -35,21 +36,22 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
+          # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Deploy to production (ic)
         run: bash scripts/deploy.sh ic
 
-      - name: Check canister_ids.json is up to date
+      - name: Check canister ID mappings are up to date
         # Deliberately warn-only, not auto-committed: this job runs off a
         # tag (a detached ref), and pushing to main from a tag build is
-        # riskier than it's worth for a file that should only ever change
-        # on first deploy of a new canister. If this fails, pull the new
-        # canister_ids.json and commit it via a normal PR.
-        run: bash scripts/commit-canister-ids.sh main --warn-only || echo "::warning::canister_ids.json changed — see log above, commit it via a PR to main."
+        # riskier than it's worth for files that should only ever change
+        # on first deploy of a new canister. If this fails, commit the new
+        # .icp/data/mappings/ic.ids.json via a normal PR.
+        run: bash scripts/commit-canister-ids.sh main --warn-only || echo "::warning::.icp/data/mappings changed — see log above, commit it via a PR to main."

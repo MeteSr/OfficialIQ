@@ -1,13 +1,14 @@
-.dfx/
+.icp/cache/
+.mops/
 node_modules/
 frontend/dist/
 frontend/node_modules/
 .env
 *.env.local
 *.pem
-.vessel/
 
-# canister_ids.json for local/ephemeral networks lives under .dfx/ (already
-# ignored above). dfx writes real-network (ic, staging) canister ids to this
-# root-level file instead — those IDs are permanent and meant to be committed,
-# so this file is intentionally NOT ignored once a real deploy has run.
+tools/node_modules/
+
+# icp-cli keeps local-network state in .icp/cache/ (ignored above) and the
+# mainnet canister-ID mappings in .icp/data/mappings/<env>.ids.json. Those
+# IDs are permanent and MUST be committed — never ignore .icp/data/.
