@@ -145,7 +145,7 @@ export default function ScenarioGeneratorPage() {
             {t("scenarioGen.title")}
           </div>
           <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.wrong }}>
-            REVIEW REQUIRED
+            {t("scenarioGen.reviewRequired")}
           </span>
         </div>
         <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
@@ -275,7 +275,7 @@ export default function ScenarioGeneratorPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ height: 1, background: T.border }} />
             <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-              {t("scenarioGen.questionsGenerated", { count: parsed.length })} · {Object.values(approvals).filter(s => s === "saved").length} APPROVED
+              {t("scenarioGen.questionsGenerated", { count: parsed.length })} · {t("scenarioGen.approvedCount", { count: Object.values(approvals).filter(s => s === "saved").length })}
             </div>
 
             {parsed.map((q, i) => {
@@ -300,7 +300,7 @@ export default function ScenarioGeneratorPage() {
                         {q.citation} — {q.stem.slice(0, 60)}{q.stem.length > 60 ? "…" : ""}
                       </span>
                       <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.accent, flexShrink: 0 }}>
-                        SAVED
+                        {t("scenarioGen.savedTag")}
                       </span>
                     </>
                   ) : (

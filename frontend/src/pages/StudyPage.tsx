@@ -8,7 +8,7 @@ import { questionService } from "../services/question";
 import { useAuthStore } from "../store/authStore";
 import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/offlineDb";
 import { associationService, type Assignment } from "../services/association";
-import { useSport, useSportDisplayName } from "../lib/sport";
+import { levelLabel, useSport, useSportDisplayName } from "../lib/sport";
 
 type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
@@ -170,7 +170,7 @@ export default function StudyPage() {
           {t("study.title")}
         </div>
         <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 7 }}>
-          {sportDisplayName.toUpperCase()} · VARSITY
+          {sportDisplayName.toUpperCase()} · {levelLabel(levelId).toUpperCase()}
         </div>
       </div>
 
@@ -279,9 +279,9 @@ export default function StudyPage() {
                 return (
                   <div key={poe.id} style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${fill.attention}`, borderRadius: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.1em", color: fill.attention }}>POE</span>
+                      <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.1em", color: fill.attention }}>{t("weeklyQuiz.poeTag")}</span>
                       <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, flex: 1, lineHeight: 1.25 }}>{poe.title}</span>
-                      {reviewed && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: fill.accent }}>REVIEWED</span>}
+                      {reviewed && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: fill.accent }}>{t("study.reviewedTag")}</span>}
                     </div>
                     <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12.5, lineHeight: 1.55, color: T.muted, marginTop: 8 }}>{poe.body}</div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 }}>
@@ -342,18 +342,18 @@ export default function StudyPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                       <span style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, lineHeight: 1.25 }}>{t("study.article", { number: Number(a.number) })}</span>
-                      {overdue && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.08em", color: fill.wrong }}>OVERDUE</span>}
+                      {overdue && <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.08em", color: fill.wrong }}>{t("study.overdueTag")}</span>}
                     </div>
                     <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>{a.title}</div>
                     {due > 0 && (
-                      <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: fill.accent, marginTop: 6 }}>{due} DUE TODAY</div>
+                      <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: fill.accent, marginTop: 6 }}>{t("study.dueToday", { count: due })}</div>
                     )}
                     {done && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                         <div style={{ flex: 1, maxWidth: 120, height: 3, borderRadius: 2, background: T.border, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${mPct}%`, background: masteryColor(mPct), borderRadius: 2 }} />
                         </div>
-                        <span style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: T.faint }}>{mPct}% · {Number(p.timesStudied)} SESSIONS</span>
+                        <span style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: T.faint }}>{t("study.masterySessions", { pct: mPct, count: Number(p.timesStudied) })}</span>
                       </div>
                     )}
                   </div>

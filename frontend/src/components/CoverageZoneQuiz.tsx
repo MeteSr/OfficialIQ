@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { T } from "../tokens";
 import type { MechanicsScenario } from "../services/content";
+import { useTranslation } from "react-i18next";
 
 // Tap-to-assign coverage-zone quiz (issue #20). Zones are large rectangles
 // (min ~20% of the court's width/height) so touch targets comfortably clear
@@ -11,6 +12,7 @@ export default function CoverageZoneQuiz({
   scenario: MechanicsScenario;
   onComplete: (score: number) => void;
 }) {
+  const { t } = useTranslation();
   const officials = useMemo(
     () => [...new Set(scenario.players.map(p => p.shortLabel))],
     [scenario.players],
@@ -112,7 +114,7 @@ export default function CoverageZoneQuiz({
       {!revealed && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-            {selectedZoneId ? "Assign an official to the selected zone:" : "Tap a zone above, then assign an official"}
+            {selectedZoneId ? t("coverage.assignSelected") : t("coverage.tapZone")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {officials.map((o) => (
@@ -143,7 +145,7 @@ export default function CoverageZoneQuiz({
             borderRadius: 8, fontSize: 15, fontWeight: 700,
           }}
         >
-          Check Answers
+          {t("coverage.check")}
         </button>
       ) : (
         <div>
@@ -154,13 +156,13 @@ export default function CoverageZoneQuiz({
             borderRadius: 8,
           }}>
             <div style={{ fontSize: 20, fontWeight: 700 }}>{score}%</div>
-            <div style={{ fontSize: 12, color: T.muted }}>{correctCount}/{scenario.zones.length} zones correct</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{t("coverage.zonesCorrect", { correct: correctCount, total: scenario.zones.length })}</div>
           </div>
           <button
             onClick={handleFinish}
             style={{ width: "100%", minHeight: 44, padding: "12px 0", background: T.navy, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}
           >
-            Continue
+            {t("coverage.continue")}
           </button>
         </div>
       )}

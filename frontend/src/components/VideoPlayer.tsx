@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { T } from "../tokens";
+import { useTranslation } from "react-i18next";
 
 const REWIND_SECONDS = 5;
 
@@ -13,6 +14,7 @@ export default function VideoPlayer({
   src: string;
   onFirstPlaythrough: () => void;
 }) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const firedRef = useRef(false);
@@ -77,7 +79,7 @@ export default function VideoPlayer({
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 6 }}>
-        WATCH THE PLAY
+        {t("video.watchThePlay")}
       </div>
       <div ref={containerRef} style={{ position: "relative", background: "#000", borderRadius: 8, overflow: "hidden" }}>
         <video
@@ -114,21 +116,21 @@ export default function VideoPlayer({
         </button>
         <button
           onClick={handleRewind}
-          title="Rewind 5 seconds"
+          title={t("video.rewind")}
           style={{ minWidth: 44, minHeight: 44, padding: "0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
         >
           ↺ 5s
         </button>
         <button
           onClick={handleMuteToggle}
-          title={isMuted ? "Unmute" : "Mute"}
+          title={isMuted ? t("video.unmute") : t("video.mute")}
           style={{ minWidth: 44, minHeight: 44, padding: "0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
         >
           {isMuted ? "🔇" : "🔊"}
         </button>
         <button
           onClick={handleFullscreen}
-          title="Fullscreen"
+          title={t("video.fullscreen")}
           style={{ minWidth: 44, minHeight: 44, padding: "0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, fontWeight: 700 }}
         >
           ⤢
@@ -137,7 +139,7 @@ export default function VideoPlayer({
 
       {!hasPlayedThrough && (
         <div style={{ fontSize: 11, color: T.muted, marginTop: 6, textAlign: "center" }}>
-          Watch the full clip to unlock the question.
+          {t("video.watchToUnlock")}
         </div>
       )}
       {hasPlayedThrough && (
@@ -145,7 +147,7 @@ export default function VideoPlayer({
           onClick={handleWatchAgain}
           style={{ width: "100%", minHeight: 44, marginTop: 8, padding: "10px 0", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700, color: T.navy }}
         >
-          ↻ Watch Again
+          {t("video.watchAgain")}
         </button>
       )}
     </div>

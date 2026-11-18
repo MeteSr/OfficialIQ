@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { T } from "../tokens";
 import { mentorshipService, type AnswerSnapshot } from "../services/mentorship";
 import { useAuthStore } from "../store/authStore";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   examId:         string | null;
@@ -16,6 +17,7 @@ type Props = {
 // Snapshots the report at share time and mints a 30-day link the mentor
 // claims on first open — see backend/mentorship/main.mo for the access model.
 export default function ShareWithMentorButton({ examId, sportId, score, avgElapsedSec, answers }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
   const [state, setState] = useState<"idle" | "sharing" | "shared" | "error">("idle");
@@ -36,7 +38,7 @@ export default function ShareWithMentorButton({ examId, sportId, score, avgElaps
       await navigator.clipboard.writeText(url).catch(() => {});
       setState("shared");
     } catch (e: any) {
-      setErrorMsg(e.message ?? "Couldn't create a share link — try again.");
+      setErrorMsg(e.message ?? t("shareMentor.failed"));
       setState("error");
     }
   }
@@ -48,10 +50,10 @@ export default function ShareWithMentorButton({ examId, sportId, score, avgElaps
         borderRadius: 8, textAlign: "center", marginTop: 12,
       }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-          🧑‍🏫 Link {copied ? "copied" : "ready"} — share it with your mentor
+          {copied ? t("shareMentor.linkCopied") : t("shareMentor.linkReady")}
         </div>
         <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>
-          Expires in 30 days · revocable anytime from your Mentorship page
+          {t("shareMentor.expires")}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
           <button
@@ -62,13 +64,13 @@ export default function ShareWithMentorButton({ examId, sportId, score, avgElaps
             }}
             style={{ padding: "9px 16px", background: T.navy, color: T.white, borderRadius: 8, fontSize: 12, fontWeight: 700 }}
           >
-            {copied ? "Copied!" : "Copy Link"}
+            {copied ? t("shareMentor.copied") : t("shareMentor.copyLink")}
           </button>
           <button
             onClick={() => navigate("/mentor")}
             style={{ padding: "9px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700 }}
           >
-            Manage Shares
+            {t("shareMentor.manage")}
           </button>
         </div>
       </div>
@@ -88,11 +90,11 @@ export default function ShareWithMentorButton({ examId, sportId, score, avgElaps
           borderRadius: 8, fontSize: 13, fontWeight: 700,
         }}
       >
-        {state === "sharing" ? "Creating link…" : "🧑‍🏫 Share with Mentor"}
+        {state === "sharing" ? t("shareMentor.creating") : t("shareMentor.share")}
       </button>
       {!isAuthenticated && (
         <div style={{ fontSize: 11, color: T.muted, marginTop: 6, textAlign: "center" }}>
-          Sign in to share results with a mentor.
+          {t("shareMentor.signIn")}
         </div>
       )}
       {errorMsg && (

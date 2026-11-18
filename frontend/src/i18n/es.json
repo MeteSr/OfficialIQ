@@ -76,7 +76,19 @@
     "copyShareLink": "Copiar mi enlace para compartir",
     "friendInputPlaceholder": "Pega un enlace para compartir o un ID de principal",
     "loadingFriends": "Cargando amigos…",
-    "noFriends": "Aún no tienes amigos — comparte tu enlace para conectar con otros oficiales."
+    "noFriends": "Aún no tienes amigos — comparte tu enlace para conectar con otros oficiales.",
+    "noDownloads": "Aún no hay nada descargado",
+    "statExams": "EXÁMENES",
+    "statStreak": "RACHA",
+    "statAccuracy": "PRECISIÓN",
+    "groupTraining": "Entrenamiento",
+    "groupPeople": "Personas",
+    "groupRecords": "Historial",
+    "groupFriends": "Amigos",
+    "groupDevice": "Dispositivo",
+    "friendStreak_one": "RACHA DE {{count}} DÍA",
+    "friendStreak_other": "RACHA DE {{count}} DÍAS",
+    "friendAccuracy": "{{pct}}% DE PRECISIÓN"
   },
   "common": {
     "loading": "Cargando…",
@@ -190,7 +202,9 @@
     "questionsUsedToday": "{{used}}/{{limit}} preguntas usadas hoy",
     "limitReached": "Límite diario de preguntas alcanzado",
     "inputPlaceholder": "Haz una pregunta de reglas…",
-    "ask": "Preguntar"
+    "ask": "Preguntar",
+    "notSaved": "NO SE GUARDA",
+    "usageToday": "{{used}} DE {{limit}} HOY"
   },
   "groupDetail": {
     "notFound": "Grupo no encontrado",
@@ -226,7 +240,9 @@
     "groups": "Grupos",
     "sortBy": "Ordenar por",
     "sending": "Enviando…",
-    "challengeToRematch": "Retar a {{name}} a una Revancha"
+    "challengeToRematch": "Retar a {{name}} a una Revancha",
+    "sortLabel": "ORDENAR",
+    "youTag": "TÚ"
   },
   "groups": {
     "createFailed": "No se pudo crear el grupo",
@@ -332,7 +348,12 @@
     "seeResults": "Ver Resultados",
     "correctOf": "{{correct}}/{{total}} correctas",
     "notSaved": "Este conjunto de práctica no se guardó — genera uno nuevo cuando quieras.",
-    "generateAnother": "Generar Otro Conjunto"
+    "generateAnother": "Generar Otro Conjunto",
+    "ephemeral": "TEMPORAL",
+    "questionOfGenerated": "PREGUNTA {{n}} DE {{total}} · GENERADA",
+    "correctTag": "CORRECTA",
+    "badResponse": "La respuesta de la IA no tenía el formato esperado — inténtalo de nuevo.",
+    "noQuestions": "La IA no devolvió ninguna pregunta — inténtalo de nuevo."
   },
   "schedule": {
     "sourcePointsOfEmphasis": "los puntos de énfasis de esta temporada",
@@ -382,7 +403,9 @@
     "whereYouStand": "Dónde Te Encuentras",
     "percentileDesc": "Estás en el top {{top}}% de {{pool}} oficiales clasificados en tu deporte (por ELO).",
     "drillDownTitle": "Detalle por Artículo (más débiles primero)",
-    "noStudiedArticles": "Aún no hay artículos estudiados."
+    "noStudiedArticles": "Aún no hay artículos estudiados.",
+    "trendPoints_one": "{{count}} pto",
+    "trendPoints_other": "{{count}} ptos"
   },
   "scenarioGen": {
     "checkingAccess": "Verificando acceso…",
@@ -407,7 +430,10 @@
     "saved": "✓ Agregada al banco de preguntas",
     "retryFailed": "Falló — reintentar",
     "approve": "Aprobar y Agregar al Banco de Preguntas",
-    "done": "Listo"
+    "done": "Listo",
+    "reviewRequired": "REQUIERE REVISIÓN",
+    "savedTag": "GUARDADA",
+    "approvedCount": "{{count}} APROBADAS"
   },
   "challenge": {
     "yourOpponent": "tu oponente",
@@ -475,7 +501,8 @@
     "generateAndCopy": "Generar y Copiar Enlace",
     "ready": "¡Listo!",
     "linkCopied": "Enlace copiado al portapapeles — compártelo con tu oponente.",
-    "startMyAttempt": "Comenzar Mi Intento"
+    "startMyAttempt": "Comenzar Mi Intento",
+    "estMinutesShort": "≈ {{count}} MIN"
   },
   "commute": {
     "noCachedQuestions": "No hay preguntas en caché disponibles — conéctate una vez para descargar contenido antes de estar sin conexión.",
@@ -518,7 +545,21 @@
     "crewPositioning": "Posicionamiento y Cobertura del Equipo",
     "crewPositioningDesc": "Mecánica de 2 y 3 personas",
     "articleMastery": "Dominio por Artículo",
-    "artAbbrev": "Art {{number}}"
+    "artAbbrev": "Art {{number}}",
+    "statExams": "EXÁMENES HECHOS",
+    "statAccuracy": "PRECISIÓN MEDIA",
+    "statStreak": "RACHA ACTUAL",
+    "statBestStreak": "MEJOR RACHA",
+    "csvDate": "Fecha",
+    "csvSport": "Deporte",
+    "csvMode": "Modo",
+    "csvScore": "Puntuación (%)",
+    "csvQuestions": "Preguntas",
+    "csvAvgTime": "Tiempo Medio (s)",
+    "lastDays_one": "{{count}} día",
+    "lastDays_other": "{{count}} días",
+    "pctMastery": "{{pct}}% DOMINIO",
+    "gridLegend": "VERDE ≥80% · ÁMBAR ≥60% · ROJO MENOS · GUION SIN EMPEZAR"
   },
   "reportCard": {
     "generateFailed": "No se pudo generar tu boletín — inténtalo de nuevo.",
@@ -565,7 +606,13 @@
     "allMembers": "Todos los miembros",
     "completedCount": "{{done}}/{{target}} completados ({{pct}}%)",
     "scoreDist": "distribución de puntajes: {{dist}}",
-    "exportCsv": "Exportar CSV"
+    "exportCsv": "Exportar CSV",
+    "csvOfficial": "Árbitro",
+    "csvStatus": "Estado",
+    "csvScore": "Puntuación",
+    "csvCompletedAt": "Completado el",
+    "csvCompleted": "Completado",
+    "csvPending": "Pendiente"
   },
   "home": {
     "anOfficial": "un oficial",
@@ -595,7 +642,32 @@
     "quickDrill": "Ejercicio Rápido",
     "challengeFrom": "Reto de",
     "accepting": "Aceptando…",
-    "accept": "Aceptar ›"
+    "accept": "Aceptar ›",
+    "greetingMorning": "Buenos días, {{name}}",
+    "greetingMorningAnon": "Buenos días",
+    "greetingAfternoon": "Buenas tardes, {{name}}",
+    "greetingAfternoonAnon": "Buenas tardes",
+    "greetingEvening": "Buenas noches, {{name}}",
+    "greetingEveningAnon": "Buenas noches",
+    "catchUpDesc_one": "{{count}} artículo atrasado — unos {{minutes}} min para ponerte al día.",
+    "catchUpDesc_other": "{{count}} artículos atrasados — unos {{minutes}} min para ponerte al día.",
+    "continueDesc": "Lectura de la semana {{week}} y luego el cuestionario de repaso.",
+    "allCaughtUpDesc": "No tienes nada pendiente ahora. Repasa cualquier artículo o haz una práctica rápida.",
+    "week": "Semana {{week}}",
+    "weekPlain": "Semana",
+    "doThisNext": "Siguiente paso",
+    "setPaceTitle": "Define tu ritmo de estudio",
+    "setPaceDesc": "Elige cuántos artículos estudiar cada semana. Tu calendario aparecerá aquí.",
+    "setPace": "Definir ritmo",
+    "overdueTag_one": "{{count}} ATRASADO",
+    "overdueTag_other": "{{count}} ATRASADOS",
+    "weekProgress": "SEMANA {{week}} · {{done}} DE {{total}} HECHOS",
+    "dueList": "PENDIENTE: {{articles}}",
+    "startCatchUp": "Empezar práctica de recuperación",
+    "monthlyWindow": "Plazo del examen mensual",
+    "daysLeft_one": "día restante · {{questions}} preguntas",
+    "daysLeft_other": "días restantes · {{questions}} preguntas",
+    "audio": "Audio"
   },
   "monthlyQuiz": {
     "signInRequired": "Inicia sesión para realizar tu examen mensual.",
@@ -647,7 +719,16 @@
     "correctOverall": "{{correct}} / {{total}} correctas en total",
     "sourceNew": "NUEVO",
     "sourcePoe": "PUNTO DE ÉNFASIS",
-    "sourceRetention": "RETENCIÓN"
+    "sourceRetention": "RETENCIÓN",
+    "correctCount": "{{correct}} / {{total}} CORRECTAS",
+    "poeTag": "PDE",
+    "yourCallRight": "TU DECISIÓN ✓",
+    "yourCallWrong": "TU DECISIÓN ✗",
+    "correctCall": "Decisión correcta",
+    "missedCall": "Decisión errónea",
+    "agreePct": "EL {{pct}}% DE LOS ÁRBITROS COINCIDE",
+    "onlyPct": "SOLO EL {{pct}}% ACIERTA ESTA",
+    "saveRule": "Guardar regla"
   },
   "certExam": {
     "submitFailed": "No se pudo enviar tu examen — tus respuestas están guardadas, inténtalo de nuevo.",
@@ -685,7 +766,10 @@
     "flagForReview": "MARCAR PARA REVISAR",
     "prev": "‹ Ant.",
     "finishReview": "Terminar → Revisar",
-    "next": "Siguiente ›"
+    "next": "Siguiente ›",
+    "weakAreaTag": "ÁREA DÉBIL",
+    "reviewCounts": "{{answered}} RESPONDIDAS · {{unanswered}} SIN RESPONDER · {{flagged}} MARCADAS",
+    "gridLegend": "RELLENO RESPONDIDA · ÁMBAR MARCADA · CONTORNO SIN TOCAR"
   },
   "study": {
     "title": "Estudiar",
@@ -713,7 +797,12 @@
     "dueToday_other": "📌 Vence hoy: {{count}} preguntas",
     "masteryStat": "{{pct}}% dominio · estudiado {{count}}×",
     "removeDownload": "Eliminar audio descargado",
-    "downloadForOffline": "Descargar audio para escuchar sin conexión"
+    "downloadForOffline": "Descargar audio para escuchar sin conexión",
+    "reviewedTag": "REPASADO",
+    "overdueTag": "ATRASADO",
+    "dueToday": "{{count}} PARA HOY",
+    "masterySessions_one": "{{pct}}% · {{count}} SESIÓN",
+    "masterySessions_other": "{{pct}}% · {{count}} SESIONES"
   },
   "landing": {
     "wordmark": "OFFICIALIQ",
@@ -765,9 +854,18 @@
     "examTitle": "Llega a la certificación habiéndola presentado ya.",
     "examDesc": "Cien preguntas bajo el reloj real, extraídas con la misma ponderación de artículos que el examen estatal. Obtienes un desglose de puntaje por artículo y un plan de estudio para lo que quedó corto.",
     "examFeature": {
-      "full": { "label": "Examen cronometrado completo", "value": "100 P · 120 MIN" },
-      "breakdown": { "label": "Desglose por artículo", "value": "10 ARTÍCULOS" },
-      "threshold": { "label": "Seguimiento del umbral de aprobación", "value": "80%" }
+      "full": {
+        "label": "Examen cronometrado completo",
+        "value": "100 P · 120 MIN"
+      },
+      "breakdown": {
+        "label": "Desglose por artículo",
+        "value": "10 ARTÍCULOS"
+      },
+      "threshold": {
+        "label": "Seguimiento del umbral de aprobación",
+        "value": "80%"
+      }
     },
     "examCardEyebrow": "ÚLTIMO EXAMEN SIMULADO",
     "examCardDate": "24 AGO",
@@ -817,11 +915,79 @@
     "mockRank": "PUESTO ESTATAL",
     "mockAccuracy": "PRECISIÓN",
     "mockOverdue": "1 ATRASADO",
-    "mockNav": { "home": "INICIO", "study": "ESTUDIO", "ranks": "RANKING", "exam": "EXAMEN", "me": "YO" },
-    "examBreakdown": { "art4": "Art. 4 — Definiciones", "art9": "Art. 9 — Violaciones", "art7": "Art. 7 — Tiempo", "art10": "Art. 10 — Faltas y sanciones" },
+    "mockNav": {
+      "home": "INICIO",
+      "study": "ESTUDIO",
+      "ranks": "RANKING",
+      "exam": "EXAMEN",
+      "me": "YO"
+    },
+    "examBreakdown": {
+      "art4": "Art. 4 — Definiciones",
+      "art9": "Art. 9 — Violaciones",
+      "art7": "Art. 7 — Tiempo",
+      "art10": "Art. 10 — Faltas y sanciones"
+    },
     "examCardLabel": "Resultado de examen simulado de muestra: 86% en total, desglosado por artículo.",
     "rosterCaption": "Plantilla de coordinador de muestra",
     "rosterCurrent": "VIGENTE",
     "rosterLapsed": "VENCIDA"
+  },
+  "shareMentor": {
+    "failed": "No se pudo crear el enlace — inténtalo de nuevo.",
+    "linkCopied": "🧑‍🏫 Enlace copiado — compártelo con tu mentor",
+    "linkReady": "🧑‍🏫 Enlace listo — compártelo con tu mentor",
+    "expires": "Caduca en 30 días · puedes revocarlo cuando quieras desde tu página de Mentoría",
+    "copied": "¡Copiado!",
+    "copyLink": "Copiar Enlace",
+    "manage": "Gestionar Enlaces",
+    "creating": "Creando enlace…",
+    "share": "🧑‍🏫 Compartir con Mentor",
+    "signIn": "Inicia sesión para compartir tus resultados con un mentor."
+  },
+  "video": {
+    "watchThePlay": "MIRA LA JUGADA",
+    "rewind": "Retroceder 5 segundos",
+    "unmute": "Activar sonido",
+    "mute": "Silenciar",
+    "fullscreen": "Pantalla completa",
+    "watchToUnlock": "Mira el video completo para desbloquear la pregunta.",
+    "watchAgain": "↻ Ver de Nuevo"
+  },
+  "reportCardView": {
+    "title": "BOLETÍN DE PROGRESO OFFICIALIQ",
+    "generated": "Generado el {{date}}",
+    "monthsActive": "Meses Activo",
+    "examsCompleted": "Exámenes Completados",
+    "avgScore": "Puntuación Media",
+    "accuracyTrend": "Tendencia de Precisión",
+    "strongest": "PUNTOS FUERTES",
+    "growth": "ÁREAS DE MEJORA",
+    "hours": "~{{count}} h",
+    "studyTime": "Tiempo de Estudio Estimado"
+  },
+  "coverage": {
+    "assignSelected": "Asigna un árbitro a la zona seleccionada:",
+    "tapZone": "Toca una zona arriba y luego asigna un árbitro",
+    "check": "Comprobar Respuestas",
+    "zonesCorrect": "{{correct}}/{{total}} zonas correctas",
+    "continue": "Continuar"
+  },
+  "court": {
+    "title": "DIAGRAMA DE LA CANCHA",
+    "expand": "⤢ Ampliar"
+  },
+  "sports": {
+    "ncaa_basketball": "Baloncesto Masculino NCAA",
+    "nfhs_basketball": "Baloncesto NFHS (Secundaria)",
+    "fiba_basketball": "Baloncesto FIBA",
+    "fifa_football": "Fútbol FIFA",
+    "world_rugby": "World Rugby"
+  },
+  "levels": {
+    "varsity": "Varsity",
+    "jv": "Junior Varsity",
+    "collegiate": "Universitario",
+    "senior": "Sénior"
   }
 }

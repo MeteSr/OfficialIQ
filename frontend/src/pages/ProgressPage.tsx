@@ -8,10 +8,13 @@ import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
 import { examService, type ExamSession } from "../services/exam";
 import { useAuthStore } from "../store/authStore";
-import { useSport } from "../lib/sport";
+import { levelLabel, useSport, useSportDisplayName } from "../lib/sport";
 
-function examModeLabel(mode: ExamSession["config"]["mode"]): string {
-  return Object.keys(mode)[0] ?? "Unknown";
+const MODE_LABEL_KEYS: Record<string, string> = { Solo: "exam.modeSolo", ShareLink: "exam.modeShareLink", Timed: "exam.modeTimed" };
+
+function examModeLabel(mode: ExamSession["config"]["mode"], t: TFunction): string {
+  const k = Object.keys(mode)[0];
+  return k ? (MODE_LABEL_KEYS[k] ? t(MODE_LABEL_KEYS[k]) : k) : "—";
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -80,6 +83,7 @@ export default function ProgressPage() {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { sportId, levelId } = useSport();
+  const sportDisplayName = useSportDisplayName();
   const MECHANICS_ARTICLE_ID = `${sportId}:mechanics`;
 
   const [loading,  setLoading]  = useState(true);
@@ -133,22 +137,22 @@ export default function ProgressPage() {
     ? Number(mechanicsProgress.masteryScore) : null;
 
   const statCards = [
-    { label: "EXAMS TAKEN",     value: stats ? Number(stats.examCount) : 0 },
-    { label: "AVG ACCURACY",    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
-    { label: "CURRENT STREAK",  value: stats ? Number(stats.streak) : 0 },
-    { label: "BEST STREAK",     value: stats ? Number(stats.bestStreak) : 0 },
+    { label: t("progress.statExams"),     value: stats ? Number(stats.examCount) : 0 },
+    { label: t("progress.statAccuracy"),    value: stats ? `${Math.round(stats.accuracy * 100)}%` : "—" },
+    { label: t("progress.statStreak"),  value: stats ? Number(stats.streak) : 0 },
+    { label: t("progress.statBestStreak"),     value: stats ? Number(stats.bestStreak) : 0 },
   ];
 
   function handleExportCsv() {
     const rows: (string | number)[][] = [
-      ["Date", "Sport", "Mode", "Score (%)", "Questions", "Avg Time (sec)"],
+      [t("progress.csvDate"), t("progress.csvSport"), t("progress.csvMode"), t("progress.csvScore"), t("progress.csvQuestions"), t("progress.csvAvgTime")],
       ...exams
         .filter(e => e.score.length > 0)
         .sort((a, b) => Number(a.startedAt) - Number(b.startedAt))
         .map(e => [
           e.finishedAt.length ? new Date(Number(e.finishedAt[0]) / 1e6).toISOString().slice(0, 10) : "",
           e.config.sportId,
-          examModeLabel(e.config.mode),
+          examModeLabel(e.config.mode, t),
           e.score.length ? Number(e.score[0]) : "",
           e.questionIds.length,
           e.avgElapsedSec.length ? Number(e.avgElapsedSec[0]) : "",
@@ -166,7 +170,7 @@ export default function ProgressPage() {
             {t("progress.title")}
           </div>
           <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.09em", color: T.faint, marginTop: 7 }}>
-            NCAA MEN'S BASKETBALL · VARSITY
+            {sportDisplayName.toUpperCase()} · {levelLabel(levelId).toUpperCase()}
           </div>
         </div>
         {exams.length > 0 && (
@@ -194,7 +198,7 @@ export default function ProgressPage() {
         <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "15px 16px" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
             <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-              {t("progress.eloTrend")} · 30 days
+              {t("progress.eloTrend")} · {t("progress.lastDays", { count: 30 })}
             </div>
             {stats && (
               <div style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 18, color: fill.accent }}>
@@ -234,7 +238,7 @@ export default function ProgressPage() {
                         Art. {a ? Number(a.number) : "?"}{a ? ` — ${a.title}` : ""}
                       </div>
                       <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10.5, color: masteryColor(pct), marginTop: 5 }}>
-                        {pct}% MASTERY
+                        {t("progress.pctMastery", { pct })}
                       </div>
                     </div>
                     <button
@@ -305,7 +309,7 @@ export default function ProgressPage() {
             })}
           </div>
           <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 9.5, color: T.faint, marginTop: 12, lineHeight: 1.5 }}>
-            GREEN ≥80% · AMBER ≥60% · RED BELOW · DASH NOT STARTED
+            {t("progress.gridLegend")}
           </div>
         </div>
       </div>

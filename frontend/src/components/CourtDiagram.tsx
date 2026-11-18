@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { T } from "../tokens";
 import type { CourtDiagram as CourtDiagramData, DiagramPlayer } from "../services/content";
+import { useTranslation } from "react-i18next";
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -113,6 +114,7 @@ function Court({
 }
 
 export default function CourtDiagram({ diagram }: { diagram: CourtDiagramData }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const reducedMotion = useReducedMotion();
@@ -122,12 +124,12 @@ export default function CourtDiagram({ diagram }: { diagram: CourtDiagramData })
   return (
     <div style={{ marginTop: 10, marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.muted }}>COURT DIAGRAM</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.muted }}>{t("court.title")}</span>
         <button
           onClick={() => setExpanded(true)}
           style={{ fontSize: 11, fontWeight: 600, color: T.navy, background: "transparent" }}
         >
-          ⤢ Expand
+          {t("court.expand")}
         </button>
       </div>
       <Court diagram={diagram} reducedMotion={reducedMotion} selectedId={selectedId} onSelect={setSelectedId} />

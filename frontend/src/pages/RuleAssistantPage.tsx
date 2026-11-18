@@ -81,7 +81,7 @@ export default function RuleAssistantPage() {
             {t("ruleAssistant.title")}
           </div>
           <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 9.5, letterSpacing: "0.09em", color: fill.attention }}>
-            NOT SAVED
+            {t("ruleAssistant.notSaved")}
           </span>
         </div>
         <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 13, color: T.muted, marginTop: 5 }}>
@@ -147,7 +147,7 @@ export default function RuleAssistantPage() {
         ))}
         {asking && (
           <div style={{ alignSelf: "flex-start", fontFamily: T.fontMono, fontWeight: 500, fontSize: 11, letterSpacing: "0.08em", color: T.faint, padding: "8px 14px" }}>
-            THINKING…
+            {t("ruleAssistant.thinking").toUpperCase()}
           </div>
         )}
         <div ref={bottomRef} />
@@ -161,7 +161,7 @@ export default function RuleAssistantPage() {
               <div style={{ height: "100%", width: `${Math.round((rateLimit.used / rateLimit.limitPerDay) * 100)}%`, background: fill.accent }} />
             </div>
             <span style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, color: T.faint, whiteSpace: "nowrap" }}>
-              {rateLimit.used} OF {rateLimit.limitPerDay} TODAY
+              {t("ruleAssistant.usageToday", { used: rateLimit.used, limit: rateLimit.limitPerDay })}
             </span>
           </div>
         )}

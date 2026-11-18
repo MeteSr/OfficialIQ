@@ -1,15 +1,17 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { T, fill } from "../tokens";
+import { useTranslation } from "react-i18next";
 
 const tabs = [
-  { path: "/home",  label: "HOME"  },
-  { path: "/study", label: "STUDY" },
-  { path: "/exam",  label: "EXAM"  },
-  { path: "/ranks", label: "RANKS" },
-  { path: "/me",    label: "ME"    },
+  { path: "/home",  labelKey: "nav.home"  },
+  { path: "/study", labelKey: "nav.study" },
+  { path: "/exam",  labelKey: "nav.exam"  },
+  { path: "/ranks", labelKey: "nav.ranks" },
+  { path: "/me",    labelKey: "nav.me"    },
 ] as const;
 
 export default function BottomNav() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -49,7 +51,7 @@ export default function BottomNav() {
               cursor: "pointer",
             }}
           >
-            {tab.label}
+            {t(tab.labelKey).toUpperCase()}
           </button>
         );
       })}

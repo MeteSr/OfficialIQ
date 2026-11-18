@@ -38,6 +38,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// Stub until per-question agreement rates come from the question canister.
+const AGREE_PCT_STUB = 68;
+
 export default function WeeklyQuizPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -321,7 +324,7 @@ export default function WeeklyQuizPage() {
             {t("weeklyQuiz.resultsTitle", { week: plan?.weekNumber })}
           </div>
           <div style={{ fontFamily: T.fontMono, fontSize: 10, fontWeight: 600, letterSpacing: "0.09em", color: T.faint, marginTop: 8 }}>
-            {answered.filter(a => a.correct).length} / {answered.length} CORRECT
+            {t("weeklyQuiz.correctCount", { correct: answered.filter(a => a.correct).length, total: answered.length })}
           </div>
         </div>
         <div style={{ padding: "20px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -364,7 +367,7 @@ export default function WeeklyQuizPage() {
   const revealed   = chosen !== null;
   const correct    = revealed && chosen === currentQ.correctId;
   const ringColor  = revealed ? T.border : T.attention;
-  const sourceTag  = currentQ._source === "new" ? "NEW MATERIAL" : currentQ._source === "poe" ? "POE" : "RETENTION";
+  const sourceTag  = currentQ._source === "new" ? t("weeklyQuiz.newMaterial").toUpperCase() : currentQ._source === "poe" ? t("weeklyQuiz.poeTag") : t("weeklyQuiz.retention").toUpperCase();
   const articleTag = currentQ.articleId.split(":")[1]?.toUpperCase() ?? "QUIZ";
 
   return (
@@ -377,10 +380,10 @@ export default function WeeklyQuizPage() {
         >‹</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, lineHeight: 1.2 }}>
-            {t("weeklyQuiz.weekTitle", { week: plan?.weekNumber ?? "" })} quiz
+            {t("weeklyQuiz.weekTitle", { week: plan?.weekNumber ?? "" })}
           </div>
           <div style={{ fontFamily: T.fontMono, fontWeight: 500, fontSize: 10, letterSpacing: "0.08em", color: T.faint, marginTop: 4 }}>
-            QUESTION {currentIdx + 1} OF {questions.length}
+            {t("certExam.questionOf", { current: currentIdx + 1, total: questions.length }).toUpperCase()}
           </div>
         </div>
         {/* Progress dots */}
@@ -429,9 +432,9 @@ export default function WeeklyQuizPage() {
             let mark = "";
             let markColor = T.faint;
             if (revealed) {
-              if (isPick && isCorrect)  { bg = tint.dark.accent;   border = fill.accent; keyColor = fill.accent; mark = "YOUR CALL ✓"; markColor = fill.accent; }
-              else if (isPick)          { bg = tint.dark.wrong;    border = fill.wrong;  keyColor = fill.wrong;  mark = "YOUR CALL ✗"; markColor = fill.wrong; }
-              else if (isCorrect)       { bg = "rgba(120,200,150,0.09)"; border = "rgba(120,200,150,0.45)"; keyColor = fill.accent; mark = "CORRECT"; markColor = fill.accent; }
+              if (isPick && isCorrect)  { bg = tint.dark.accent;   border = fill.accent; keyColor = fill.accent; mark = t("weeklyQuiz.yourCallRight"); markColor = fill.accent; }
+              else if (isPick)          { bg = tint.dark.wrong;    border = fill.wrong;  keyColor = fill.wrong;  mark = t("weeklyQuiz.yourCallWrong"); markColor = fill.wrong; }
+              else if (isCorrect)       { bg = "rgba(120,200,150,0.09)"; border = "rgba(120,200,150,0.45)"; keyColor = fill.accent; mark = t("aiDrills.correctTag"); markColor = fill.accent; }
             }
             return (
               <button
@@ -467,10 +470,10 @@ export default function WeeklyQuizPage() {
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
             }}>
               <span style={{ fontFamily: T.fontCondensed, fontWeight: 700, fontSize: 14, letterSpacing: "0.07em", textTransform: "uppercase", color: fill.onAccent }}>
-                {correct ? "Correct call" : "Missed call"}
+                {correct ? t("weeklyQuiz.correctCall") : t("weeklyQuiz.missedCall")}
               </span>
               <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, color: "rgba(13,16,18,0.6)" }}>
-                {correct ? "68% OF OFFICIALS AGREE" : "ONLY 32% GET THIS ONE"}
+                {correct ? t("weeklyQuiz.agreePct", { pct: AGREE_PCT_STUB }) : t("weeklyQuiz.onlyPct", { pct: 100 - AGREE_PCT_STUB })}
               </span>
             </div>
             <div style={{ padding: "14px 16px", background: T.surface }}>
@@ -506,7 +509,7 @@ export default function WeeklyQuizPage() {
           <button
             style={{ padding: "0 18px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 13, minHeight: 48, cursor: "pointer" }}
           >
-            Save rule
+            {t("weeklyQuiz.saveRule")}
           </button>
         )}
       </div>
