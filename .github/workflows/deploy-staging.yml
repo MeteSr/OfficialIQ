@@ -1,19 +1,18 @@
 name: Deploy (staging)
 
-# Staging is a second canister set on IC mainnet (see dfx.json's "staging"
-# network) — ICP has no separate public testnet, so this is the closest
+# Staging is a second canister set on IC mainnet (icp.yaml's "staging"
+# environment) — ICP has no separate public testnet, so this is the closest
 # real-network equivalent. Deploys every commit on main once CI has passed on
 # it, so staging always runs the latest merged code and is where each upgrade
 # is exercised before production sees it.
 #
-# Secrets/variables on the `staging` environment (docs/DEPLOYMENT.md):
-#   DFX_IDENTITY_PEM  — PEM of the staging deploy identity (required)
-#   DFX_WALLET_ID     — that identity's staging cycles wallet (required on CI,
-#                       which keeps no dfx state between runs)
+# Secrets on the `staging` environment (docs/DEPLOYMENT.md):
+#   ICP_IDENTITY_PEM  — PEM of the deploy identity, whose cycles-ledger balance
+#                       pays for staging (the old DFX_IDENTITY_PEM name works too)
 #   CI_PUSH_TOKEN     — optional fine-grained PAT (Contents: read/write) for
-#                       pushing canister_ids.json and the staging-* tag when
-#                       main's branch protection blocks GITHUB_TOKEN
-# Until DFX_IDENTITY_PEM is set the deploy job is skipped, not failed.
+#                       pushing the canister ID mappings and the staging-* tag
+#                       when main's branch protection blocks GITHUB_TOKEN
+# Until the identity is set the deploy job is skipped, not failed.
 
 on:
   workflow_run:
@@ -23,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_upgrade_break:
-        description: "Deploy even if upgrading from the deployed build breaks stable memory (a planned reinstall)"
+        description: "Deploy even if upgrading from the deployed build breaks stable memory or Candid (a planned reinstall or interface break)"
         required: false
         default: false
         type: boolean
@@ -58,30 +57,34 @@ jobs:
           # workflow_run checks out main's tip by default, which may be newer
           # than the commit CI passed on. Deploy exactly that commit.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
-      - name: Stable-memory check against the deployed build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+      - name: Stable-memory and Candid check against the deployed build
         run: bash scripts/ci/upgrade-from-deployed.sh staging
         env:
           ALLOW_STABLE_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
+          ALLOW_CANDID_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
 
   deploy:
     needs: upgrade-gate
     runs-on: ubuntu-latest
     environment: staging
     permissions:
-      contents: write   # canister_ids.json commit + staging-* tag (when CI_PUSH_TOKEN is unset)
+      contents: write   # mappings commit + staging-* tag (when CI_PUSH_TOKEN is unset)
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-      HAS_IDENTITY: ${{ secrets.DFX_IDENTITY_PEM != '' }}
+      HAS_IDENTITY: ${{ secrets.ICP_IDENTITY_PEM != '' || secrets.DFX_IDENTITY_PEM != '' }}
     steps:
       - name: Skip until the deploy identity is configured
         if: env.HAS_IDENTITY != 'true'
-        run: echo "::notice::DFX_IDENTITY_PEM is not set on the staging environment — skipping (docs/DEPLOYMENT.md)."
+        run: echo "::notice::ICP_IDENTITY_PEM is not set on the staging environment — skipping (docs/DEPLOYMENT.md)."
 
       # persist-credentials: false keeps any token out of .git/config while
-      # npm install and deploy.sh run; the push token is only handed to the
-      # steps that push.
+      # npm and deploy.sh run; the push token is only handed to the steps
+      # that push.
       - uses: actions/checkout@v4
         if: env.HAS_IDENTITY == 'true'
         with:
@@ -93,26 +96,24 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install dfx
+      - name: Install icp-cli, ic-wasm and mops
         if: env.HAS_IDENTITY == 'true'
-        run: bash scripts/install-dfx.sh
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         if: env.HAS_IDENTITY == 'true'
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
-          DFX_WALLET_ID: ${{ secrets.DFX_WALLET_ID || vars.DFX_WALLET_ID }}
-          DFX_WALLET_NETWORK: staging
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Deploy to staging
-        # Runs the wallet pre-flight first, snapshots each canister before
-        # upgrading it, and tops up low canisters afterwards (scripts/deploy.sh).
+        # Cycles pre-flight first, a snapshot of each canister before it's
+        # upgraded, a top-up of low canisters afterwards (scripts/deploy.sh).
         id: deploy
         if: env.HAS_IDENTITY == 'true'
         run: bash scripts/deploy.sh staging
 
-      - name: Commit canister IDs
+      - name: Commit canister ID mappings
         # Must run even when the deploy failed partway: a created canister is
         # real and paid for, and an uncommitted ID means the next deploy
         # creates (and pays for) another one.

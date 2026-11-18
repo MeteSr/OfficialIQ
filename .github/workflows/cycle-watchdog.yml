@@ -7,8 +7,8 @@ name: Cycle Watchdog
 #
 # Scheduled runs check production (`ic`). Run it by hand with network=staging
 # to check staging; that run uses the staging environment's secrets.
-# Does nothing (and passes) until the network has been deployed and its
-# environment has DFX_IDENTITY_PEM.
+# Does nothing (and passes) until the environment has been deployed and has
+# ICP_IDENTITY_PEM.
 
 on:
   schedule:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       network:
-        description: "Network to check"
+        description: "Environment to check"
         required: false
         default: ic
         type: choice
@@ -39,33 +39,37 @@ jobs:
     if: github.ref == 'refs/heads/main'
     env:
       NETWORK: ${{ inputs.network || 'ic' }}
-      HAS_IDENTITY: ${{ secrets.DFX_IDENTITY_PEM != '' }}
+      HAS_IDENTITY: ${{ secrets.ICP_IDENTITY_PEM != '' || secrets.DFX_IDENTITY_PEM != '' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Is there anything to watch?
         id: gate
         run: |
-          ASSETS_ID=$(python3 -c "import json,os; d=json.load(open('canister_ids.json')) if os.path.exists('canister_ids.json') else {}; print(d.get('assets',{}).get('$NETWORK',''))")
+          F=".icp/data/mappings/$NETWORK.ids.json"
+          ASSETS_ID=$(python3 -c "import json,os,sys; print(json.load(open(sys.argv[1])).get('frontend','') if os.path.exists(sys.argv[1]) else '')" "$F")
           if [ "$HAS_IDENTITY" != "true" ] || [ -z "$ASSETS_ID" ]; then
-            echo "::notice::Nothing deployed on $NETWORK yet, or DFX_IDENTITY_PEM not set — skipping."
+            echo "::notice::Nothing deployed on $NETWORK yet, or ICP_IDENTITY_PEM not set — skipping."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "assets=$ASSETS_ID" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install dfx
+      - uses: actions/setup-node@v4
         if: steps.gate.outputs.run == 'true'
-        run: bash scripts/install-dfx.sh
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        if: steps.gate.outputs.run == 'true'
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         if: steps.gate.outputs.run == 'true'
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
-          DFX_WALLET_ID: ${{ secrets.DFX_WALLET_ID || vars.DFX_WALLET_ID }}
-          DFX_WALLET_NETWORK: ${{ inputs.network || 'ic' }}
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Check the app answers
         id: uptime

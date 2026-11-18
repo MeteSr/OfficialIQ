@@ -1,4 +1,4 @@
-# Portable deploy environment — installs dfx + Node so any Docker-capable
+# Portable deploy environment — installs icp-cli, mops + Node so any Docker-capable
 # host (GitLab CI, a self-hosted runner, a bare VPS, a developer's own
 # machine) can build and deploy OfficialIQ identically, without depending
 # on GitHub Actions. See docs/DEPLOYMENT.md's "Deploying without GitHub"
@@ -7,7 +7,7 @@
 # Usage:
 #   docker build -f docker/deploy.Dockerfile -t officialiq-deploy .
 #   docker run --rm \
-#     -e DFX_IDENTITY_PEM="$(cat my-key.pem)" \
+#     -e ICP_IDENTITY_PEM="$(cat my-key.pem)" \
 #     officialiq-deploy staging
 #
 # The image bakes in whatever source was present at `docker build` time —
@@ -16,14 +16,14 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates git bash build-essential xz-utils \
+    curl ca-certificates git bash libdbus-1-3 libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
 
-RUN bash scripts/install-dfx.sh
-ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+RUN bash scripts/install-icp.sh
+ENV PATH="/app/tools/node_modules/.bin:${PATH}"
 
 ENTRYPOINT ["bash", "scripts/docker-deploy-entrypoint.sh"]
 CMD ["local"]

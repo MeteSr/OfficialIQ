@@ -1,0 +1,77 @@
+name: ICP freshness
+
+# Weekly check that the app is still on the latest ICP stack, covering what
+# Dependabot can't (see scripts/check-icp-freshness.sh):
+#   - moc compiler and mops packages
+#   - icp-cli recipe versions pinned in icp.yaml
+#   - DFINITY's published ICP skills (skills.internetcomputer.org)
+#
+# Toolchain/package updates are reported in a single "ICP stack updates
+# available" issue, refreshed every run. When a skill changes, a PR updates
+# .github/icp-skills.json and lists the changed skills — merge it once the
+# app has been checked against them, which records the review.
+
+on:
+  schedule:
+    - cron: "17 14 * * 1"   # Mondays 14:17 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: icp-freshness
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Check ICP stack
+        id: check
+        run: |
+          set +e
+          REPORT=report.md SKILLS_CHANGED_FILE=skills-changed bash scripts/check-icp-freshness.sh
+          rc=$?
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "skills_changed=$(cat skills-changed 2>/dev/null || echo false)" >> "$GITHUB_OUTPUT"
+          rm -f skills-changed
+          # 10 = updates available (handled below); anything else non-zero is a broken check.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 10 ]; then exit "$rc"; fi
+
+      - name: Open or refresh the updates issue
+        if: steps.check.outputs.rc == '10'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="ICP stack updates available"
+          gh label create icp-freshness --color 1D428A --description "ICP toolchain/skills freshness" 2>/dev/null || true
+          number=$(gh issue list --label icp-freshness --state open --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file report.md
+          else
+            gh issue create --title "$title" --label icp-freshness --body-file report.md
+          fi
+
+      - name: Open a PR recording the skills review
+        if: steps.check.outputs.skills_changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: .github/icp-skills.json
+          branch: chore/icp-skills-review
+          commit-message: "chore: record ICP skills review"
+          title: "Review ICP skill changes"
+          body-path: report.md
+          labels: icp-freshness

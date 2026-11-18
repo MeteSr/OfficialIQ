@@ -1,0 +1,77 @@
+# icp-cli project config (replaces dfx.json — see the icp-cli skill).
+#
+#   icp network start -d     # project-local network on http://localhost:8000
+#   icp deploy               # build + deploy + sync everything locally
+#   icp deploy -e staging    # second canister set on mainnet
+#   icp deploy -e ic         # production (mainnet)
+#
+# Motoko canisters build through the @dfinity/motoko recipe, which runs
+# `mops build <name>`; their `main` paths and compiler pin live in mops.toml.
+# icp deploy injects every canister's ID into every canister as
+# PUBLIC_CANISTER_ID:<name>; the frontend reads them from the `ic_env` cookie.
+# Recipe versions are pinned on purpose — the weekly "ICP freshness" workflow
+# flags newer releases.
+
+canisters:
+  - name: user
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: content
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: question
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: exam
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: ranking
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: challenge
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: ai_proxy
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: mentorship
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: association
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: report
+    recipe:
+      type: "@dfinity/motoko@v5.1.0"
+
+  - name: frontend
+    recipe:
+      type: "@dfinity/static-site@v1.0.0"
+      configuration:
+        dir: frontend/dist
+        # Built at sync time (not in `build`) so the backend canister IDs
+        # exist: ICP_CLI_CID_<NAME> is exported for every canister, and
+        # vite.config.ts bakes them in as a fallback for clients that get no
+        # `ic_env` cookie (the Capacitor Android app, service worker).
+        presync:
+          # `vite build`, not `npm run build`: tsc still fails on known
+          # unused-variable errors (see .github/workflows/ci.yml).
+          - cd frontend && npm ci && npx vite build
+
+networks:
+  - name: local
+    mode: managed
+
+environments:
+  - name: staging
+    network: ic
+    canisters: [user, content, question, exam, ranking, challenge, ai_proxy, mentorship, association, report, frontend]

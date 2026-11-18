@@ -1,7 +1,7 @@
 name: CI
 
 # The gate everything else waits on: frontend unit tests + bundle, and every
-# backend canister compiling. Runs on pull requests, on every push to main
+# backend canister type-checking and building. Runs on pull requests, on every push to main
 # (deploy-staging.yml deploys only after this passes there), and as the
 # pre-deploy test gate of deploy-production.yml (workflow_call).
 
@@ -50,20 +50,30 @@ jobs:
         run: npx vite build
 
   backend:
-    name: Backend canisters compile
+    name: Backend canisters build
+    # Type-checks and builds every Motoko canister with the pinned toolchain
+    # (mops.toml / tools/package.json), so a moc/core/recipe bump that breaks
+    # the build is caught before it reaches staging.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
-      - name: Build every backend canister
-        # --check builds with throwaway IDs: no replica or network needed.
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        run: if [ -f mops.lock ]; then mops install --locked; else mops install; fi
+
+      - name: Type-check canisters
+        run: mops check --no-lint
+
+      - name: Build canisters
         run: |
           source scripts/lib/canisters.sh
-          for c in "${BACKEND_CANISTERS[@]}"; do
-            echo "::group::$c"
-            dfx build --check "$c"
-            echo "::endgroup::"
-          done
+          icp build "${BACKEND_CANISTERS[@]}"
+        env:
+          DO_NOT_TRACK: "1"

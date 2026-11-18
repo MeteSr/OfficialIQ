@@ -1,4 +1,5 @@
 import { IDL } from "@icp-sdk/core/candid";
+import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-const CANISTER_ID = typeof CANISTER_ID_REPORT !== "undefined" ? CANISTER_ID_REPORT : "";
+const CANISTER_ID = canisterId("report");
 
 function actor() {
   return createActor<{

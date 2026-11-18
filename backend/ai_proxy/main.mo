@@ -7,9 +7,14 @@ import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import List "mo:core/List";
 import Time "mo:core/Time";
+import Error "mo:core/Error";
+import Array "mo:core/Array";
 
-// Skill: use `ic:aaaaa-aa` compiler import, not actor cast of aaaaa-aa
-import IC "ic:aaaaa-aa";
+// HTTPS outcalls go through the `ic` mops package's builder, which selects
+// pricing version 2 and computes + attaches the cycles itself (https-outcalls
+// skill) — no hand-rolled cycle amounts.
+import Call "mo:ic/Call";
+import IC "mo:ic/Types";
 
 persistent actor AiProxy {
 
@@ -17,7 +22,13 @@ persistent actor AiProxy {
 
   public shared ({ caller }) func setAdmin(p : Principal) : async Result.Result<(), Text> {
     switch adminPrincipal {
-      case null { adminPrincipal := ?p; #ok(()) };
+      case null {
+        // Bootstrap is controller-only, so nobody can claim admin on a freshly
+        // deployed canister before its deployer does (canister-security skill).
+        if (not Principal.isController(caller)) return #err("Only a canister controller can set the first admin");
+        adminPrincipal := ?p;
+        #ok(())
+      };
       case (?a) { if (caller == a) { adminPrincipal := ?p; #ok(()) } else #err("Unauthorized") };
     }
   };
@@ -28,35 +39,38 @@ persistent actor AiProxy {
 
   public shared query ({ caller }) func isAdminCaller() : async Bool { isAdmin(caller) };
 
-  // Transform function strips non-deterministic headers so all replicas agree
-  public query func transform({ response : IC.http_request_result; context : Blob }) : async IC.http_request_result {
-    { response with headers = [] }
-  };
+  // Both outcalls below are POSTs to paid, non-idempotent APIs (ElevenLabs,
+  // Anthropic) whose responses differ on every call, so they run
+  // non-replicated: one node sends the request. In the default replicated
+  // mode every node of the subnet (13+) would hit the API — and bill it —
+  // and the nodes could never agree on an LLM/TTS response, so consensus
+  // would fail. No transform: in non-replicated mode it isn't needed for
+  // consensus, and leaving it out reserves nothing for it.
+  let OUTCALL_EXPECTED_ROUNDTRIP_MS : Nat64 = 30_000;
 
   // HTTPS outcall — used for ElevenLabs TTS audio generation.
   // Returns raw response body bytes; stored on-chain by the caller.
-  //
-  // `cycles` must cover the IC's http_request fee, which scales with
-  // maxBytes — the caller computes and attaches it since the management
-  // canister traps the whole call if too few cycles are attached.
+  // `maxBytes` caps headers + body of the raw response.
   public shared ({ caller }) func httpPost(
     url      : Text,
-    headers  : [IC.http_header],
+    headers  : [IC.HttpHeader],
     bodyJson : Text,
     maxBytes : Nat64,
-    cycles   : Nat,
   ) : async Result.Result<Blob, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
 
-    let resp = await (with cycles = cycles) IC.http_request({
-      url;
-      max_response_bytes = ?maxBytes;
-      headers;
-      body               = ?Text.encodeUtf8(bodyJson);
-      method             = #post;
-      transform          = ?{ function = transform; context = Blob.fromArray([]) };
-      is_replicated      = null;
-    });
+    let resp = try {
+      await Call.httpRequest(url)
+        .withMethod(#post)
+        .withHeaders(headers)
+        .withBody(Text.encodeUtf8(bodyJson))
+        .withMaxResponseBytes(maxBytes)
+        .nonReplicated()
+        .withExpectedRoundtripTimeMs(OUTCALL_EXPECTED_ROUNDTRIP_MS)
+        .send()
+    } catch (e) {
+      return #err("Outcall failed: " # Error.message(e));
+    };
 
     if (resp.status == 200) #ok(resp.body) else #err("HTTP " # Nat.toText(resp.status))
   };
@@ -75,7 +89,6 @@ persistent actor AiProxy {
   let CLAUDE_API_URL : Text = "https://api.anthropic.com/v1/messages";
   let ANTHROPIC_VERSION : Text = "2023-06-01";
   let CLAUDE_MAX_RESPONSE_BYTES : Nat64 = 60_000;
-  let CLAUDE_OUTCALL_CYCLES : Nat = 10_000_000_000;
 
   var anthropicApiKey : ?Text = null;
   var claudeModel : Text = "claude-sonnet-5";
@@ -160,7 +173,7 @@ persistent actor AiProxy {
   func jsonEscape(t : Text) : Text {
     let bytes = Blob.toArray(Text.encodeUtf8(t));
     let out = List.empty<Nat8>();
-    for (b in bytes.vals()) {
+    for (b in bytes.values()) {
       if (b == (34 : Nat8)) { List.add(out, 92 : Nat8); List.add(out, 34 : Nat8) }        // "
       else if (b == (92 : Nat8)) { List.add(out, 92 : Nat8); List.add(out, 92 : Nat8) }   // \
       else if (b == (10 : Nat8)) { List.add(out, 92 : Nat8); List.add(out, 110 : Nat8) }  // \n
@@ -169,7 +182,7 @@ persistent actor AiProxy {
       else if (b < (32 : Nat8)) { /* drop other control bytes */ }
       else { List.add(out, b) };
     };
-    switch (Text.decodeUtf8(Blob.fromArray(List.sliceToArray<Nat8>(out, 0, List.size(out))))) {
+    switch (Text.decodeUtf8(Array.toBlob(List.sliceToArray<Nat8>(out, 0, List.size(out))))) {
       case (?s) s;
       case null "";
     }
@@ -219,7 +232,7 @@ persistent actor AiProxy {
             k += 1;
           };
         };
-        Text.decodeUtf8(Blob.fromArray(List.sliceToArray<Nat8>(out, 0, List.size(out))));
+        Text.decodeUtf8(Array.toBlob(List.sliceToArray<Nat8>(out, 0, List.size(out))));
       };
     }
   };
@@ -233,19 +246,20 @@ persistent actor AiProxy {
     let bodyJson = "{\"model\":\"" # claudeModel # "\",\"max_tokens\":" # Nat.toText(maxTokens) #
       ",\"system\":\"" # jsonEscape(systemPrompt) # "\",\"messages\":[{\"role\":\"user\",\"content\":\"" # jsonEscape(userMessage) # "\"}]}";
 
-    let resp = await (with cycles = CLAUDE_OUTCALL_CYCLES) IC.http_request({
-      url                 = CLAUDE_API_URL;
-      max_response_bytes  = ?CLAUDE_MAX_RESPONSE_BYTES;
-      headers             = [
-        { name = "x-api-key"; value = key },
-        { name = "anthropic-version"; value = ANTHROPIC_VERSION },
-        { name = "content-type"; value = "application/json" },
-      ];
-      body                = ?Text.encodeUtf8(bodyJson);
-      method              = #post;
-      transform           = ?{ function = transform; context = Blob.fromArray([]) };
-      is_replicated       = null;
-    });
+    let resp = try {
+      await Call.httpRequest(CLAUDE_API_URL)
+        .withMethod(#post)
+        .withHeader("x-api-key", key)
+        .withHeader("anthropic-version", ANTHROPIC_VERSION)
+        .withHeader("content-type", "application/json")
+        .withBody(Text.encodeUtf8(bodyJson))
+        .withMaxResponseBytes(CLAUDE_MAX_RESPONSE_BYTES)
+        .nonReplicated()
+        .withExpectedRoundtripTimeMs(OUTCALL_EXPECTED_ROUNDTRIP_MS)
+        .send()
+    } catch (e) {
+      return #err("Couldn't reach the AI assistant: " # Error.message(e));
+    };
 
     let bodyText = switch (Text.decodeUtf8(resp.body)) { case (?t) t; case null "" };
 

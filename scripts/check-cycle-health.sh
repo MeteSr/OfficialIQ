@@ -10,8 +10,8 @@
 # hourly by the Cycle Watchdog workflow.
 #
 # Usage:
-#   bash scripts/check-cycle-health.sh <network>     # local | staging | ic
-#   The active dfx identity must be a controller of the canisters.
+#   bash scripts/check-cycle-health.sh <environment>     # local | staging | ic
+#   The active icp identity must be a controller of the canisters.
 
 set -uo pipefail
 
@@ -20,7 +20,6 @@ cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/lib/canisters.sh"
 
 NETWORK="${1:-local}"
-export DFX_WARNING="${DFX_WARNING:--mainnet_plaintext_identity}"
 
 echo "============================================"
 echo "  OfficialIQ — Cycle Health ($NETWORK)"
@@ -39,7 +38,7 @@ for c in "${ALL_CANISTERS[@]}"; do
   STATUS=$(canister_status "$c" "$NETWORK" || true)
   if ! cycles_read "$STATUS"; then
     # "Not a controller" and "unreachable" need different fixes, so show why.
-    echo "  ❓  $c — could not read balance (identity $(dfx identity whoami 2>/dev/null) is not a controller, or the network is unreachable)"
+    echo "  ❓  $c — could not read balance (identity $(icp identity default 2>/dev/null) is not a controller, or the network is unreachable)"
     printf '%s\n' "$STATUS" | tail -2 | sed 's/^/        /'
     UNKNOWN+=("$c")
     continue

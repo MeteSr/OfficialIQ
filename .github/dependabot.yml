@@ -1,0 +1,34 @@
+# Keeps npm packages and GitHub Actions current. Motoko (mops), the moc
+# compiler, icp-cli recipe pins and DFINITY's ICP skills aren't ecosystems
+# Dependabot understands — .github/workflows/icp-freshness.yml covers those.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # @icp-sdk/auth peers a specific @icp-sdk/core major (auth 11 ↔ core 6),
+      # so the SDK must always move together in one PR.
+      icp-sdk:
+        patterns: ["@icp-sdk/*"]
+      capacitor:
+        patterns: ["@capacitor/*"]
+
+  # Pinned ICP toolchain used by CI and scripts/install-icp.sh
+  # (icp-cli, ic-wasm, mops).
+  - package-ecosystem: npm
+    directory: /tools
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      icp-toolchain:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

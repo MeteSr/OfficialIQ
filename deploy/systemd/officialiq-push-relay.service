@@ -20,5 +20,7 @@ Type=oneshot
 User=officialiq
 WorkingDirectory=/opt/officialiq
 EnvironmentFile=/etc/officialiq-push-relay.env
-ExecStart=/usr/bin/env bash scripts/write-env.sh ic
+# icp (scripts/install-icp.sh) must be on PATH; canister IDs come from the
+# committed .icp/data/mappings/ic.ids.json.
+Environment=PATH=/opt/officialiq/tools/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/env bash scripts/send-push.sh ic

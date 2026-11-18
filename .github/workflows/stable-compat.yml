@@ -2,19 +2,20 @@ name: Stable Compatibility
 
 # Blocks changes that would make a canister upgrade trap with
 # "Memory-incompatible program upgrade" — recoverable only by a reinstall that
-# deletes the canister's data. See scripts/ci/check-stable-compat.sh.
+# deletes the canister's data — and Candid changes existing clients can't
+# call. See scripts/ci/check-stable-compat.sh.
 #
-# Its own workflow (not ci.yml) so adding/removing the `allow-stable-break`
-# label re-runs just this check.
+# Its own workflow (not ci.yml) so adding/removing the `allow-stable-break` /
+# `allow-candid-break` labels re-runs just this check.
 
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths: ["backend/**", "scripts/ci/check-stable-compat.sh", ".github/workflows/stable-compat.yml"]
+    paths: ["backend/**", "mops.toml", "mops.lock", "scripts/ci/check-stable-compat.sh", ".github/workflows/stable-compat.yml"]
   push:
     branches: [main]
-    paths: ["backend/**"]
+    paths: ["backend/**", "mops.toml", "mops.lock"]
 
 permissions:
   contents: read
@@ -44,13 +45,23 @@ jobs:
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
           echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Install dfx
+      - uses: actions/setup-node@v4
         if: steps.base.outputs.skip != 'true'
-        run: bash scripts/install-dfx.sh
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        if: steps.base.outputs.skip != 'true'
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        if: steps.base.outputs.skip != 'true'
+        run: if [ -f mops.lock ]; then mops install --locked; else mops install; fi
 
       - name: Check stable-memory compatibility
         if: steps.base.outputs.skip != 'true'
         env:
           ALLOW_STABLE_BREAK: ${{ contains(github.event.pull_request.labels.*.name, 'allow-stable-break') && '1' || '' }}
+          ALLOW_CANDID_BREAK: ${{ contains(github.event.pull_request.labels.*.name, 'allow-candid-break') && '1' || '' }}
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: bash scripts/ci/check-stable-compat.sh "$BASE_SHA"

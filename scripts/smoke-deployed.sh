@@ -6,14 +6,14 @@
 # a user:
 #   1. every canister is Running;
 #   2. every backend canister's code answers (each exports a metrics() query);
-#   3. the assets canister serves the app's index page.
+#   3. the frontend canister serves the app's index page.
 #
 # Usage:
-#   bash scripts/smoke-deployed.sh <network>     # local | staging | ic
+#   bash scripts/smoke-deployed.sh <environment>     # local | staging | ic
 #
 # Environment:
 #   FRONTEND_URL — override the URL checked in step 3 (e.g. a custom domain).
-#                  Default: https://<assets-id>.icp0.io/ (local: the replica).
+#                  Default: https://<frontend-id>.icp0.io/ (local: the local network).
 
 set -uo pipefail
 
@@ -22,7 +22,6 @@ cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/lib/canisters.sh"
 
 NETWORK="${1:-local}"
-export DFX_WARNING="${DFX_WARNING:--mainnet_plaintext_identity}"
 FAILED=()
 fail() { echo "  ✗ $1"; FAILED+=("$1"); }
 
@@ -40,17 +39,17 @@ done
 echo "▶ Deployed code answers"
 for c in "${BACKEND_CANISTERS[@]}"; do
   [ -z "$(canister_id "$c" "$NETWORK")" ] && continue
-  out=$(dfx canister call "$c" metrics '()' --query --network "$NETWORK" 2>&1 || true)
+  out=$(icp canister call "$c" metrics '()' --query -e "$NETWORK" 2>&1 || true)
   if [[ "$out" == "(record"* ]]; then echo "  ✓ $c.metrics"; else fail "$c.metrics: $(printf '%s' "$out" | tail -1)"; fi
 done
 
 echo "▶ Frontend serves the app"
-ASSETS_ID=$(canister_id assets "$NETWORK")
+ASSETS_ID=$(canister_id frontend "$NETWORK")
 if [ -n "$ASSETS_ID" ]; then
   if [ -n "${FRONTEND_URL:-}" ]; then
     url="$FRONTEND_URL"
   elif [ "$NETWORK" = "local" ]; then
-    url="http://$ASSETS_ID.localhost:4943/"
+    url="http://$ASSETS_ID.localhost:8000/"
   else
     url="https://$ASSETS_ID.icp0.io/"
   fi

@@ -16,7 +16,7 @@
 // inline at run time only:
 //
 //   VAPID_PRIVATE_KEY=... VAPID_PUBLIC_KEY=... VAPID_SUBJECT=mailto:you@example.com \
-//     node scripts/send-pending-push.mjs [network]
+//     node scripts/send-pending-push.mjs [environment]
 //
 // Meant to run periodically (cron) or manually by an admin — see
 // scripts/send-push.sh. Native (Capacitor/FCM/APNs) tokens are registered
@@ -24,42 +24,17 @@
 // a real Firebase project / APNs certificate, a human/business task like
 // the rest of issue #31's store-submission requirements.
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import webpush from "web-push";
-import { Actor, HttpAgent } from "@icp-sdk/core/agent";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
+import { Actor } from "@icp-sdk/core/agent";
+import { connect, ensureAdmin, environmentFromArgs } from "./lib/icp.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "..", "..");
-
-const args = process.argv.slice(2);
-const NETWORK = args.find((a) => !a.startsWith("--")) ?? "local";
-const IC_HOST = NETWORK === "local" ? "http://127.0.0.1:4943" : "https://ic0.app";
-
-// Same fixed-seed identity used by the other admin scripts.
-const SEED_IDENTITY_SEED = new Uint8Array(32).fill(0xcd);
+const NETWORK = environmentFromArgs();
 
 const MILESTONE_COPY = {
   7:   { title: "🔥 7-Day Streak!",   body: "One week of daily study — keep it going." },
   30:  { title: "🔥 30-Day Streak!",  body: "A full month strong. Impressive consistency." },
   100: { title: "🔥 100-Day Streak!", body: "100 days. You're in rare company." },
 };
-
-function readEnvFile() {
-  const envPath = path.join(REPO_ROOT, ".env");
-  const text = readFileSync(envPath, "utf8");
-  const env = {};
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    env[trimmed.slice(0, idx)] = trimmed.slice(idx + 1);
-  }
-  return env;
-}
 
 const rankingIdlFactory = ({ IDL: I }) => {
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
@@ -84,18 +59,6 @@ const userIdlFactory = ({ IDL: I }) => {
   });
 };
 
-async function ensureAdmin(name, actor, principal) {
-  const res = await actor.setAdmin(principal);
-  if ("err" in res && res.err !== "Unauthorized") {
-    throw new Error(`${name}.setAdmin failed: ${res.err}`);
-  }
-  if ("err" in res) {
-    console.log(`  (${name} admin already set to a different principal — assuming it's this identity from a prior run)`);
-  } else {
-    console.log(`  ${name} admin set to ${principal.toText()}`);
-  }
-}
-
 async function main() {
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
@@ -108,17 +71,9 @@ async function main() {
   }
   webpush.setVapidDetails(subject, publicKey, privateKey);
 
-  const env = readEnvFile();
-  const rankingId = env.CANISTER_ID_RANKING;
-  const userId = env.CANISTER_ID_USER;
-  if (!rankingId || !userId) {
-    throw new Error("CANISTER_ID_RANKING / CANISTER_ID_USER not found in .env — run `make deploy` first.");
-  }
-
-  const identity = Ed25519KeyIdentity.generate(SEED_IDENTITY_SEED);
-  const principal = identity.getPrincipal();
-  const agent = new HttpAgent({ host: IC_HOST, identity });
-  if (NETWORK === "local") await agent.fetchRootKey();
+  const { agent, principal, ids } = await connect(NETWORK, ["ranking", "user"]);
+  const rankingId = ids.ranking;
+  const userId = ids.user;
 
   const ranking = Actor.createActor(rankingIdlFactory, { agent, canisterId: rankingId });
   const user = Actor.createActor(userIdlFactory, { agent, canisterId: userId });

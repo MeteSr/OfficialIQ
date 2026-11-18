@@ -11,16 +11,16 @@ name: Deploy (production)
 # module hash), so the last good version is always known for a rollback
 # (docs/DEPLOYMENT.md → "Rolling back").
 #
-# Secrets/variables on the `production` environment (docs/DEPLOYMENT.md):
-#   DFX_IDENTITY_PEM  — PEM of the production deploy identity (required)
-#   DFX_WALLET_ID     — that identity's ic cycles wallet (required)
+# Secrets on the `production` environment (docs/DEPLOYMENT.md):
+#   ICP_IDENTITY_PEM  — PEM of the deploy identity, whose cycles-ledger balance
+#                       pays for production (DFX_IDENTITY_PEM works too)
 #   CI_PUSH_TOKEN     — optional PAT, as in deploy-staging.yml
 
 on:
   workflow_dispatch:
     inputs:
       allow_upgrade_break:
-        description: "Deploy even if upgrading from the deployed build breaks stable memory (a planned reinstall)"
+        description: "Deploy even if upgrading from the deployed build breaks stable memory or Candid (a planned reinstall or interface break)"
         required: false
         default: false
         type: boolean
@@ -48,12 +48,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
-      - name: Stable-memory check against the deployed build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+      - name: Stable-memory and Candid check against the deployed build
         run: bash scripts/ci/upgrade-from-deployed.sh mainnet
         env:
           ALLOW_STABLE_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
+          ALLOW_CANDID_BREAK: ${{ inputs.allow_upgrade_break && '1' || '' }}
 
   deploy:
     needs: [test, upgrade-gate]
@@ -61,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     permissions:
-      contents: write   # canister_ids.json commit, mainnet-* tag, release
+      contents: write   # mappings commit, mainnet-* tag, release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,21 +75,19 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install dfx
-        run: bash scripts/install-dfx.sh
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
 
       - name: Import CI identity
         run: bash scripts/import-identity.sh
         env:
-          DFX_IDENTITY_PEM: ${{ secrets.DFX_IDENTITY_PEM }}
-          DFX_WALLET_ID: ${{ secrets.DFX_WALLET_ID || vars.DFX_WALLET_ID }}
-          DFX_WALLET_NETWORK: ic
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
 
       - name: Deploy to production (ic)
         id: deploy
         run: bash scripts/deploy.sh ic
 
-      - name: Commit canister IDs
+      - name: Commit canister ID mappings
         # Runs even when the deploy failed partway — see deploy-staging.yml.
         if: always() && steps.deploy.outcome != 'skipped'
         run: bash scripts/commit-canister-ids.sh main
