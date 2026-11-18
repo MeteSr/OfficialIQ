@@ -808,6 +808,20 @@
     "footerPrivacy": "Privacy",
     "footerTerms": "Terms",
     "footerSupport": "Support",
-    "footerCopyright": "© {{year}} OfficialIQ"
+    "footerCopyright": "© {{year}} OfficialIQ",
+    "navLabel": "Main",
+    "languageLabel": "Language",
+    "mockAlt": "Preview of the OfficialIQ home screen on a phone: a 14-day streak, state rank #47, 84% accuracy and a catch-up drill on Article 7.",
+    "mockDay": "FRI",
+    "mockStreak": "DAY STREAK",
+    "mockRank": "STATE RANK",
+    "mockAccuracy": "ACCURACY",
+    "mockOverdue": "1 OVERDUE",
+    "mockNav": { "home": "HOME", "study": "STUDY", "ranks": "RANKS", "exam": "EXAM", "me": "ME" },
+    "examBreakdown": { "art4": "Art. 4 — Definitions", "art9": "Art. 9 — Violations", "art7": "Art. 7 — Timing", "art10": "Art. 10 — Fouls & penalties" },
+    "examCardLabel": "Sample simulated exam result: 86% overall, broken down by article.",
+    "rosterCaption": "Sample coordinator roster",
+    "rosterCurrent": "CURRENT",
+    "rosterLapsed": "LAPSED"
   }
 }
