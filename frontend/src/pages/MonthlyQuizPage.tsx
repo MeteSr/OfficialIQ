@@ -5,7 +5,6 @@ import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { questionService, type Question } from "../services/question";
 import { userService, type MonthlyQuizResult } from "../services/user";
-import { rankingService } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
 
@@ -158,11 +157,9 @@ export default function MonthlyQuizPage() {
       userService.recordArticleStudied(articleId, Math.round((b.correct / b.total) * 100)).catch(() => {})
     ));
     await userService.recordMonthlyQuizResult(monthKeyUTC(new Date()), overallScore, articleScores).catch(() => {});
-    if (profile) {
-      await rankingService.recordExamResult(
-        overallScore, updated.length, profile.displayName, profile.sport, profile.state || "TX", secPerQ,
-      ).catch(() => {});
-    }
+    // Study-schedule quizzes are practice: graded in the app, so they feed
+    // personal progress but not the leaderboard (ranked results come from
+    // canister-graded quizzes only).
 
     setPhase("results");
   }, [currentQ, chosen, answered, currentIdx, questions.length, secPerQ, profile]);

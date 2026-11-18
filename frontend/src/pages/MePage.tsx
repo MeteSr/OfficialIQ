@@ -252,8 +252,8 @@ export default function MePage() {
       const principals = await rankingService.getFriendPrincipals();
       const rows = await Promise.all(principals.map(async (p): Promise<FriendRow> => {
         const [prof, s] = await Promise.all([
-          userService.getProfile(p).catch(() => null),
-          rankingService.getStats(p).catch(() => null),
+          userService.getPublicProfile(p).catch(() => null),
+          rankingService.getPublicStats(p).catch(() => null),
         ]);
         return {
           principal:   p.toString(),

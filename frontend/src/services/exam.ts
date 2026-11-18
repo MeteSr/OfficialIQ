@@ -47,6 +47,29 @@ export type ExamSession = {
   finishedAt:    [] | [bigint];
 };
 
+// Graded sessions: the canister picks/holds the questions and their answers;
+// the app only ever sees QuestionView (no correctId/explanation) until a
+// question is answered.
+export type QuestionView = {
+  id: string; sportId: string; articleId: string; citation: string; stem: string;
+  choices: { id: string; text: string }[];
+  difficulty: import("./question").Difficulty;
+  isCasebook: boolean; isPointOfEmphasis: boolean;
+};
+export type Pick = {
+  articleIds: string[]; casebook: boolean; count: bigint;
+  difficulty: [] | [import("./question").Difficulty]; adaptive: boolean;
+};
+export type QuestionSource = { Picks: Pick[] } | { Ids: string[] } | { ShareToken: string };
+export type AnswerFeedback = { questionId: string; isCorrect: boolean; correctId: string; explanation: string; citation: string };
+export type GradedStart = { session: ExamSession; questions: QuestionView[] };
+export type GradedFinish = { session: ExamSession; feedback: AnswerFeedback[] };
+
+/** A QuestionView as a Question whose answer isn't known yet (filled in on reveal). */
+export function unrevealed(v: QuestionView): import("./question").Question {
+  return { ...v, correctId: "", explanation: "", createdAt: 0n };
+}
+
 // ─── IDL ──────────────────────────────────────────────────────────────────────
 
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
@@ -64,11 +87,30 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     articleWeights: I.Vec(I.Tuple(I.Text, I.Nat)), createdAt: I.Int,
   });
   const ResultS = I.Variant({ ok: Session, err: I.Text });
+  const Difficulty = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
+  const Choice = I.Record({ id: I.Text, text: I.Text });
+  const QView = I.Record({
+    id: I.Text, sportId: I.Text, articleId: I.Text, citation: I.Text, stem: I.Text,
+    choices: I.Vec(Choice), difficulty: Difficulty, isCasebook: I.Bool, isPointOfEmphasis: I.Bool,
+  });
+  const Pick = I.Record({ articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, difficulty: I.Opt(Difficulty), adaptive: I.Bool });
+  const Source = I.Variant({ Picks: I.Vec(Pick), Ids: I.Vec(I.Text), ShareToken: I.Text });
+  const Feedback = I.Record({ questionId: I.Text, isCorrect: I.Bool, correctId: I.Text, explanation: I.Text, citation: I.Text });
+  const ResultStart = I.Variant({ ok: I.Record({ session: Session, questions: I.Vec(QView) }), err: I.Text });
+  const ResultFeedback = I.Variant({ ok: Feedback, err: I.Text });
+  const ResultFinish = I.Variant({ ok: I.Record({ session: Session, feedback: I.Vec(Feedback) }), err: I.Text });
+  const ResultText = I.Variant({ ok: I.Text, err: I.Text });
   return I.Service({
     createSession:      I.Func([Config, I.Vec(I.Text)], [ResultS],        []),
     submitExam:         I.Func([I.Text, I.Vec(Answer)],  [ResultS],        []),
     getMyExams:         I.Func([],                        [I.Vec(Session)], ["query"]),
     getExamsFor:        I.Func([I.Principal],              [I.Vec(Session)], ["query"]),
+    getMemberExams:     I.Func([I.Principal],              [I.Vec(Session)], ["composite_query"]),
+    startGradedSession: I.Func([Config, Source],          [ResultStart],    []),
+    createShareLink:    I.Func([Config, I.Vec(Pick)],      [ResultText],     []),
+    answerQuestion:     I.Func([I.Text, I.Text, I.Text, I.Nat], [ResultFeedback], []),
+    finishSession:      I.Func([I.Text],                  [ResultFinish],   []),
+    submitGradedAnswers: I.Func([I.Text, I.Vec(I.Tuple(I.Text, I.Text, I.Nat))], [ResultFinish], []),
     getByShareToken:    I.Func([I.Text],                  [I.Opt(Session)], ["query"]),
     listExamTemplates:  I.Func([I.Text],                  [I.Vec(Template)], ["query"]),
     getExamTemplate:    I.Func([I.Text],                  [I.Opt(Template)], ["query"]),
@@ -86,6 +128,12 @@ function actor() {
     submitExam:        (id: string, answers: AnswerRecord[]) => Promise<{ ok: ExamSession } | { err: string }>;
     getMyExams:        () => Promise<ExamSession[]>;
     getExamsFor:       (p: any) => Promise<ExamSession[]>;
+    getMemberExams:    (p: any) => Promise<ExamSession[]>;
+    startGradedSession: (config: ExamConfig, source: QuestionSource) => Promise<{ ok: GradedStart } | { err: string }>;
+    createShareLink:   (config: ExamConfig, picks: Pick[]) => Promise<{ ok: string } | { err: string }>;
+    answerQuestion:    (sessionId: string, questionId: string, chosenId: string, elapsedSec: bigint) => Promise<{ ok: AnswerFeedback } | { err: string }>;
+    finishSession:     (sessionId: string) => Promise<{ ok: GradedFinish } | { err: string }>;
+    submitGradedAnswers: (sessionId: string, answers: [string, string, bigint][]) => Promise<{ ok: GradedFinish } | { err: string }>;
     getByShareToken:   (token: string) => Promise<[] | [ExamSession]>;
     listExamTemplates: (sportId: string) => Promise<ExamTemplate[]>;
     getExamTemplate:   (id: string) => Promise<[] | [ExamTemplate]>;
@@ -133,6 +181,47 @@ export const examService = {
   async getExamsFor(p: any): Promise<ExamSession[]> {
     if (!CANISTER_ID) return [];
     return actor().getExamsFor(p);
+  },
+
+  /** Exam history of an association member, for its coordinator. */
+  async getMemberExams(p: any): Promise<ExamSession[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMemberExams(p);
+  },
+
+  /** True when graded (ranked) sessions are available — needs the deployed canister. */
+  gradingAvailable(): boolean {
+    return !!CANISTER_ID;
+  },
+
+  async startGradedSession(config: ExamConfig, source: QuestionSource): Promise<GradedStart> {
+    const res = await actor().startGradedSession(config, source);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async createShareLink(config: ExamConfig, picks: Pick[]): Promise<string> {
+    const res = await actor().createShareLink(config, picks);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async answerQuestion(sessionId: string, questionId: string, chosenId: string, elapsedSec: number): Promise<AnswerFeedback> {
+    const res = await actor().answerQuestion(sessionId, questionId, chosenId, BigInt(Math.max(0, Math.round(elapsedSec))));
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async finishSession(sessionId: string): Promise<GradedFinish> {
+    const res = await actor().finishSession(sessionId);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async submitGradedAnswers(sessionId: string, answers: { questionId: string; chosenId: string; elapsedSec: number }[]): Promise<GradedFinish> {
+    const res = await actor().submitGradedAnswers(sessionId, answers.map(a => [a.questionId, a.chosenId, BigInt(Math.max(0, Math.round(a.elapsedSec)))] as [string, string, bigint]));
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 
   async getByShareToken(token: string): Promise<ExamSession | null> {

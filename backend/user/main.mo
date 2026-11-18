@@ -7,6 +7,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
+import Runtime "mo:core/Runtime";
 
 persistent actor User {
 
@@ -150,10 +151,62 @@ persistent actor User {
     switch adminPrincipal { case (?a) a == p; case null false }
   };
 
+  // ─── Push relay identity ──────────────────────────────────────────────────
+  // The scheduled push relay (scripts/send-pending-push.mjs) gets its own
+  // principal that can only read push subscriptions — not the admin or
+  // controller identity, so a leak of the relay's key exposes push endpoints
+  // and nothing else.
+  var pushRelayPrincipal : ?Principal = null;
+
+  public shared ({ caller }) func setPushRelay(p : ?Principal) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    pushRelayPrincipal := p;
+    #ok(())
+  };
+
+  func isPushRelay(p : Principal) : Bool {
+    switch pushRelayPrincipal { case (?r) r == p; case null false }
+  };
+
+  // ─── Roles ────────────────────────────────────────────────────────────────
+  // Coordinator (and Admin/Assessor) roles are granted by the app admin; the
+  // association canister asks isCoordinator before letting someone create an
+  // association.
+  public shared ({ caller }) func setRole(p : Principal, role : Role) : async Result.Result<Profile, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    switch (Map.get(profiles, Principal.compare, p)) {
+      case null #err("Profile not found");
+      case (?existing) {
+        let updated : Profile = { existing with role };
+        Map.add(profiles, Principal.compare, p, updated);
+        #ok(updated)
+      };
+    }
+  };
+
+  public query func isCoordinator(p : Principal) : async Bool {
+    if (isAdmin(p)) return true;
+    switch (Map.get(profiles, Principal.compare, p)) {
+      case (?pr) { switch (pr.role) { case (#Coordinator or #Admin) true; case _ false } };
+      case null false;
+    }
+  };
+
   // ─── Mutations ────────────────────────────────────────────────────────────
+
+  // Profile fields are shown to other users (leaderboards, groups), so keep
+  // them to a sane size.
+  let MAX_FIELD_CHARS : Nat = 100;
+
+  func validProfile(req : ProfileUpdate) : Bool {
+    Text.size(req.displayName) <= MAX_FIELD_CHARS and Text.size(req.sport) <= MAX_FIELD_CHARS and
+    Text.size(req.level) <= MAX_FIELD_CHARS and Text.size(req.state) <= MAX_FIELD_CHARS and
+    Text.size(req.preferredLanguage) <= 16
+  };
 
   public shared ({ caller }) func createProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
 
     let p : Profile = {
@@ -171,6 +224,7 @@ persistent actor User {
   };
 
   public shared ({ caller }) func updateProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
+    if (not validProfile(req)) return #err("Profile field too long");
     switch (Map.get(profiles, Principal.compare, caller)) {
       case null { #err("Profile not found") };
       case (?existing) {
@@ -190,18 +244,11 @@ persistent actor User {
     }
   };
 
-  // Self-service elevation, mirroring the low-friction model already used for
-  // creating study groups/associations elsewhere — anyone who sets up an
-  // association becomes its coordinator.
-  public shared ({ caller }) func becomeCoordinator() : async Result.Result<Profile, Text> {
-    switch (Map.get(profiles, Principal.compare, caller)) {
-      case null #err("Profile not found");
-      case (?existing) {
-        let updated : Profile = { existing with role = #Coordinator };
-        Map.add(profiles, Principal.compare, caller, updated);
-        #ok(updated)
-      };
-    }
+  // No longer self-service: the coordinator role is granted by an admin
+  // (setRole). Kept so existing clients get a clear error rather than a
+  // missing-method rejection.
+  public shared func becomeCoordinator() : async Result.Result<Profile, Text> {
+    #err("Coordinator access is granted by an OfficialIQ admin")
   };
 
   public shared ({ caller }) func setStudyPace(articlesPerWeek : Nat) : async Result.Result<StudyPace, Text> {
@@ -215,6 +262,8 @@ persistent actor User {
   };
 
   public shared ({ caller }) func recordArticleStudied(articleId : Text, score : Nat) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    if (score > 100) Runtime.trap("Score must be 0-100");
     let existing = switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] };
     let now = Time.now();
     var found = false;
@@ -233,12 +282,14 @@ persistent actor User {
   };
 
   public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let existing = switch (Map.get(weeklyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
     let entry : WeeklyQuizResult = { weekNumber; newScore; retentionScore; completedAt = Time.now() };
     Map.add(weeklyQuizHistory, Principal.compare, caller, Array.concat<WeeklyQuizResult>(existing, [entry]));
   };
 
   public shared ({ caller }) func recordMonthlyQuizResult(month : Nat, score : Nat, articleScores : [(Text, Nat)]) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let existing = switch (Map.get(monthlyQuizHistory, Principal.compare, caller)) { case (?h) h; case null [] };
     let entry : MonthlyQuizResult = { month; score; articleScores; completedAt = Time.now() };
     Map.add(monthlyQuizHistory, Principal.compare, caller, Array.concat<MonthlyQuizResult>(existing, [entry]));
@@ -304,8 +355,27 @@ persistent actor User {
     Map.get(profiles, Principal.compare, caller)
   };
 
-  public query func getProfile(p : Principal) : async ?Profile {
+  // Full profiles (role, state, language, sign-up date) are private to their
+  // owner and admins. Other users get the public subset below, which is what
+  // the app shows about someone else (challenger names, rosters, friends).
+  public shared query ({ caller }) func getProfile(p : Principal) : async ?Profile {
+    if (caller != p and not isAdmin(caller)) return null;
     Map.get(profiles, Principal.compare, p)
+  };
+
+  public type PublicProfile = {
+    principal   : Principal;
+    displayName : Text;
+    sport       : Text;
+    level       : Text;
+    state       : Text; // already public through the state leaderboards
+  };
+
+  public query func getPublicProfile(p : Principal) : async ?PublicProfile {
+    switch (Map.get(profiles, Principal.compare, p)) {
+      case (?pr) ?{ principal = pr.principal; displayName = pr.displayName; sport = pr.sport; level = pr.level; state = pr.state };
+      case null null;
+    }
   };
 
   public shared query ({ caller }) func getMyStudyPace() : async ?StudyPace {
@@ -332,7 +402,7 @@ persistent actor User {
   // endpoint is sensitive delivery infrastructure, not public profile data.
   // Used by scripts/send-pending-push.mjs to resolve who to actually push to.
   public shared query ({ caller }) func getSubscriptionFor(p : Principal) : async Result.Result<?PushSubscription, Text> {
-    if (not isAdmin(caller)) return #err("Admin only");
+    if (not isAdmin(caller) and not isPushRelay(caller)) return #err("Admin only");
     #ok(Map.get(pushSubscriptions, Principal.compare, p))
   };
 

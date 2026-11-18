@@ -7,10 +7,13 @@ name: Push relay (streak milestones)
 # Actions workflow is one valid answer to that hosting decision on its own;
 # swap this out if a different always-on host is chosen instead.
 #
-# Requires repo secrets (none of this runs until they're set — see
-# docs/DEPLOYMENT.md):
-#   ICP_IDENTITY_PEM   — PEM-encoded identity, same one used for deploys is fine
-#                        (the old DFX_IDENTITY_PEM name works too)
+# Requires secrets on the `production` environment (the job skips until
+# PUSH_RELAY_IDENTITY_PEM is set — see docs/DEPLOYMENT.md):
+#   PUSH_RELAY_IDENTITY_PEM — PEM of a dedicated relay identity, registered
+#                        with the "Admin task" workflow (set-push-relay). It
+#                        can only read push subscriptions and pending streak
+#                        events. Never the deploy key: that one controls
+#                        every canister.
 #   VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT — from
 #     `npx --prefix frontend web-push generate-vapid-keys`
 
@@ -26,26 +29,43 @@ jobs:
   relay:
     runs-on: ubuntu-latest
     environment: production
+    # Holds a production identity and runs the ref's own scripts, so only
+    # main may run it (a manual dispatch could otherwise pick any branch).
+    if: github.ref == 'refs/heads/main'
+    env:
+      HAS_RELAY_IDENTITY: ${{ secrets.PUSH_RELAY_IDENTITY_PEM != '' }}
     steps:
+      - name: Skip until the relay identity is configured
+        if: env.HAS_RELAY_IDENTITY != 'true'
+        run: echo "::notice::PUSH_RELAY_IDENTITY_PEM is not set on the production environment — skipping (docs/DEPLOYMENT.md)."
+
       - uses: actions/checkout@v4
+        if: env.HAS_RELAY_IDENTITY == 'true'
 
       - uses: actions/setup-node@v4
+        if: env.HAS_RELAY_IDENTITY == 'true'
         with:
           node-version: "22"
 
       - name: Install icp-cli, ic-wasm and mops
+        if: env.HAS_RELAY_IDENTITY == 'true'
         run: bash scripts/install-icp.sh
 
-      - name: Import CI identity
+      - name: Import push relay identity
+        if: env.HAS_RELAY_IDENTITY == 'true'
         run: bash scripts/import-identity.sh
         env:
-          # DFX_IDENTITY_PEM still works (same key, same principal) until renamed.
-          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
+          ICP_IDENTITY_PEM: ${{ secrets.PUSH_RELAY_IDENTITY_PEM }}
 
+      # `npm ci`, not `npm install`: installs exactly what package-lock.json
+      # pins, so a newly published (or compromised) package version can't run
+      # its install scripts next to the production identity.
       - name: Install frontend deps
-        run: npm install --prefix frontend
+        if: env.HAS_RELAY_IDENTITY == 'true'
+        run: npm ci --prefix frontend --no-audit --no-fund
 
       - name: Send pending pushes
+        if: env.HAS_RELAY_IDENTITY == 'true'
         run: bash scripts/send-push.sh ic
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}

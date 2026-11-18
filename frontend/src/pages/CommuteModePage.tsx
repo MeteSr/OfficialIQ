@@ -53,11 +53,9 @@ export default function CommuteModePage() {
     setPhase("results");
     const answers = answersRef.current;
     const correct = answers.filter(a => a.isCorrect).length;
-    const score = answers.length ? Math.round((correct / answers.length) * 100) : 0;
     await speak(`Session complete. You scored ${correct} out of ${answers.length}.`);
 
     if (profile) {
-      rankingService.recordExamResult(score, answers.length, profile.displayName, profile.sport, profile.state || "TX", 0).catch(() => {});
       rankingService.recordQuestionsAnswered(answers.length).catch(() => {});
       const byArticle = new Map<string, { correct: number; total: number }>();
       answers.forEach((a) => {

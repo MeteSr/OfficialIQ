@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
-import { userService } from "../services/user";
 import { useSport } from "../lib/sport";
 
 export default function AssociationPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { isAuthenticated, profile, setProfile } = useAuthStore();
+  const { isAuthenticated, profile } = useAuthStore();
+  // Coordinator access is granted by an admin (user canister's setRole).
+  const canCoordinate = !!profile && ("Coordinator" in profile.role || "Admin" in profile.role);
   const { sportId: SPORT_ID } = useSport();
 
   const [mine,        setMine]        = useState<AssociationRec[]>([]);
@@ -44,10 +45,6 @@ export default function AssociationPage() {
     setCreateError(null);
     try {
       const rec = await associationService.createAssociation(name.trim(), SPORT_ID);
-      if (profile && !("Coordinator" in profile.role)) {
-        const updated = await userService.becomeCoordinator().catch(() => null);
-        if (updated) setProfile(updated);
-      }
       setName("");
       navigate(`/association/${rec.id}`);
     } catch (e: any) {
@@ -169,6 +166,9 @@ export default function AssociationPage() {
             <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>
               {t("association.coordinateDesc")}
             </div>
+            {!canCoordinate ? (
+              <div style={{ fontSize: 12, color: T.muted }}>{t("association.coordinatorAccessNeeded")}</div>
+            ) : (
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 value={name}
@@ -184,6 +184,7 @@ export default function AssociationPage() {
                 {creating ? t("groups.creating") : t("association.create")}
               </button>
             </div>
+            )}
             {createError && <div style={{ color: T.wrong, fontSize: 12, marginTop: 6 }}>{createError}</div>}
           </div>
         </div>

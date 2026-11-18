@@ -10,6 +10,9 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Order "mo:core/Order";
+import Runtime "mo:core/Runtime";
+import Env "../lib/Env";
+import Set "mo:core/Set";
 
 persistent actor Ranking {
 
@@ -111,6 +114,8 @@ persistent actor Ranking {
   var nextGroupChallengeId : Nat = 0;
 
   let MAX_HISTORY : Nat = 60;
+  let MAX_NAME_CHARS : Nat = 100;
+  let MAX_QUESTIONS_PER_CALL : Nat = 200;
   let DAY_NS : Int = 86_400_000_000_000;
 
   var adminPrincipal : ?Principal = null;
@@ -132,6 +137,20 @@ persistent actor Ranking {
 
   func isAdmin(p : Principal) : Bool {
     switch adminPrincipal { case (?a) a == p; case null false }
+  };
+
+  // Own principal for the scheduled push relay: it may read and ack pending
+  // push events, nothing else (see user canister's setPushRelay).
+  var pushRelayPrincipal : ?Principal = null;
+
+  public shared ({ caller }) func setPushRelay(p : ?Principal) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    pushRelayPrincipal := p;
+    #ok(())
+  };
+
+  func canRelayPush(p : Principal) : Bool {
+    isAdmin(p) or (switch pushRelayPrincipal { case (?r) r == p; case null false })
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -182,14 +201,49 @@ persistent actor Ranking {
     else 1.0
   };
 
-  public shared ({ caller }) func recordExamResult(
-    score         : Nat,
-    questionCount : Nat,
-    displayName   : Text,
-    sport         : Text,
-    state         : Text,
-    avgElapsedSec : Nat,
+  // Client-reported scores are no longer accepted: results come from the
+  // exam canister's grading (claimExamResult). Kept so older clients fail
+  // loudly instead of with a missing-method error.
+  public shared func recordExamResult(
+    _score : Nat, _questionCount : Nat, _displayName : Text, _sport : Text, _state : Text, _avgElapsedSec : Nat,
   ) : async () {
+    Runtime.trap("Exam results are graded by OfficialIQ now. Update the app.")
+  };
+
+  // ─── Graded results (from the exam canister) ───────────────────────────────
+
+  type GradedResult = {
+    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
+    sportId : Text; articleIds : [Text]; questionIds : [Text];
+    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
+  };
+
+  // Exam sessions already counted, so one good session can't be claimed twice.
+  var claimedSessions : Set.Set<Text> = Set.empty<Text>();
+
+  let MIN_RANKED_QUESTIONS : Nat = 5;
+
+  /// Counts a finished, canister-graded exam session toward the caller's
+  /// ELO, accuracy and streak. The score comes from the exam canister, never
+  /// from the browser; each session counts once.
+  public shared ({ caller }) func claimExamResult(sessionId : Text, displayName : Text, state : Text) : async Result.Result<UserStats, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
+    let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err("Exam canister not configured") };
+    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let r = switch (await exam.gradedResult(sessionId)) {
+      case (?r) r;
+      case null return #err("No finished graded exam with that id");
+    };
+    // Re-checked after the await: another call may have claimed it meanwhile.
+    if (r.owner != caller) return #err("Not your exam");
+    if (Set.contains(claimedSessions, Text.compare, sessionId)) return #err("Already counted");
+    if (r.questionCount < MIN_RANKED_QUESTIONS) return #err("Ranked exams need at least " # Nat.toText(MIN_RANKED_QUESTIONS) # " questions");
+    Set.add(claimedSessions, Text.compare, sessionId);
+    #ok(applyExamResult(caller, r.score, displayName, r.sportId, state, r.avgElapsedSec))
+  };
+
+  func applyExamResult(caller : Principal, score : Nat, displayName : Text, sport : Text, state : Text, avgElapsedSec : Nat) : UserStats {
     let prev : UserStats = switch (Map.get(stats, Principal.compare, caller)) {
       case (?s) s;
       case null {
@@ -225,9 +279,11 @@ persistent actor Ranking {
       Array.sliceToArray<EloSnapshot>(appended, appended.size() - MAX_HISTORY, appended.size())
       else appended;
     Map.add(examHistory, Principal.compare, caller, trimmed);
+    switch (Map.get(stats, Principal.compare, caller)) { case (?st) st; case null Runtime.unreachable() }
   };
 
   public shared ({ caller }) func addFriend(friend : Principal) : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (caller == friend) return #err("Cannot friend yourself");
     let existing = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
     let already = Array.find<Principal>(existing, func(p) { p == friend }) != null;
@@ -270,6 +326,8 @@ persistent actor Ranking {
   // count. A day first crosses the >=5 threshold exactly once; from then on
   // extra answers that day just accumulate in answeredToday for display.
   public shared ({ caller }) func recordQuestionsAnswered(count : Nat) : async DailyActivity {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    if (count > MAX_QUESTIONS_PER_CALL) Runtime.trap("Count out of range");
     let today = Time.now() / DAY_NS;
     let prev = switch (Map.get(dailyActivity, Principal.compare, caller)) { case (?a) a; case null defaultActivity() };
     let answeredToday = if (prev.activityDay == today) prev.answeredToday + count else count;
@@ -292,6 +350,7 @@ persistent actor Ranking {
 
   // Per-answer signal used for the "Speed Demon" and "Casebook King" badges.
   public shared ({ caller }) func recordAnswerSignal(isCorrect : Bool, elapsedSec : Nat, isCasebook : Bool) : async () {
+    if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     let prev = switch (Map.get(skillCounters, Principal.compare, caller)) {
       case (?c) c;
       case null { { casebookCorrect = 0; casebookTotal = 0; speedStreak = 0; bestSpeedStreak = 0 } };
@@ -306,6 +365,8 @@ persistent actor Ranking {
   // ─── Study groups ───────────────────────────────────────────────────────────
 
   public shared ({ caller }) func createGroup(name : Text, sport : Text, state : Text, isPrivate : Bool) : async Result.Result<Group, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(name) > MAX_NAME_CHARS or Text.size(sport) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
     let id = "grp" # Nat.toText(nextGroupId);
     nextGroupId += 1;
     let g : Group = { id; name; sport; state; isPrivate; owner = caller; memberCount = 1; createdAt = Time.now() };
@@ -356,6 +417,7 @@ persistent actor Ranking {
       case null #err("Group not found");
       case (?g) {
         if (g.owner != caller) return #err("Only the group owner can post a challenge");
+        if (Text.size(title) > 200) return #err("Title is too long");
         let id = "gch" # Nat.toText(nextGroupChallengeId);
         nextGroupChallengeId += 1;
         let ch : GroupChallenge = { id; groupId; title; deadline; createdAt = Time.now() };
@@ -372,8 +434,28 @@ persistent actor Ranking {
     switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] }
   };
 
-  public query func getStats(p : Principal) : async ?UserStats {
+  // Full stats are private to their owner. Everyone else sees only the
+  // fields the public leaderboards already show (getPublicStats).
+  public shared query ({ caller }) func getStats(p : Principal) : async ?UserStats {
+    if (caller != p and not isAdmin(caller)) return null;
     Map.get(stats, Principal.compare, p)
+  };
+
+  public type PublicStats = {
+    principal     : Principal;
+    displayName   : Text;
+    elo           : Float;
+    accuracy      : Float;
+    avgElapsedSec : Float;
+    streak        : Nat;
+  };
+
+  public query func getPublicStats(p : Principal) : async ?PublicStats {
+    switch (Map.get(stats, Principal.compare, p)) {
+      case (?s) ?{ principal = s.principal; displayName = s.displayName; elo = s.elo;
+                   accuracy = s.accuracy; avgElapsedSec = s.avgElapsedSec; streak = s.streak };
+      case null null;
+    }
   };
 
   public query func getNational(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
@@ -508,7 +590,7 @@ persistent actor Ranking {
   // to actually deliver it.
 
   public shared ({ caller }) func getPendingPushEvents() : async Result.Result<[(Principal, [Nat])], Text> {
-    if (not isAdmin(caller)) return #err("Admin only");
+    if (not canRelayPush(caller)) return #err("Admin only");
     let buf = List.empty<(Principal, [Nat])>();
     for ((p, events) in Map.entries(pendingPushEvents)) {
       if (events.size() > 0) List.add(buf, (p, events));
@@ -517,7 +599,7 @@ persistent actor Ranking {
   };
 
   public shared ({ caller }) func ackPushEvent(p : Principal, milestone : Nat) : async Result.Result<(), Text> {
-    if (not isAdmin(caller)) return #err("Admin only");
+    if (not canRelayPush(caller)) return #err("Admin only");
     let existing = switch (Map.get(pendingPushEvents, Principal.compare, p)) { case (?e) e; case null [] };
     Map.add(pendingPushEvents, Principal.compare, p, Array.filter<Nat>(existing, func(m) { m != milestone }));
     #ok(())

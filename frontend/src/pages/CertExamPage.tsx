@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
-import { questionService, type Question } from "../services/question";
-import { examService, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecord } from "../services/exam";
+import { type Question } from "../services/question";
+import { examService, unrevealed, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecord, type Pick } from "../services/exam";
 import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
@@ -74,45 +74,39 @@ export default function CertExamPage() {
   }, [phase]);
 
   const handleSubmit = useCallback(async () => {
+    if (!sessionId) return;
     setPhase("loading");
-    const answers: AnswerRecord[] = questions
-      .filter(q => chosen[q.id])
-      .map(q => ({
-        questionId: q.id,
-        chosenId: chosen[q.id],
-        isCorrect: chosen[q.id] === q.correctId,
-        elapsedSec: BigInt(Math.max(0, Math.round(
-          (Number(template.timeLimitSec) - timeLeft) / Math.max(1, Object.keys(chosen).length),
-        ))),
-      }));
-
-    const avgElapsedSec = answers.length
-      ? Number(answers.reduce((s, a) => s + a.elapsedSec, 0n)) / answers.length
-      : 0;
-
+    const answeredCount = Math.max(1, Object.keys(chosen).length);
+    const perQ = Math.max(0, Math.round((Number(template.timeLimitSec) - timeLeft) / answeredCount));
     try {
-      if (sessionId) {
-        const updated = await examService.submitExam(sessionId, answers);
-        setFinalSession({ score: updated.score.length ? Number(updated.score[0]) : 0, avgElapsedSec, answers });
-      } else {
-        const correct = answers.filter(a => a.isCorrect).length;
-        setFinalSession({ score: answers.length ? Math.round((correct / answers.length) * 100) : 0, avgElapsedSec, answers });
-      }
+      // Graded by the exam canister: the answers were never in the app, so
+      // the score and the per-question key come back from it.
+      const done = await examService.submitGradedAnswers(sessionId, questions
+        .filter(q => chosen[q.id])
+        .map(q => ({ questionId: q.id, chosenId: chosen[q.id], elapsedSec: perQ })));
+      const keyById = new Map(done.feedback.map(f => [f.questionId, f]));
+      setQuestions(qs => qs.map(q => {
+        const f = keyById.get(q.id);
+        return f ? { ...q, correctId: f.correctId, explanation: f.explanation, citation: f.citation } : q;
+      }));
+      const answers: AnswerRecord[] = done.session.answers;
+      setFinalSession({
+        score: done.session.score.length ? Number(done.session.score[0]) : 0,
+        avgElapsedSec: done.session.avgElapsedSec.length ? Number(done.session.avgElapsedSec[0]) : 0,
+        answers,
+      });
 
       if (profile) {
-        const correct = answers.filter(a => a.isCorrect).length;
-        const overallScore = answers.length ? Math.round((correct / answers.length) * 100) : 0;
-        rankingService.recordExamResult(
-          overallScore, questions.length, profile.displayName, profile.sport, profile.state || "TX", avgElapsedSec,
-        ).catch(() => {});
+        rankingService.claimExamResult(sessionId, profile.displayName, profile.state || "TX").catch(() => {});
         rankingService.recordQuestionsAnswered(answers.length).catch(() => {});
 
         const byArticle = new Map<string, { correct: number; total: number }>();
         questions.forEach((q) => {
-          if (!chosen[q.id]) return;
+          const f = keyById.get(q.id);
+          if (!chosen[q.id] || !f) return;
           const bucket = byArticle.get(q.articleId) ?? { correct: 0, total: 0 };
           bucket.total += 1;
-          if (chosen[q.id] === q.correctId) bucket.correct += 1;
+          if (f.isCorrect) bucket.correct += 1;
           byArticle.set(q.articleId, bucket);
         });
         await Promise.all([...byArticle.entries()].map(([articleId, b]) =>
@@ -143,29 +137,27 @@ export default function CertExamPage() {
       const rulesByArticle = distributeByWeight(rulesTotal, template.articleWeights);
       const caseByArticle = distributeByWeight(casebookTotal, template.articleWeights);
 
-      const pools = await Promise.all(template.articleWeights.flatMap(([articleId]) => [
-        rulesByArticle[articleId] > 0
-          ? questionService.sampleQuiz({ sportId: SPORT_ID, articleIds: [articleId], casebook: false, difficulty: [], count: BigInt(rulesByArticle[articleId]) })
-          : Promise.resolve([]),
-        caseByArticle[articleId] > 0
-          ? questionService.sampleQuiz({ sportId: SPORT_ID, articleIds: [articleId], casebook: true, difficulty: [], count: BigInt(caseByArticle[articleId]) })
-          : Promise.resolve([]),
-      ]));
-      const qs = shuffle(pools.flat());
-      if (qs.length === 0) { setError(t("certExam.noQuestions")); setPhase("error"); return; }
-
-      const session = await examService.createSession({
+      // The exam canister picks the questions (per article, rules and
+      // casebook) and keeps their answers until the exam is submitted.
+      const picks: Pick[] = template.articleWeights.flatMap(([articleId]) => [
+        { articleIds: [articleId], casebook: false, count: BigInt(rulesByArticle[articleId] ?? 0), difficulty: [], adaptive: false },
+        { articleIds: [articleId], casebook: true,  count: BigInt(caseByArticle[articleId] ?? 0),  difficulty: [], adaptive: false },
+      ] as Pick[]).filter(p => p.count > 0n);
+      const start = await examService.startGradedSession({
         sportId: SPORT_ID, articleIds: template.articleWeights.map(([id]) => id), casebook: true,
-        count: BigInt(qs.length), secPerQ: BigInt(Math.round(Number(template.timeLimitSec) / qs.length)),
+        count: BigInt(total), secPerQ: BigInt(Math.max(1, Math.ceil(Number(template.timeLimitSec) / Math.max(1, total)))),
         mode: { Certification: null },
-      }, qs.map(q => q.id)).catch(() => null);
-
+      }, { Picks: picks });
+      const qs = shuffle(start.questions.map(unrevealed));
+      if (qs.length === 0) { setError(t("certExam.noQuestions")); setPhase("error"); return; }
       setQuestions(qs);
-      setSessionId(session?.id ?? null);
+      setSessionId(start.session.id);
       setChosen({});
       setFlagged(new Set());
       setCurrentIdx(0);
-      setTimeLeft(Number(template.timeLimitSec));
+      // The canister allows secPerQ per question it actually picked, so the
+      // clock can't run past that budget when fewer questions were found.
+      setTimeLeft(Math.min(Number(template.timeLimitSec), Number(start.session.config.secPerQ) * qs.length));
       startedAtRef.current = Date.now();
       setPhase("exam");
     } catch {

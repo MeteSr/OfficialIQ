@@ -6,6 +6,9 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Token "../lib/Token";
+import Env "../lib/Env";
+import Set "mo:core/Set";
 
 persistent actor Association {
 
@@ -76,20 +79,34 @@ persistent actor Association {
 
   public shared ({ caller }) func createAssociation(name : Text, sport : Text) : async Result.Result<AssociationRec, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    // Only officials an admin has made coordinators may set up an
+    // association (user canister's setRole).
+    let userId = switch (Env.canisterId<system>("user")) {
+      case (?id) id;
+      case null return #err("User canister not configured");
+    };
+    let userCanister = actor (Principal.toText(userId)) : actor { isCoordinator : shared query Principal -> async Bool };
+    let allowed = try { await userCanister.isCoordinator(caller) } catch (_) { return #err("Couldn't check coordinator access, try again") };
+    if (not allowed) return #err("Ask an OfficialIQ admin for coordinator access to create an association");
+    // The join code is the only gate on membership (and members can read the
+    // roster and assignments), so it must not be guessable. Retry on the
+    // unlikely collision with an existing code.
+    var joinCode = await Token.code(10);
+    while (Map.get(joinCodeIndex, Text.compare, joinCode) != null) { joinCode := await Token.code(10) };
     let id       = "asc" # Nat.toText(nextAssociationId);
-    let joinCode = "JOIN" # Nat.toText(nextAssociationId);
     nextAssociationId += 1;
     let rec : AssociationRec = { id; name; sport; coordinator = caller; joinCode; createdAt = Time.now() };
     Map.add(associations, Text.compare, id, rec);
     Map.add(joinCodeIndex, Text.compare, joinCode, id);
     Map.add(members, Text.compare, id, [caller]);
-    Map.add(myAssociations, Principal.compare, caller, [id]);
+    let mine = switch (Map.get(myAssociations, Principal.compare, caller)) { case (?a) a; case null [] };
+    Map.add(myAssociations, Principal.compare, caller, Array.concat<Text>(mine, [id]));
     #ok(rec)
   };
 
   public shared ({ caller }) func joinAssociation(joinCode : Text) : async Result.Result<AssociationRec, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
-    switch (Map.get(joinCodeIndex, Text.compare, joinCode)) {
+    switch (Map.get(joinCodeIndex, Text.compare, Token.normalizeCode(joinCode))) {
       case null #err("Invalid join code");
       case (?id) {
         switch (Map.get(associations, Text.compare, id)) {
@@ -128,14 +145,41 @@ persistent actor Association {
     }
   };
 
-  public shared ({ caller }) func recordCompletion(assignmentId : Text, score : Nat) : async Result.Result<(), Text> {
+  // Client-reported scores are retired: completions come from a graded exam
+  // session (recordGradedCompletion).
+  public shared func recordCompletion(_assignmentId : Text, _score : Nat) : async Result.Result<(), Text> {
+    #err("Assignments are graded by OfficialIQ now. Update the app.")
+  };
+
+  type GradedResult = {
+    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
+    sportId : Text; articleIds : [Text]; questionIds : [Text];
+    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
+  };
+
+  var usedSessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Records an assignment completion from a finished exam session graded by
+  /// the exam canister, taken on the assignment's articles. Each session
+  /// counts once; retaking replaces the earlier completion.
+  public shared ({ caller }) func recordGradedCompletion(assignmentId : Text, sessionId : Text) : async Result.Result<Completion, Text> {
+    let examId = switch (Env.canisterId<system>("exam")) { case (?e) e; case null return #err("Exam canister not configured") };
+    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let r = switch (await exam.gradedResult(sessionId)) {
+      case (?r) r;
+      case null return #err("No finished graded exam with that id");
+    };
+    if (r.owner != caller) return #err("Not your exam");
+    if (Set.contains(usedSessions, Text.compare, sessionId)) return #err("That exam was already used");
     switch (Map.get(assignments, Text.compare, assignmentId)) {
       case null #err("Assignment not found");
       case (?a) {
         if (not isTargeted(a, caller)) return #err("This module wasn't assigned to you");
-        let c : Completion = { assignmentId; member = caller; score; completedAt = Time.now() };
+        if (r.articleIds != a.articleIds) return #err("That exam doesn't cover this assignment's articles");
+        let c : Completion = { assignmentId; member = caller; score = r.score; completedAt = Time.now() };
         Map.add(completions, Text.compare, completionKey(assignmentId, caller), c);
-        #ok(())
+        Set.add(usedSessions, Text.compare, sessionId);
+        #ok(c)
       };
     }
   };
@@ -235,6 +279,20 @@ persistent actor Association {
         }
       };
     }
+  };
+
+  // For other canisters (exam, ranking): is `coordinator` the coordinator of
+  // an association that `member` belongs to? Lets coordinators see their own
+  // members' history without making it public.
+  public query func isCoordinatorOf(coordinator : Principal, member : Principal) : async Bool {
+    let ids = switch (Map.get(myAssociations, Principal.compare, member)) { case (?a) a; case null [] };
+    for (id in ids.values()) {
+      switch (Map.get(associations, Text.compare, id)) {
+        case (?rec) { if (rec.coordinator == coordinator) return true };
+        case null {};
+      };
+    };
+    false
   };
 
   public query func metrics() : async { associationCount : Nat; assignmentCount : Nat } {

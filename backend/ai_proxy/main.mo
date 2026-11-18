@@ -117,14 +117,44 @@ persistent actor AiProxy {
     }
   };
 
+  // The per-principal cap alone doesn't bound spend: Internet Identity hands
+  // out new principals for free, so a script can rotate through them. This
+  // app-wide daily budget is the hard ceiling on Claude calls (and on the
+  // cycles each outcall costs); admins can tune it with setGlobalDailyLimit.
+  var globalDailyLimit : Nat = 500;
+  var globalUsage : RateLimitEntry = { dayBucket = 0; count = 0 };
+
+  // Inputs are capped so one call can't send an arbitrarily large (and
+  // expensive) prompt. The frontend already sends at most ~3,000 characters
+  // of article context.
+  let MAX_QUESTION_CHARS : Nat = 2_000;
+  let MAX_CONTEXT_CHARS : Nat = 6_000;
+
   func checkAndConsume(caller : Principal) : Result.Result<(), Text> {
     let today = Time.now() / DAY_NS;
     let count = usedToday(caller);
     if (count >= DAILY_LIMIT) {
       return #err("Daily question limit reached (" # Nat.toText(DAILY_LIMIT) # "/day). Try again tomorrow.");
     };
+    let globalCount = if (globalUsage.dayBucket == today) globalUsage.count else 0;
+    if (globalCount >= globalDailyLimit) {
+      return #err("The AI assistant is busy today. Try again tomorrow.");
+    };
+    globalUsage := { dayBucket = today; count = globalCount + 1 };
     Map.add(rateLimits, Principal.compare, caller, { dayBucket = today; count = count + 1 });
     #ok(())
+  };
+
+  public shared ({ caller }) func setGlobalDailyLimit(limit : Nat) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    globalDailyLimit := limit;
+    #ok(())
+  };
+
+  public shared query ({ caller }) func getGlobalUsage() : async Result.Result<{ usedToday : Nat; limitPerDay : Nat }, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let today = Time.now() / DAY_NS;
+    #ok({ usedToday = if (globalUsage.dayBucket == today) globalUsage.count else 0; limitPerDay = globalDailyLimit })
   };
 
   public shared query ({ caller }) func getMyRateLimitStatus() : async { used : Nat; limitPerDay : Nat; resetAt : Int } {
@@ -263,8 +293,11 @@ persistent actor AiProxy {
 
     let bodyText = switch (Text.decodeUtf8(resp.body)) { case (?t) t; case null "" };
 
+    // The upstream error body stays out of the reply: it is shown to end
+    // users and can carry account details (org/workspace ids, rate-limit
+    // state) that only an admin should see.
     if (resp.status != 200) {
-      return #err("Claude API error " # Nat.toText(resp.status) # ": " # bodyText);
+      return #err("The AI assistant couldn't answer right now (HTTP " # Nat.toText(resp.status) # "). Please try again later.");
     };
 
     switch (extractClaudeText(bodyText)) {
@@ -281,6 +314,8 @@ persistent actor AiProxy {
   // frontend's in-memory session state, so it never persists across sessions.
   public shared ({ caller }) func askRuleAssistant(question : Text, context : Text) : async Result.Result<Text, Text> {
     if (Principal.isAnonymous(caller)) return #err("Sign in to ask the rule assistant");
+    if (Text.size(question) > MAX_QUESTION_CHARS) return #err("Question is too long");
+    if (Text.size(context) > MAX_CONTEXT_CHARS) return #err("Rulebook context is too long");
     switch (checkAndConsume(caller)) {
       case (#err(e)) return #err(e);
       case (#ok()) {};
@@ -297,6 +332,7 @@ persistent actor AiProxy {
   // shared question bank, so they don't need admin review.
   public shared ({ caller }) func generatePersonalizedDrills(weakAreasContext : Text, count : Nat) : async Result.Result<Text, Text> {
     if (Principal.isAnonymous(caller)) return #err("Sign in to generate practice questions");
+    if (Text.size(weakAreasContext) > MAX_CONTEXT_CHARS) return #err("Context is too long");
     if (count == 0 or count > 10) return #err("count must be between 1 and 10");
     switch (checkAndConsume(caller)) {
       case (#err(e)) return #err(e);

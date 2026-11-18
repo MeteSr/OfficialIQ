@@ -1,7 +1,5 @@
 import { contentService } from "../services/content";
 import { questionService } from "../services/question";
-import { examService } from "../services/exam";
-import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import {
   cacheArticles, cachePlays, cacheQuestions,
@@ -29,18 +27,11 @@ export async function syncAllContent(sportId: string, levelId: string): Promise<
 
 async function replay(action: PendingAction): Promise<void> {
   switch (action.kind) {
-    case "offlineExam": {
-      const session = await examService.createSession(action.config, action.questionIds);
-      await examService.submitExam(session.id, action.answers);
-      return;
-    }
+    // Retired: scores are graded by the exam canister now, so a quiz taken
+    // offline is practice and its queued result is dropped, not replayed.
+    case "offlineExam":
     case "submitExam":
-      await examService.submitExam(action.sessionId, action.answers);
-      return;
     case "recordExamResult":
-      await rankingService.recordExamResult(
-        action.score, action.questionCount, action.displayName, action.sport, action.state, action.avgElapsedSec,
-      );
       return;
     case "recordArticleStudied":
       await userService.recordArticleStudied(action.articleId, action.score);

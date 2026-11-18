@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { questionService, type Question, type UserQuestionHistory } from "../services/question";
-import { examService } from "../services/exam";
+import { examService, unrevealed } from "../services/exam";
 import { rankingService } from "../services/ranking";
 import { userService } from "../services/user";
 import { contentService, type CasebookPlay } from "../services/content";
@@ -11,7 +11,7 @@ import CourtDiagram from "../components/CourtDiagram";
 import VideoPlayer from "../components/VideoPlayer";
 import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizStore";
 import { useAuthStore } from "../store/authStore";
-import type { AnswerRecord, ExamConfig } from "../services/exam";
+import type { ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
 import { associationService } from "../services/association";
@@ -20,8 +20,8 @@ import { useSport } from "../lib/sport";
 const DEFAULT_SECONDS_PER_Q = 45;
 
 type NavState = {
-  sessionId?: string; questionIds?: string[]; secPerQ?: number;
   assignmentId?: string; articleIds?: string[]; casebook?: boolean;
+  mode?: ExamConfig["mode"];
 } | null;
 
 export default function QuizPage() {
@@ -36,10 +36,10 @@ export default function QuizPage() {
 
   const {
     questions, currentIdx, isComplete, answers,
-    loadQuestions, recordAnswer, advance, reset,
+    loadQuestions, recordAnswer, advance, reset, revealQuestion,
   } = useQuizStore();
   const currentQ  = useQuizStore(selectCurrentQuestion);
-  const finalScore = useQuizStore(selectScore);
+  const localScore = useQuizStore(selectScore);
 
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
@@ -47,8 +47,14 @@ export default function QuizPage() {
   const [timerSeconds, setTimerSeconds] = useState(DEFAULT_SECONDS_PER_Q);
   const [timeLeft,     setTimeLeft]     = useState(DEFAULT_SECONDS_PER_Q);
   const [sessionId,    setSessionId]    = useState<string | null>(null);
-  const [canSubmit,    setCanSubmit]    = useState(true);
-  const [offlineExamConfig, setOfflineExamConfig] = useState<ExamConfig | null>(null);
+  // graded: the canister holds the answers and grades each one (ranked).
+  // Otherwise this is practice: answers come with the questions, nothing
+  // counts toward rankings, assignments or challenges.
+  const [graded,       setGraded]       = useState(false);
+  const [practiceReason, setPracticeReason] = useState<"offline" | "signedOut" | null>(null);
+  const [checking,     setChecking]     = useState(false);
+  const [answerError,  setAnswerError]  = useState<string | null>(null);
+  const [serverScore,  setServerScore]  = useState<number | null>(null);
   const [history, setHistory] = useState<(UserQuestionHistory | null)[]>([]);
   const [playsCache, setPlaysCache] = useState<Record<string, CasebookPlay[]>>({});
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
@@ -64,15 +70,20 @@ export default function QuizPage() {
     : null;
   const hasVideo = !!(currentPlay && currentPlay.videoUrl.length);
 
-  // Load questions for this quiz — three possible entry paths:
-  //  1. /quiz/share/:token   — resolve the shared ExamSession and its exact questions
-  //  2. /quiz/:articleId with router state — pre-built session from ExamPage (Solo/Timed)
-  //  3. /quiz/:articleId with no state — self-generate (e.g. from StudyPage)
+  // Load questions for this quiz:
+  //  1. /quiz/share/:token  — the questions of a shared exam link
+  //  2. /quiz/:articleId    — from ExamPage, StudyPage or an assignment
+  // Signed in and online, the canister picks the questions and keeps their
+  // answers (graded). Signed out or offline it falls back to practice from
+  // the cached question bank, which doesn't count.
   useEffect(() => {
     reset();
     setLoading(true);
     setError(null);
-    setOfflineExamConfig(null);
+    setGraded(false);
+    setPracticeReason(null);
+    setServerScore(null);
+    setAnswerError(null);
     setAssignmentId(navState?.assignmentId ?? null);
 
     async function fetchQuestions(ids: string[]): Promise<Question[]> {
@@ -80,73 +91,74 @@ export default function QuizPage() {
       return qs.filter((q): q is Question => q !== null);
     }
 
+    const canGrade = !!principal && examService.gradingAvailable();
+
     async function load() {
       if (token) {
-        const session = await examService.getByShareToken(token);
-        if (!session) { setError(t("quiz.linkInvalid")); return; }
-        const qs = await fetchQuestions(session.questionIds);
-        loadQuestions(qs, session.id);
-        setSessionId(session.id);
-        setTimerSeconds(Number(session.config.secPerQ) || DEFAULT_SECONDS_PER_Q);
-        setCanSubmit(!!principal && session.owner.toString() === principal);
-        return;
-      }
-
-      if (navState?.sessionId && navState.questionIds) {
-        const qs = await fetchQuestions(navState.questionIds);
-        loadQuestions(qs, navState.sessionId);
-        setSessionId(navState.sessionId);
-        setTimerSeconds(navState.secPerQ ?? DEFAULT_SECONDS_PER_Q);
-        setCanSubmit(true);
+        const shared = await examService.getByShareToken(token);
+        if (!shared) { setError(t("quiz.linkInvalid")); return; }
+        const secPerQ = Number(shared.config.secPerQ) || DEFAULT_SECONDS_PER_Q;
+        setTimerSeconds(secPerQ);
+        if (canGrade) {
+          const start = await examService.startGradedSession(
+            { ...shared.config, mode: { Solo: null } }, { ShareToken: token },
+          );
+          loadQuestions(start.questions.map(unrevealed), start.session.id);
+          setSessionId(start.session.id);
+          setGraded(true);
+          return;
+        }
+        loadQuestions(await fetchQuestions(shared.questionIds), null);
+        setPracticeReason("signedOut");
         return;
       }
 
       const secFromQuery = Number(searchParams.get("sec")) || DEFAULT_SECONDS_PER_Q;
       const countFromQuery = Number(searchParams.get("count")) || 25;
+      setTimerSeconds(secFromQuery);
       // An assignment from a coordinator (see AssociationDetailPage) carries
       // its own article set + casebook flag via router state; otherwise this
       // is a single-article self-generated quiz from StudyPage.
       const assignedArticleIds = navState?.articleIds;
       const effectiveArticleIds = assignedArticleIds ?? (articleId ? [articleId] : []);
       const effectiveCasebook = navState?.casebook ?? true;
+
+      if (canGrade) {
+        const config: ExamConfig = {
+          sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
+          count: BigInt(countFromQuery), secPerQ: BigInt(secFromQuery), mode: navState?.mode ?? { Solo: null },
+        };
+        try {
+          const start = await examService.startGradedSession(config, {
+            Picks: [{ articleIds: effectiveArticleIds, casebook: effectiveCasebook, count: BigInt(countFromQuery), difficulty: [], adaptive: isAdaptive }],
+          });
+          loadQuestions(start.questions.map(unrevealed), start.session.id);
+          setSessionId(start.session.id);
+          setGraded(true);
+          return;
+        } catch (e: any) {
+          // A refusal from the canister is a real error; a network failure
+          // falls through to offline practice.
+          if (navigator.onLine && e?.message && !/fetch|network|Failed to/i.test(e.message)) throw e;
+        }
+      }
+
+      // Practice: both fall back to the IndexedDB content cache when the
+      // canister is unreachable, so this can succeed offline too.
       const quizFilter = {
-        sportId,
-        articleIds: effectiveArticleIds,
-        casebook:   effectiveCasebook,
-        difficulty: [] as [],
-        count:      BigInt(countFromQuery),
+        sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
+        difficulty: [] as [], count: BigInt(countFromQuery),
       };
-      // Both fall back to the IndexedDB content cache when the canister is
-      // unreachable, so this can succeed offline too.
       const qs = isAdaptive && principal
         ? await questionService.getAdaptiveQuiz(quizFilter)
         : await questionService.sampleQuiz(quizFilter);
       if (qs.length === 0) { setError(t("quiz.noCachedQuestions")); return; }
-
-      const config: ExamConfig = {
-        sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
-        count: BigInt(qs.length), secPerQ: BigInt(secFromQuery), mode: { Solo: null },
-      };
-      try {
-        const session = await examService.createSession(config, qs.map(q => q.id));
-        loadQuestions(qs, session.id);
-        setSessionId(session.id);
-        setCanSubmit(true);
-      } catch {
-        // Offline (or the canister is otherwise unreachable): still let the
-        // user take the quiz from cached questions. handleNext queues the
-        // create+submit as a single action once we're back online.
-        const localSessionId = `offline-${Date.now()}`;
-        loadQuestions(qs, localSessionId);
-        setSessionId(localSessionId);
-        setOfflineExamConfig(config);
-        setCanSubmit(false);
-      }
-      setTimerSeconds(secFromQuery);
+      loadQuestions(qs, null);
+      setPracticeReason(principal ? "offline" : "signedOut");
     }
 
     load()
-      .catch(() => setError(t("quiz.loadFailed")))
+      .catch((e) => setError(e?.message || t("quiz.loadFailed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articleId, token, sportId]);
@@ -178,22 +190,37 @@ export default function QuizPage() {
   // watched through yet, so the clock doesn't burn away during playback.
   useEffect(() => {
     if (chosen !== null || isComplete || loading || (hasVideo && !videoWatched)) return;
-    if (timeLeft === 0) { setChosen("__timeout__"); return; }
+    if (timeLeft === 0) { submitChoiceRef.current("__timeout__"); return; }
     const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [timeLeft, chosen, isComplete, loading, hasVideo, videoWatched]);
 
-  const handleChoice = useCallback((choiceId: string) => {
-    if (chosen !== null || !currentQ || (hasVideo && !videoWatched)) return;
+  const submitChoice = useCallback(async (choiceId: string) => {
+    if (chosen !== null || !currentQ) return;
+    const elapsed = timerSeconds - timeLeft;
     setChosen(choiceId);
-    const isCorrect = choiceId === currentQ.correctId;
-    const ans: AnswerRecord = {
-      questionId: currentQ.id,
-      chosenId:   choiceId,
-      isCorrect,
-      elapsedSec: BigInt(timerSeconds - timeLeft),
-    };
-    recordAnswer(ans);
+    setAnswerError(null);
+
+    let isCorrect: boolean;
+    if (graded && sessionId) {
+      // The canister grades and records the answer, then reveals it.
+      setChecking(true);
+      try {
+        const fb = await examService.answerQuestion(sessionId, currentQ.id, choiceId, elapsed);
+        revealQuestion(currentQ.id, fb.correctId, fb.explanation, fb.citation);
+        isCorrect = fb.isCorrect;
+      } catch (e: any) {
+        setChosen(null);
+        setAnswerError(e?.message ?? t("quiz.answerFailed"));
+        return;
+      } finally {
+        setChecking(false);
+      }
+    } else {
+      isCorrect = choiceId === currentQ.correctId;
+    }
+
+    recordAnswer({ questionId: currentQ.id, chosenId: choiceId, isCorrect, elapsedSec: BigInt(elapsed) });
 
     if (principal) {
       const questionId = currentQ.id;
@@ -202,73 +229,65 @@ export default function QuizPage() {
       );
       // Feeds the "Speed Demon" and "Casebook King" badges — best effort,
       // not queued offline since it's a minor cosmetic counter.
-      rankingService.recordAnswerSignal(isCorrect, timerSeconds - timeLeft, currentQ.isCasebook).catch(() => {});
+      rankingService.recordAnswerSignal(isCorrect, elapsed, currentQ.isCasebook).catch(() => {});
     }
-  }, [chosen, currentQ, timeLeft, timerSeconds, principal, hasVideo, videoWatched]);
+  }, [chosen, currentQ, timeLeft, timerSeconds, principal, graded, sessionId]);
+
+  const submitChoiceRef = useRef(submitChoice);
+  submitChoiceRef.current = submitChoice;
+
+  const handleChoice = useCallback((choiceId: string) => {
+    if (hasVideo && !videoWatched) return;
+    submitChoice(choiceId);
+  }, [submitChoice, hasVideo, videoWatched]);
 
   const handleNext = useCallback(async () => {
     advance();
-    if (currentIdx + 1 >= questions.length && sessionId) {
-      const finalAnswers = [...answers, ...(chosen && currentQ ? [{
-        questionId: currentQ.id, chosenId: chosen,
-        isCorrect: chosen === currentQ.correctId, elapsedSec: BigInt(timerSeconds - timeLeft),
-      }] : [])];
-      const avgElapsedSec = finalAnswers.length
-        ? Number(finalAnswers.reduce((sum, a) => sum + a.elapsedSec, 0n)) / finalAnswers.length
-        : 0;
+    if (currentIdx + 1 < questions.length) return;
+    const finalAnswers = answers;
+    if (finalAnswers.length === 0) return;
 
-      if (offlineExamConfig) {
-        // The canister was already known unreachable when this quiz started
-        // (see the plain-articleId load path) — queue the full create+submit
-        // rather than attempting it now.
-        await enqueuePendingAction({
-          kind: "offlineExam", config: offlineExamConfig,
-          questionIds: questions.map(q => q.id), answers: finalAnswers,
-        });
-      } else if (canSubmit) {
-        // Only the session owner can record answers against the shared ExamSession
-        // (a non-owner opening a share link still gets ranked, just not written
-        // into the owner's session record).
-        await examService.submitExam(sessionId, finalAnswers).catch(() =>
-          enqueuePendingAction({ kind: "submitExam", sessionId, answers: finalAnswers })
-        );
-      }
-      if (profile) {
-        await rankingService.recordExamResult(
-          finalScore, questions.length,
-          profile.displayName, profile.sport, profile.state || "TX",
-          avgElapsedSec,
-        ).catch(() => enqueuePendingAction({
-          kind: "recordExamResult", score: finalScore, questionCount: questions.length,
-          displayName: profile.displayName, sport: profile.sport, state: profile.state || "TX",
-          avgElapsedSec,
-        }));
-        rankingService.recordQuestionsAnswered(finalAnswers.length).catch(() => {});
-
-        // Attribute progress per-article (a session can span several
-        // articles), scored by that article's own accuracy within this quiz.
-        const byArticle = new Map<string, { correct: number; total: number }>();
-        finalAnswers.forEach((a, i) => {
-          const articleId = questions[i]?.articleId;
-          if (!articleId) return;
-          const bucket = byArticle.get(articleId) ?? { correct: 0, total: 0 };
-          bucket.total += 1;
-          if (a.isCorrect) bucket.correct += 1;
-          byArticle.set(articleId, bucket);
-        });
-        await Promise.all([...byArticle.entries()].map(([articleId, b]) => {
-          const score = Math.round((b.correct / b.total) * 100);
-          return userService.recordArticleStudied(articleId, score).catch(() =>
-            enqueuePendingAction({ kind: "recordArticleStudied", articleId, score })
-          );
-        }));
-
-        if (assignmentId) {
-          associationService.recordCompletion(assignmentId, finalScore).catch(() => {});
+    if (graded && sessionId) {
+      try {
+        // The canister computes the score; ranking and assignments read it
+        // from there.
+        const done = await examService.finishSession(sessionId);
+        setServerScore(done.session.score.length ? Number(done.session.score[0]) : 0);
+        if (profile) {
+          await rankingService.claimExamResult(sessionId, profile.displayName, profile.state || "TX").catch(() => {});
         }
+        if (assignmentId) {
+          await associationService.recordGradedCompletion(assignmentId, sessionId).catch(() => {});
+        }
+      } catch {
+        // Leave the local tally on screen; the session can be finished again later.
       }
     }
-  }, [advance, currentIdx, questions, sessionId, answers, chosen, currentQ, timeLeft, timerSeconds, finalScore, profile, canSubmit, offlineExamConfig, assignmentId]);
+
+    if (profile) {
+      rankingService.recordQuestionsAnswered(finalAnswers.length).catch(() => {});
+
+      // Attribute progress per-article (a session can span several
+      // articles), scored by that article's own accuracy within this quiz.
+      const byArticle = new Map<string, { correct: number; total: number }>();
+      finalAnswers.forEach((a, i) => {
+        const articleId = questions[i]?.articleId;
+        if (!articleId) return;
+        const bucket = byArticle.get(articleId) ?? { correct: 0, total: 0 };
+        bucket.total += 1;
+        if (a.isCorrect) bucket.correct += 1;
+        byArticle.set(articleId, bucket);
+      });
+      await Promise.all([...byArticle.entries()].map(([articleId, b]) => {
+        const score = Math.round((b.correct / b.total) * 100);
+        return userService.recordArticleStudied(articleId, score).catch(() =>
+          enqueuePendingAction({ kind: "recordArticleStudied", articleId, score })
+        );
+      }));
+    }
+  }, [advance, currentIdx, questions, sessionId, answers, profile, graded, assignmentId]);
+
+  const finalScore = serverScore ?? localScore;
 
   if (loading) {
     return (
@@ -341,7 +360,7 @@ export default function QuizPage() {
           </div>
         </div>
 
-        {sessionId && !sessionId.startsWith("offline-") && (
+        {graded && sessionId && (
           <ShareWithMentorButton
             examId={sessionId}
             sportId={sportId}
@@ -367,7 +386,8 @@ export default function QuizPage() {
 
   if (!currentQ) return null;
 
-  const revealed   = chosen !== null;
+  // Graded questions are revealed once the canister has answered.
+  const revealed   = chosen !== null && !checking;
   const timerPct   = (timeLeft / timerSeconds) * 100;
   const total      = questions.length;
 
@@ -401,9 +421,9 @@ export default function QuizPage() {
         </span>
         <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{currentIdx + 1}/{total}</span>
       </div>
-      {offlineExamConfig && (
+      {practiceReason && (
         <div style={{ background: "#3A2F00", color: "#FFD666", fontSize: 11, fontWeight: 600, padding: "5px 16px", textAlign: "center" }}>
-          {t("quiz.offlineBanner")}
+          {practiceReason === "offline" ? t("quiz.offlineBanner") : t("quiz.practiceBanner")}
         </div>
       )}
 
@@ -456,10 +476,11 @@ export default function QuizPage() {
                   if (c.id === currentQ.correctId)  { bg = "#E6F4EC"; border = T.correct; color = T.correct; }
                   else if (c.id === chosen)          { bg = "#FDECEA"; border = T.wrong;   color = T.wrong; }
                 }
+                if (checking && c.id === chosen) { border = T.navy; }
                 return (
                   <button
                     key={c.id}
-                    disabled={revealed}
+                    disabled={chosen !== null}
                     onClick={() => handleChoice(c.id)}
                     style={{
                       padding: "13px 16px", background: bg, border: `2px solid ${border}`,
@@ -479,6 +500,12 @@ export default function QuizPage() {
           </>
         )}
 
+        {checking && (
+          <div style={{ marginTop: 16, fontSize: 13, color: T.muted, textAlign: "center" }}>{t("quiz.checking")}</div>
+        )}
+        {answerError && (
+          <div style={{ marginTop: 16, fontSize: 13, color: T.wrong, textAlign: "center" }}>{answerError}</div>
+        )}
         {revealed && (
           <div style={{
             marginTop: 16, padding: "12px 14px",

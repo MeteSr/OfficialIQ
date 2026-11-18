@@ -13,6 +13,8 @@ type QuizState = {
   recordAnswer:  (answer: AnswerRecord) => void;
   advance:       () => void;
   reset:         () => void;
+  /** Fills in a graded question's answer once the canister has revealed it. */
+  revealQuestion: (id: string, correctId: string, explanation: string, citation: string) => void;
 };
 
 export const useQuizStore = create<QuizState>((set) => ({
@@ -38,6 +40,11 @@ export const useQuizStore = create<QuizState>((set) => ({
 
   reset: () =>
     set({ questions: [], sessionId: null, answers: [], currentIdx: 0, isComplete: false }),
+
+  revealQuestion: (id, correctId, explanation, citation) =>
+    set((s) => ({
+      questions: s.questions.map(q => q.id === id ? { ...q, correctId, explanation, citation } : q),
+    })),
 }));
 
 // Selectors

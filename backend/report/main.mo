@@ -75,6 +75,9 @@ persistent actor Report {
 
   public shared ({ caller }) func generateReport(input : SnapshotInput) : async Result.Result<ReportSnapshot, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (input.avgScore > 100) return #err("Score must be 0-100");
+    if (input.topStrongest.size() > 20 or input.topWeakest.size() > 20) return #err("Too many articles");
+    if (Text.size(input.displayName) > 100 or Text.size(input.accuracyTrend) > 32) return #err("Field too long");
     let id = "rpt" # Nat.toText(nextReportId);
     nextReportId += 1;
     let r : ReportSnapshot = {

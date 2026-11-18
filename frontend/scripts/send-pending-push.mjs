@@ -26,7 +26,7 @@
 
 import webpush from "web-push";
 import { Actor } from "@icp-sdk/core/agent";
-import { connect, ensureAdmin, environmentFromArgs } from "./lib/icp.mjs";
+import { connect, environmentFromArgs } from "./lib/icp.mjs";
 
 const NETWORK = environmentFromArgs();
 
@@ -40,7 +40,6 @@ const rankingIdlFactory = ({ IDL: I }) => {
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultEvents = I.Variant({ ok: I.Vec(I.Tuple(I.Principal, I.Vec(I.Nat))), err: I.Text });
   return I.Service({
-    setAdmin: I.Func([I.Principal], [ResultUnit], []),
     getPendingPushEvents: I.Func([], [ResultEvents], []),
     ackPushEvent: I.Func([I.Principal, I.Nat], [ResultUnit], []),
   });
@@ -54,7 +53,6 @@ const userIdlFactory = ({ IDL: I }) => {
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultSub = I.Variant({ ok: I.Opt(PushSubscription), err: I.Text });
   return I.Service({
-    setAdmin: I.Func([I.Principal], [ResultUnit], []),
     getSubscriptionFor: I.Func([I.Principal], [ResultSub], ["query"]),
   });
 };
@@ -78,12 +76,17 @@ async function main() {
   const ranking = Actor.createActor(rankingIdlFactory, { agent, canisterId: rankingId });
   const user = Actor.createActor(userIdlFactory, { agent, canisterId: userId });
 
+  // Runs as the dedicated push-relay identity, not the admin: it can read
+  // subscriptions and pending events and nothing else, so it never claims
+  // admin. Register it once with `node scripts/admin.mjs <env> set-push-relay
+  // <principal>` (or the "Admin task" workflow).
   console.log(`Sending pending pushes as principal ${principal.toText()} on network "${NETWORK}"`);
-  await ensureAdmin("ranking", ranking, principal);
-  await ensureAdmin("user", user, principal);
 
   const pendingRes = await ranking.getPendingPushEvents();
-  if ("err" in pendingRes) throw new Error(`getPendingPushEvents: ${pendingRes.err}`);
+  if ("err" in pendingRes) {
+    throw new Error(`getPendingPushEvents: ${pendingRes.err} — is ${principal.toText()} registered as the push relay? ` +
+      "Run the \"Admin task\" workflow with task set-push-relay.");
+  }
   const pending = pendingRes.ok;
 
   let sent = 0, skipped = 0, errors = 0;

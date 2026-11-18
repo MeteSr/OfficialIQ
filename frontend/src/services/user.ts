@@ -7,6 +7,7 @@ import { createActor } from "./actor";
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null, Coordinator: I.Null });
   const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text, createdAt: I.Int });
+  const PublicProfile = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });
   const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text });
   const ResultP     = I.Variant({ ok: Profile, err: I.Text });
   const StudyPace   = I.Record({ articlesPerWeek: I.Nat, startDate: I.Int });
@@ -30,6 +31,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
     updateProfile:        I.Func([ProfileUpd],       [ResultP],        []),
     getMyProfile:         I.Func([],                 [I.Opt(Profile)], ["query"]),
     getProfile:           I.Func([I.Principal],      [I.Opt(Profile)], ["query"]),
+    getPublicProfile:     I.Func([I.Principal],      [I.Opt(PublicProfile)], ["query"]),
     setStudyPace:         I.Func([I.Nat],             [ResultPace],     []),
     recordArticleStudied: I.Func([I.Text, I.Nat],    [],               []),
     recordWeeklyQuizResult: I.Func([I.Nat, I.Nat, I.Nat], [],          []),
@@ -56,6 +58,7 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type PublicProfile = { principal: any; displayName: string; sport: string; level: string; state: string };
 export type UserRole = { Official: null } | { Assessor: null } | { Admin: null } | { Coordinator: null };
 export type UserProfile = {
   principal:         import("@icp-sdk/core/principal").Principal;
@@ -106,6 +109,7 @@ function actor() {
     updateProfile:        (u: ProfileUpdate) => Promise<{ ok: UserProfile } | { err: string }>;
     getMyProfile:         ()                 => Promise<[] | [UserProfile]>;
     getProfile:           (p: any)           => Promise<[] | [UserProfile]>;
+    getPublicProfile:     (p: any)           => Promise<[] | [PublicProfile]>;
     setStudyPace:         (n: bigint)        => Promise<{ ok: StudyPace } | { err: string }>;
     recordArticleStudied: (articleId: string, score: bigint) => Promise<undefined>;
     recordWeeklyQuizResult: (weekNumber: bigint, newScore: bigint, retentionScore: bigint) => Promise<undefined>;
@@ -136,6 +140,14 @@ export const userService = {
     return res.length ? res[0] : null;
   },
 
+  /** Name and sport of another official — full profiles are private to their owner. */
+  async getPublicProfile(p: any): Promise<PublicProfile | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getPublicProfile(p);
+    return res.length ? res[0] : null;
+  },
+
+  /** Full profile: only returns data for the caller themself (or an admin). */
   async getProfile(p: any): Promise<UserProfile | null> {
     if (!CANISTER_ID) return null;
     const res = await actor().getProfile(p);

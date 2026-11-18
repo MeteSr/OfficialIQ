@@ -5,7 +5,7 @@ import { Principal } from "@icp-sdk/core/principal";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useAuth } from "../contexts/AuthContext";
-import { userService, type UserProfile } from "../services/user";
+import { userService, type PublicProfile } from "../services/user";
 import { rankingService } from "../services/ranking";
 
 export default function AddFriendPage() {
@@ -15,7 +15,7 @@ export default function AddFriendPage() {
   const { login } = useAuth();
   const { t } = useTranslation();
 
-  const [target,  setTarget]  = useState<UserProfile | null>(null);
+  const [target,  setTarget]  = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [status,  setStatus]  = useState<"idle" | "adding" | "added" | "error">("idle");
@@ -31,7 +31,7 @@ export default function AddFriendPage() {
       setLoading(false);
       return;
     }
-    userService.getProfile(target)
+    userService.getPublicProfile(target)
       .then(setTarget)
       .catch(() => {})
       .finally(() => setLoading(false));

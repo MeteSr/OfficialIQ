@@ -9,6 +9,7 @@ import { contentService, type Article } from "../services/content";
 import { examService, type ExamSession } from "../services/exam";
 import { useAuthStore } from "../store/authStore";
 import { levelLabel, useSport, useSportDisplayName } from "../lib/sport";
+import { toCsv } from "../lib/csv";
 
 const MODE_LABEL_KEYS: Record<string, string> = { Solo: "exam.modeSolo", ShareLink: "exam.modeShareLink", Timed: "exam.modeTimed" };
 
@@ -18,11 +19,7 @@ function examModeLabel(mode: ExamSession["config"]["mode"], t: TFunction): strin
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const esc = (v: string | number) => {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = rows.map(r => r.map(esc).join(",")).join("\n");
+  const csv = toCsv(rows);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

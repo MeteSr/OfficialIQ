@@ -1,0 +1,106 @@
+name: Admin task
+
+# One-off app-admin actions, run by hand from the Actions tab as the deploy
+# identity (the canisters' app-level admin), so nobody needs icp-cli locally:
+#
+#   set-role        — grant a role, e.g. Coordinator (needed to create an
+#                     association). `principal` is the official's principal,
+#                     shown on their Me page.
+#   set-push-relay  — register the push relay's own identity. Leave
+#                     `principal` empty to use PUSH_RELAY_IDENTITY_PEM's
+#                     principal; "none" clears it.
+#
+# Secrets: ICP_IDENTITY_PEM (and PUSH_RELAY_IDENTITY_PEM for set-push-relay)
+# on the chosen environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment"
+        required: true
+        default: staging
+        type: choice
+        options: [staging, ic]
+      task:
+        description: "Task"
+        required: true
+        type: choice
+        options: [set-role, set-push-relay]
+      principal:
+        description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none)"
+        required: false
+        default: ""
+        type: string
+      role:
+        description: "Role (set-role only)"
+        required: false
+        default: Coordinator
+        type: choice
+        options: [Coordinator, Official, Assessor, Admin]
+
+concurrency:
+  group: admin-task
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Holds the admin identity and runs the ref's own scripts: main only.
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ inputs.environment == 'ic' && 'production' || 'staging' }}
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      TASK: ${{ inputs.task }}
+      PRINCIPAL: ${{ inputs.principal }}
+      ROLE: ${{ inputs.role }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install frontend deps
+        run: npm ci --prefix frontend --no-audit --no-fund
+
+      - name: Resolve the push relay principal
+        if: inputs.task == 'set-push-relay' && inputs.principal == ''
+        env:
+          ICP_IDENTITY_PEM: ${{ secrets.PUSH_RELAY_IDENTITY_PEM }}
+          ICP_IDENTITY_NAME: push-relay
+        run: |
+          if [ -z "$ICP_IDENTITY_PEM" ]; then
+            echo "::error::PUSH_RELAY_IDENTITY_PEM is not set on this environment (docs/DEPLOYMENT.md)."
+            exit 1
+          fi
+          bash scripts/import-identity.sh
+          echo "RELAY_PRINCIPAL=$(icp identity principal)" >> "$GITHUB_ENV"
+
+      - name: Import admin identity
+        run: bash scripts/import-identity.sh
+        env:
+          ICP_IDENTITY_PEM: ${{ secrets.ICP_IDENTITY_PEM || secrets.DFX_IDENTITY_PEM }}
+
+      - name: Run
+        run: |
+          # Inputs arrive through env, never interpolated into the script.
+          PRINCIPAL="${RELAY_PRINCIPAL:-$PRINCIPAL}"
+          if ! [[ "$PRINCIPAL" =~ ^([a-z0-9]{5}-)+[a-z0-9]{1,5}$ || "$PRINCIPAL" == "none" ]]; then
+            echo "::error::'$PRINCIPAL' is not a principal."
+            exit 1
+          fi
+          cd frontend
+          if [ "$TASK" = "set-role" ]; then
+            node scripts/admin.mjs "$ENVIRONMENT" set-role "$PRINCIPAL" "$ROLE"
+          else
+            node scripts/admin.mjs "$ENVIRONMENT" set-push-relay "$PRINCIPAL"
+          fi

@@ -9,6 +9,7 @@ import Float "mo:core/Float";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Env "../lib/Env";
 
 persistent actor Question {
 
@@ -299,6 +300,48 @@ persistent actor Question {
       if (lhs > rhs) #less else if (lhs < rhs) #greater else #equal
     });
     List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(limit, List.size(sorted)))
+  };
+
+  // ─── Graded exams (exam canister only) ──────────────────────────────────────
+  //
+  // Ranked quizzes, certification exams and challenges are graded by the exam
+  // canister, which must hold the answer key without ever sending it to the
+  // player. These two calls hand it full questions; only the exam canister
+  // may make them (its ID comes from icp deploy's PUBLIC_CANISTER_ID:exam).
+
+  public type ExamPick = {
+    articleIds : [Text];
+    casebook   : Bool;
+    count      : Nat;
+    difficulty : ?Difficulty;
+    adaptive   : Bool; // most-overdue first for `player` (as getAdaptiveQuiz)
+  };
+
+  func isExamCanister<system>(caller : Principal) : Bool {
+    switch (Env.canisterId<system>("exam")) { case (?id) id == caller; case null false }
+  };
+
+  public shared ({ caller }) func pickForExam(sportId : Text, picks : [ExamPick], player : Principal) : async Result.Result<[Question], Text> {
+    if (not isExamCanister<system>(caller)) return #err("Exam canister only");
+    let out = List.empty<Question>();
+    for (pick in picks.values()) {
+      let filter : QuizFilter = { sportId; articleIds = pick.articleIds; casebook = pick.casebook; difficulty = pick.difficulty; count = pick.count };
+      let matches = List.empty<Question>();
+      for ((_, q) in Map.entries(questions)) {
+        // A question already taken by an earlier pick isn't repeated.
+        if (matchesFilter(q, filter) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
+      };
+      if (pick.adaptive) {
+        List.sortInPlace<Question>(matches, func(a, b) { Int.compare(dueDate(player, a.id), dueDate(player, b.id)) });
+      };
+      for (q in List.sliceToArray<Question>(matches, 0, Nat.min(pick.count, List.size(matches))).values()) List.add(out, q);
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared ({ caller }) func questionsForExam(ids : [Text]) : async Result.Result<[Question], Text> {
+    if (not isExamCanister<system>(caller)) return #err("Exam canister only");
+    #ok(Array.filterMap<Text, Question>(ids, func(id) { Map.get(questions, Text.compare, id) }))
   };
 
   public query func metrics() : async { questionCount : Nat } {

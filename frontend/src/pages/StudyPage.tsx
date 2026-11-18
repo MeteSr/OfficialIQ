@@ -63,7 +63,7 @@ export default function StudyPage() {
         const assocById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, assocs[i]]));
         const coordinators = await Promise.all(uniqueAssocIds.map((id) => {
           const rec = assocById[id];
-          return rec ? userService.getProfile(rec.coordinator).catch(() => null) : Promise.resolve(null);
+          return rec ? userService.getPublicProfile(rec.coordinator).catch(() => null) : Promise.resolve(null);
         }));
         const coordNameById = Object.fromEntries(uniqueAssocIds.map((id, i) => [id, coordinators[i]?.displayName ?? t("study.yourCoordinator")]));
         const rows: AssignmentRow[] = assigns

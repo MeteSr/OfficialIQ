@@ -14,6 +14,7 @@ export type LeaderboardEntry = {
   streak:        bigint;
 };
 
+export type PublicStats = { principal: any; displayName: string; elo: number; accuracy: number; avgElapsedSec: number; streak: bigint };
 export type UserStats = {
   principal:     import("@icp-sdk/core/principal").Principal;
   displayName:   string;
@@ -80,6 +81,7 @@ const sortKeyToVariant = (key: SortKey): SortKeyVariant => ({ [key]: null } as S
 const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const Entry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
   const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, bestStreak: I.Nat, accuracy: I.Float64, avgElapsedSec: I.Float64, examCount: I.Nat, updatedAt: I.Int });
+  const PublicStats = I.Record({ principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
   const EloSnapshotRec = I.Record({ elo: I.Float64, accuracy: I.Float64, timestamp: I.Int });
   const Activity = I.Record({ currentStreak: I.Nat, longestStreak: I.Nat, activityDay: I.Int, answeredToday: I.Nat, lastQualifyingDay: I.Int });
   const Skills = I.Record({ casebookCorrect: I.Nat, casebookTotal: I.Nat, speedStreak: I.Nat, bestSpeedStreak: I.Nat });
@@ -91,11 +93,12 @@ const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
   const ResultGroup = I.Variant({ ok: GroupRec, err: I.Text });
   const ResultGroupChallenge = I.Variant({ ok: GroupChallengeRec, err: I.Text });
   return I.Service({
-    recordExamResult:      I.Func([I.Nat, I.Nat, I.Text, I.Text, I.Text, I.Nat], [I.Null], []),
+    claimExamResult:       I.Func([I.Text, I.Text, I.Text], [I.Variant({ ok: Stats, err: I.Text })], []),
     addFriend:             I.Func([I.Principal], [ResultU], []),
     removeFriend:          I.Func([I.Principal], [ResultU], []),
     getFriendPrincipals:   I.Func([], [I.Vec(I.Principal)], ["query"]),
     getStats:              I.Func([I.Principal], [I.Opt(Stats)], ["query"]),
+    getPublicStats:        I.Func([I.Principal], [I.Opt(PublicStats)], ["query"]),
     getNational:           I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
     getState:              I.Func([I.Text, I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
     getFriends:            I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
@@ -144,11 +147,12 @@ const CANISTER_ID = canisterId("ranking");
 
 function actor() {
   return createActor<{
-    recordExamResult:    (score: bigint, qCount: bigint, name: string, sport: string, state: string, avgElapsedSec: bigint) => Promise<null>;
+    claimExamResult:     (sessionId: string, name: string, state: string) => Promise<{ ok: UserStats } | { err: string }>;
     addFriend:           (p: any) => Promise<{ ok: null } | { err: string }>;
     removeFriend:        (p: any) => Promise<{ ok: null } | { err: string }>;
     getFriendPrincipals: () => Promise<any[]>;
     getStats:            (p: any) => Promise<[] | [UserStats]>;
+    getPublicStats:      (p: any) => Promise<[] | [PublicStats]>;
     getNational:         (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
     getState:            (sport: string, state: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
     getFriends:          (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
@@ -197,6 +201,13 @@ export const rankingService = {
     return actor().getMyEloHistory();
   },
 
+  /** The leaderboard fields for another official — full stats are private. */
+  async getPublicStats(p: any): Promise<PublicStats | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getPublicStats(p);
+    return res.length ? res[0] : null;
+  },
+
   async getStats(p: any): Promise<UserStats | null> {
     if (!CANISTER_ID) return null;
     const res = await actor().getStats(p);
@@ -220,9 +231,12 @@ export const rankingService = {
     return actor().getFriendPrincipals();
   },
 
-  async recordExamResult(score: number, questionCount: number, displayName: string, sport: string, state: string, avgElapsedSec: number): Promise<void> {
-    if (!CANISTER_ID) return;
-    await actor().recordExamResult(BigInt(score), BigInt(questionCount), displayName, sport, state, BigInt(Math.round(avgElapsedSec)));
+  /** Counts a finished graded exam session (scored by the exam canister) toward the leaderboard. */
+  async claimExamResult(sessionId: string, displayName: string, state: string): Promise<UserStats | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().claimExamResult(sessionId, displayName, state);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 
   async recordQuestionsAnswered(count: number): Promise<DailyActivity | null> {

@@ -193,7 +193,6 @@ export default function WeeklyQuizPage() {
     const retentionAnswers = updated.filter(a => a.q._source === "retention");
     const newScore = newAnswers.length ? Math.round((newAnswers.filter(a => a.correct).length / newAnswers.length) * 100) : 0;
     const retentionScore = retentionAnswers.length ? Math.round((retentionAnswers.filter(a => a.correct).length / retentionAnswers.length) * 100) : 0;
-    const overallScore = Math.round((updated.filter(a => a.correct).length / updated.length) * 100);
     rankingService.recordQuestionsAnswered(updated.length).catch(() => {});
 
     const byArticle = new Map<string, { correct: number; total: number }>();
@@ -208,11 +207,9 @@ export default function WeeklyQuizPage() {
       userService.recordArticleStudied(articleId, Math.round((b.correct / b.total) * 100)).catch(() => {})
     ));
     await userService.recordWeeklyQuizResult(plan?.weekNumber ?? 0, newScore, retentionScore).catch(() => {});
-    if (profile) {
-      await rankingService.recordExamResult(
-        overallScore, updated.length, profile.displayName, profile.sport, profile.state || "TX", SECONDS_PER_Q,
-      ).catch(() => {});
-    }
+    // Study-schedule quizzes are practice: graded in the app, so they feed
+    // personal progress but not the leaderboard (ranked results come from
+    // canister-graded quizzes only).
 
     setPhase("results");
   }, [currentQ, chosen, answered, currentIdx, questions.length, plan, profile]);
