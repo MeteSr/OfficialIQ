@@ -1,33 +1,18 @@
 import { Actor, HttpAgent, type Identity, type ActorSubclass } from "@icp-sdk/core/agent";
-import { IDL } from "@icp-sdk/core/candid";
 import { inject } from "vitest";
-import { idlFactory as examIdl } from "../services/exam";
-import { idlFactory as questionIdl } from "../services/question";
-import { idlFactory as rankingIdl } from "../services/ranking";
-import { idlFactory as challengeIdl } from "../services/challenge";
-import { idlFactory as associationIdl } from "../services/association";
-import { idlFactory as userIdl } from "../services/user";
+import { idlFactory as examIdl } from "../declarations/exam";
+import { idlFactory as questionIdl } from "../declarations/question";
+import { idlFactory as rankingIdl } from "../declarations/ranking";
+import { idlFactory as challengeIdl } from "../declarations/challenge";
+import { idlFactory as associationIdl } from "../declarations/association";
+import { idlFactory as userIdl } from "../declarations/user";
 import { adminIdentity } from "./identities";
 
-// Calls go through the app's own hand-written IDL (src/services/*), so a
-// canister change the app's IDL doesn't match fails here too.
-//
-// Methods the app never calls (admin and canister-to-canister ones) get a
-// small IDL of their own below; `reserved` decodes any value we don't inspect.
+// Calls go through the IDL the app uses (src/declarations, generated from
+// the canisters by scripts/generate-declarations.sh), so admin and
+// canister-to-canister methods are callable too.
 
-const adminExtras: Record<string, IDL.InterfaceFactory> = {
-  question: ({ IDL: I }) => I.Service({
-    questionsForExam: I.Func([I.Vec(I.Text)], [I.Variant({ ok: I.Reserved, err: I.Text })], []),
-  }),
-  user: ({ IDL: I }) => I.Service({
-    setRole: I.Func(
-      [I.Principal, I.Variant({ Admin: I.Null, Assessor: I.Null, Coordinator: I.Null, Official: I.Null })],
-      [I.Variant({ ok: I.Reserved, err: I.Text })], [],
-    ),
-  }),
-};
-
-const appIdl: Record<string, IDL.InterfaceFactory> = {
+const appIdl = {
   exam: examIdl, question: questionIdl, ranking: rankingIdl,
   challenge: challengeIdl, association: associationIdl, user: userIdl,
 };
@@ -53,7 +38,7 @@ export async function canister(name: keyof typeof appIdl, identity: Identity): P
 }
 
 export async function adminCall(name: "question" | "user", identity: Identity = adminIdentity()): Promise<AnyActor> {
-  return Actor.createActor(adminExtras[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
+  return Actor.createActor(appIdl[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
 }
 
 /** The `ok` of a Result, or a thrown error carrying its `err`. */

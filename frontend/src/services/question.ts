@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/question";
 import { cacheQuestions, getCachedQuestion, getCachedQuestionsFor } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,47 +60,6 @@ export type UserQuestionHistory = {
   intervalDays:  bigint;
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Diff   = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
-  const Choice = I.Record({ id: I.Text, text: I.Text });
-  const Q      = I.Record({
-    id: I.Text, sportId: I.Text, articleId: I.Text, citation: I.Text,
-    stem: I.Text, choices: I.Vec(Choice), correctId: I.Text,
-    explanation: I.Text, difficulty: Diff, isCasebook: I.Bool,
-    isPointOfEmphasis: I.Bool, createdAt: I.Int,
-  });
-  const Filter = I.Record({
-    sportId: I.Text, articleIds: I.Vec(I.Text),
-    casebook: I.Bool, difficulty: I.Opt(Diff), count: I.Nat,
-  });
-  const QInput = I.Record({
-    sportId: I.Text, articleId: I.Text, citation: I.Text,
-    stem: I.Text, choices: I.Vec(Choice), correctId: I.Text,
-    explanation: I.Text, difficulty: Diff, isCasebook: I.Bool,
-    isPointOfEmphasis: I.Bool,
-  });
-  const ResultQ = I.Variant({ ok: Q, err: I.Text });
-  const History = I.Record({
-    questionId: I.Text, timesAnswered: I.Nat, timesCorrect: I.Nat,
-    lastAnswered: I.Int, nextDue: I.Int, easiness: I.Float64,
-    repetitions: I.Nat, intervalDays: I.Nat,
-  });
-  return I.Service({
-    getQuestion:       I.Func([I.Text],                     [I.Opt(Q)], ["query"]),
-    sampleQuiz:         I.Func([Filter],                     [I.Vec(Q)], ["query"]),
-    getAdaptiveQuiz:    I.Func([Filter],                     [I.Vec(Q)], ["query"]),
-    getDueCount:        I.Func([I.Text, I.Vec(I.Text), I.Bool], [I.Nat], ["query"]),
-    getMyHistoryBatch:  I.Func([I.Vec(I.Text)],              [I.Vec(I.Opt(History))], ["query"]),
-    recordAnswer:       I.Func([I.Text, I.Bool],              [], []),
-    addQuestion:        I.Func([QInput],                     [ResultQ], []),
-    getMostMissedQuestions: I.Func([I.Text, I.Nat],           [I.Vec(I.Tuple(I.Text, I.Nat, I.Nat))], ["query"]),
-    getAnswerRates:         I.Func([I.Vec(I.Text)],            [I.Vec(I.Tuple(I.Text, I.Nat, I.Nat))], ["query"]),
-    metrics:            I.Func([],                            [I.Record({ questionCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 export const MOCK_QUESTIONS: Question[] = [
@@ -150,17 +109,7 @@ export const MOCK_QUESTIONS: Question[] = [
 const CANISTER_ID = canisterId("question");
 
 function actor() {
-  return createActor<{
-    sampleQuiz:        (f: QuizFilter) => Promise<Question[]>;
-    getQuestion:       (id: string) => Promise<[] | [Question]>;
-    getAdaptiveQuiz:   (f: QuizFilter) => Promise<Question[]>;
-    getDueCount:       (sportId: string, articleIds: string[], casebook: boolean) => Promise<bigint>;
-    getMyHistoryBatch: (questionIds: string[]) => Promise<([] | [UserQuestionHistory])[]>;
-    recordAnswer:      (questionId: string, isCorrect: boolean) => Promise<void>;
-    addQuestion:       (input: QuestionInput) => Promise<{ ok: Question } | { err: string }>;
-    getMostMissedQuestions: (sportId: string, limit: bigint) => Promise<[string, bigint, bigint][]>;
-    getAnswerRates:         (questionIds: string[]) => Promise<[string, bigint, bigint][]>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const questionService = {

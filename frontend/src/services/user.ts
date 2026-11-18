@@ -1,60 +1,8 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/user";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Role        = I.Variant({ Official: I.Null, Assessor: I.Null, Admin: I.Null, Coordinator: I.Null });
-  const Profile     = I.Record({ principal: I.Principal, displayName: I.Text, role: Role, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text, createdAt: I.Int });
-  const PublicProfile = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text });
-  const ProfileUpd  = I.Record({ displayName: I.Text, sport: I.Text, level: I.Text, state: I.Text, preferredLanguage: I.Text });
-  const ResultP     = I.Variant({ ok: Profile, err: I.Text });
-  const StudyPace   = I.Record({ articlesPerWeek: I.Nat, startDate: I.Int });
-  const ResultPace  = I.Variant({ ok: StudyPace, err: I.Text });
-  const ArticleProgress = I.Record({ articleId: I.Text, lastStudied: I.Int, timesStudied: I.Nat, masteryScore: I.Nat });
-  const WeeklySchedule  = I.Record({ dueThisWeek: I.Vec(I.Text), overdue: I.Vec(I.Text), weekNumber: I.Nat });
-  const WeeklyQuizResult = I.Record({ weekNumber: I.Nat, newScore: I.Nat, retentionScore: I.Nat, completedAt: I.Int });
-  const MonthlyQuizResult = I.Record({ month: I.Nat, score: I.Nat, articleScores: I.Vec(I.Tuple(I.Text, I.Nat)), completedAt: I.Int });
-  const LinkedAccount = I.Record({ provider: I.Text, externalId: I.Text, linkedAt: I.Int });
-  const UpcomingGame = I.Record({ id: I.Text, opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text, createdAt: I.Int });
-  const UpcomingGameInput = I.Record({ opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text });
-  const PushSubscription = I.Variant({
-    WebPush: I.Record({ endpoint: I.Text, p256dh: I.Text, auth: I.Text }),
-    Native: I.Record({ token: I.Text, platform: I.Text }),
-  });
-  const ResultSub = I.Variant({ ok: I.Opt(PushSubscription), err: I.Text });
-  const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
-  const ResultGame = I.Variant({ ok: UpcomingGame, err: I.Text });
-  return I.Service({
-    createProfile:        I.Func([ProfileUpd],       [ResultP],        []),
-    updateProfile:        I.Func([ProfileUpd],       [ResultP],        []),
-    getMyProfile:         I.Func([],                 [I.Opt(Profile)], ["query"]),
-    getProfile:           I.Func([I.Principal],      [I.Opt(Profile)], ["query"]),
-    getPublicProfile:     I.Func([I.Principal],      [I.Opt(PublicProfile)], ["query"]),
-    setStudyPace:         I.Func([I.Nat],             [ResultPace],     []),
-    recordArticleStudied: I.Func([I.Text, I.Nat],    [],               []),
-    recordWeeklyQuizResult: I.Func([I.Nat, I.Nat, I.Nat], [],          []),
-    recordMonthlyQuizResult: I.Func([I.Nat, I.Nat, I.Vec(I.Tuple(I.Text, I.Nat))], [], []),
-    getMyStudyPace:       I.Func([],                 [I.Opt(StudyPace)], ["query"]),
-    getMyProgress:        I.Func([],                 [I.Vec(ArticleProgress)], ["query"]),
-    getWeeklySchedule:    I.Func([I.Vec(I.Text)],     [WeeklySchedule], ["query"]),
-    getWeeklyQuizHistory: I.Func([],                 [I.Vec(WeeklyQuizResult)], ["query"]),
-    getMonthlyQuizHistory: I.Func([],                [I.Vec(MonthlyQuizResult)], ["query"]),
-    becomeCoordinator:    I.Func([],                 [ResultP],        []),
-    linkExternalAccount:  I.Func([I.Text, I.Text],   [ResultUnit],     []),
-    unlinkExternalAccount: I.Func([I.Text],          [ResultUnit],     []),
-    getMyLinkedAccounts:  I.Func([],                 [I.Vec(LinkedAccount)], ["query"]),
-    addUpcomingGame:      I.Func([UpcomingGameInput], [ResultGame],    []),
-    removeUpcomingGame:   I.Func([I.Text],           [ResultUnit],     []),
-    getMyUpcomingGames:   I.Func([],                 [I.Vec(UpcomingGame)], ["query"]),
-    registerPushSubscription: I.Func([PushSubscription], [ResultUnit], []),
-    unregisterPushSubscription: I.Func([],           [ResultUnit],     []),
-    getMyPushSubscription: I.Func([],                [I.Opt(PushSubscription)], ["query"]),
-    getSubscriptionFor:   I.Func([I.Principal],       [ResultSub],      ["query"]),
-    metrics:              I.Func([],                 [I.Record({ userCount: I.Nat })], ["query"]),
-  });
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,33 +52,7 @@ const MOCK_PROFILE: UserProfile = {
 const CANISTER_ID = canisterId("user");
 
 function actor() {
-  return createActor<{
-    createProfile:        (u: ProfileUpdate) => Promise<{ ok: UserProfile } | { err: string }>;
-    updateProfile:        (u: ProfileUpdate) => Promise<{ ok: UserProfile } | { err: string }>;
-    getMyProfile:         ()                 => Promise<[] | [UserProfile]>;
-    getProfile:           (p: any)           => Promise<[] | [UserProfile]>;
-    getPublicProfile:     (p: any)           => Promise<[] | [PublicProfile]>;
-    setStudyPace:         (n: bigint)        => Promise<{ ok: StudyPace } | { err: string }>;
-    recordArticleStudied: (articleId: string, score: bigint) => Promise<undefined>;
-    recordWeeklyQuizResult: (weekNumber: bigint, newScore: bigint, retentionScore: bigint) => Promise<undefined>;
-    recordMonthlyQuizResult: (month: bigint, score: bigint, articleScores: [string, bigint][]) => Promise<undefined>;
-    getMyStudyPace:       ()                 => Promise<[] | [StudyPace]>;
-    getMyProgress:        ()                 => Promise<ArticleProgress[]>;
-    getWeeklySchedule:    (ids: string[])    => Promise<WeeklySchedule>;
-    getWeeklyQuizHistory: ()                 => Promise<WeeklyQuizResult[]>;
-    getMonthlyQuizHistory: ()                => Promise<MonthlyQuizResult[]>;
-    becomeCoordinator:    ()                 => Promise<{ ok: UserProfile } | { err: string }>;
-    linkExternalAccount:  (provider: string, externalId: string) => Promise<{ ok: null } | { err: string }>;
-    unlinkExternalAccount: (provider: string) => Promise<{ ok: null } | { err: string }>;
-    getMyLinkedAccounts:  ()                 => Promise<LinkedAccount[]>;
-    addUpcomingGame:      (input: { opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string }) => Promise<{ ok: UpcomingGame } | { err: string }>;
-    removeUpcomingGame:   (id: string)       => Promise<{ ok: null } | { err: string }>;
-    getMyUpcomingGames:   ()                 => Promise<UpcomingGame[]>;
-    registerPushSubscription: (sub: PushSubscriptionInput) => Promise<{ ok: null } | { err: string }>;
-    unregisterPushSubscription: ()           => Promise<{ ok: null } | { err: string }>;
-    getMyPushSubscription: ()                => Promise<[] | [PushSubscriptionInput]>;
-    getSubscriptionFor:   (p: any)           => Promise<{ ok: [] | [PushSubscriptionInput] } | { err: string }>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const userService = {

@@ -1,0 +1,157 @@
+type UserStats = 
+ record {
+   accuracy: float64;
+   avgElapsedSec: float64;
+   bestStreak: nat;
+   displayName: text;
+   elo: float64;
+   examCount: nat;
+   "principal": principal;
+   sport: text;
+   state: text;
+   streak: nat;
+   updatedAt: int;
+ };
+type SortKey = 
+ variant {
+   Accuracy;
+   Elo;
+   Speed;
+ };
+type SkillCounters = 
+ record {
+   bestSpeedStreak: nat;
+   casebookCorrect: nat;
+   casebookTotal: nat;
+   speedStreak: nat;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: UserStats;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: vec record {
+             principal;
+             vec nat;
+           };
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: Group;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: GroupChallenge;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+type PublicStats = 
+ record {
+   accuracy: float64;
+   avgElapsedSec: float64;
+   displayName: text;
+   elo: float64;
+   "principal": principal;
+   streak: nat;
+ };
+type LeaderboardEntry = 
+ record {
+   accuracy: float64;
+   avgElapsedSec: float64;
+   displayName: text;
+   elo: float64;
+   "principal": principal;
+   rank: nat;
+   streak: nat;
+ };
+type GroupLeaderboardEntry = 
+ record {
+   displayName: text;
+   "principal": principal;
+   rank: nat;
+   weeklyAccuracy: float64;
+ };
+type GroupChallenge = 
+ record {
+   createdAt: int;
+   deadline: int;
+   groupId: text;
+   id: text;
+   title: text;
+ };
+type Group = 
+ record {
+   createdAt: int;
+   id: text;
+   isPrivate: bool;
+   memberCount: nat;
+   name: text;
+   owner: principal;
+   sport: text;
+   state: text;
+ };
+type EloSnapshot = 
+ record {
+   accuracy: float64;
+   elo: float64;
+   timestamp: int;
+ };
+type DailyActivity = 
+ record {
+   activityDay: int;
+   answeredToday: nat;
+   currentStreak: nat;
+   lastQualifyingDay: int;
+   longestStreak: nat;
+ };
+service : {
+  ackPushEvent: (p: principal, milestone: nat) -> (Result);
+  addFriend: (friend: principal) -> (Result);
+  /// Counts a finished, canister-graded exam session toward the caller's
+  /// ELO, accuracy and streak. The score comes from the exam canister, never
+  /// from the browser; each session counts once.
+  claimExamResult: (sessionId: text, displayName: text, state: text) ->
+   (Result_4);
+  createGroup: (name: text, sport: text, state: text, isPrivate: bool) ->
+   (Result_2);
+  getDailyStreak: () -> (DailyActivity) query;
+  getFriendPrincipals: () -> (vec principal) query;
+  getFriends: (sport: text, limit: nat, sortBy: SortKey) ->
+   (vec LeaderboardEntry) query;
+  getGroup: (groupId: text) -> (opt Group) query;
+  getGroupChallenges: (groupId: text) -> (vec GroupChallenge) query;
+  getGroupLeaderboard: (groupId: text) -> (vec GroupLeaderboardEntry) query;
+  getMyEloHistory: () -> (vec EloSnapshot) query;
+  getMyGroups: () -> (vec Group) query;
+  getMyStats: () -> (opt UserStats) query;
+  getNational: (sport: text, limit: nat, sortBy: SortKey) ->
+   (vec LeaderboardEntry) query;
+  getPendingPushEvents: () -> (Result_3);
+  getPublicStats: (p: principal) -> (opt PublicStats) query;
+  getSkillCounters: () -> (SkillCounters) query;
+  getState: (sport: text, state: text, limit: nat, sortBy: SortKey) ->
+   (vec LeaderboardEntry) query;
+  getStats: (p: principal) -> (opt UserStats) query;
+  joinGroup: (groupId: text) -> (Result_2);
+  leaveGroup: (groupId: text) -> (Result);
+  listPublicGroups: (sport: text) -> (vec Group) query;
+  metrics: () -> (record {userCount: nat;}) query;
+  postGroupChallenge: (groupId: text, title: text, deadline: int) ->
+   (Result_1);
+  recordAnswerSignal: (isCorrect: bool, elapsedSec: nat, isCasebook: 
+   bool) -> ();
+  recordExamResult: (_score: nat, _questionCount: nat, _displayName: 
+   text, _sport: text, _state: text, _avgElapsedSec: nat) -> ();
+  recordQuestionsAnswered: (count: nat) -> (DailyActivity);
+  removeFriend: (friend: principal) -> (Result);
+  setAdmin: (p: principal) -> (Result);
+  setPushRelay: (p: opt principal) -> (Result);
+}

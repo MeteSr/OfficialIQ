@@ -12,6 +12,7 @@ import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
 import Env "../lib/Env";
+import Types "../lib/Types";
 import Set "mo:core/Set";
 
 persistent actor Ranking {
@@ -212,11 +213,6 @@ persistent actor Ranking {
 
   // ─── Graded results (from the exam canister) ───────────────────────────────
 
-  type GradedResult = {
-    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
-    sportId : Text; articleIds : [Text]; questionIds : [Text];
-    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
-  };
 
   // Exam sessions already counted, so one good session can't be claimed twice.
   var claimedSessions : Set.Set<Text> = Set.empty<Text>();
@@ -230,7 +226,7 @@ persistent actor Ranking {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
     let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err("Exam canister not configured") };
-    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let exam = actor (Principal.toText(examId)) : Types.ExamResults;
     let r = switch (await exam.gradedResult(sessionId)) {
       case (?r) r;
       case null return #err("No finished graded exam with that id");

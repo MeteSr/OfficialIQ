@@ -8,6 +8,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Env "../lib/Env";
+import Types "../lib/Types";
 import Index "../lib/Index";
 import Set "mo:core/Set";
 
@@ -123,11 +124,6 @@ persistent actor Challenge {
     #err("Challenges are graded by OfficialIQ now. Update the app.")
   };
 
-  type GradedResult = {
-    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
-    sportId : Text; articleIds : [Text]; questionIds : [Text];
-    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
-  };
 
   var usedSessions : Set.Set<Text> = Set.empty<Text>();
 
@@ -136,7 +132,7 @@ persistent actor Challenge {
   /// questions and can be used once.
   public shared ({ caller }) func submitGradedResult(id : Text, sessionId : Text) : async Result.Result<Challenge, Text> {
     let examId = switch (Env.canisterId<system>("exam")) { case (?e) e; case null return #err("Exam canister not configured") };
-    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let exam = actor (Principal.toText(examId)) : Types.ExamResults;
     let r = switch (await exam.gradedResult(sessionId)) {
       case (?r) r;
       case null return #err("No finished graded exam with that id");

@@ -1,0 +1,64 @@
+type Result_4 = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: record {
+         limitPerDay: nat;
+         usedToday: nat;
+       };
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: blob;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: vec record {
+             text;
+             text;
+           };
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
+service : {
+  askRuleAssistant: (question: text, context: text) -> (Result_4);
+  generatePersonalizedDrills: (weakAreasContext: text, count: nat) ->
+   (Result_4);
+  generateScenarios: (instructions: text, articleContext: text, count:
+   nat) -> (Result_4);
+  getGlobalUsage: () -> (Result_3) query;
+  getMyRateLimitStatus: () ->
+   (record {
+      limitPerDay: nat;
+      resetAt: int;
+      used: nat;
+    }) query;
+  httpPost: (url: text, headers: vec HttpHeader, bodyJson: text, maxBytes:
+   nat64) -> (Result_2);
+  isAdminCaller: () -> (bool) query;
+  isConfigured: () -> (bool) query;
+  listPromptTemplates: () -> (Result_1) query;
+  metrics: () -> (record {
+                    aiConfigured: bool;
+                    ok: bool;
+                  }) query;
+  setAdmin: (p: principal) -> (Result);
+  setAnthropicKey: (key: text) -> (Result);
+  setClaudeModel: (model: text) -> (Result);
+  setGlobalDailyLimit: (limit: nat) -> (Result);
+  setPromptTemplate: (name: text, content: text) -> (Result);
+}

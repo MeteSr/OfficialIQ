@@ -10,12 +10,13 @@ import Principal "mo:core/Principal";
 import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
+import Types "../lib/Types";
 
 persistent actor Exam {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type ExamMode = { #Solo; #ShareLink; #Timed; #Certification };
+  public type ExamMode = Types.ExamMode;
 
   public type ExamConfig = {
     sportId    : Text;
@@ -261,28 +262,17 @@ persistent actor Exam {
   // read the result from this canister (gradedResult) instead of trusting a
   // score from the browser.
 
-  public type Difficulty = { #Beginner; #Intermediate; #Advanced; #Expert };
-  public type Choice = { id : Text; text : Text };
+  public type Difficulty = Types.Difficulty;
+  public type Choice = Types.Choice;
 
-  // Mirrors question.Question (the subset this canister needs).
-  type FullQuestion = {
-    id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
-    choices : [Choice]; correctId : Text; explanation : Text; difficulty : Difficulty;
-    isCasebook : Bool; isPointOfEmphasis : Bool; createdAt : Int;
-  };
+  type FullQuestion = Types.Question;
 
   public type QuestionView = {
     id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
     choices : [Choice]; difficulty : Difficulty; isCasebook : Bool; isPointOfEmphasis : Bool;
   };
 
-  public type Pick = {
-    articleIds : [Text];
-    casebook   : Bool;
-    count      : Nat;
-    difficulty : ?Difficulty;
-    adaptive   : Bool;
-  };
+  public type Pick = Types.ExamPick;
 
   public type QuestionSource = {
     #Picks      : [Pick];  // the canister picks questions (quizzes, cert exams)
@@ -302,22 +292,8 @@ persistent actor Exam {
 
   public type GradedFinish = { session : ExamSession; feedback : [AnswerFeedback] };
 
-  // What other canisters read: the server-computed result of a finished,
-  // graded session. score counts unanswered questions as wrong.
-  public type GradedResult = {
-    id            : Text;
-    owner         : Principal;
-    mode          : ExamMode;
-    sportId       : Text;
-    articleIds    : [Text];
-    questionIds   : [Text];
-    questionCount : Nat;
-    answered      : Nat;
-    correct       : Nat;
-    score         : Nat;
-    avgElapsedSec : Nat;
-    finishedAt    : Int;
-  };
+  // What other canisters read (lib/Types.mo).
+  public type GradedResult = Types.GradedResult;
 
   type KeyEntry = { questionId : Text; correctId : Text; explanation : Text; citation : Text };
 

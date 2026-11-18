@@ -1,0 +1,73 @@
+type SnapshotInput = 
+ record {
+   accuracyTrend: text;
+   avgScore: nat;
+   displayName: text;
+   examsCompleted: nat;
+   monthsActive: nat;
+   sport: text;
+   state: text;
+   studyHoursEstimated: nat;
+   topStrongest: vec ArticleStat;
+   topWeakest: vec ArticleStat;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: ReportSnapshot;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: ReportShare;
+ };
+type ReportSnapshot = 
+ record {
+   accuracyTrend: text;
+   avgScore: nat;
+   displayName: text;
+   examsCompleted: nat;
+   generatedAt: int;
+   id: text;
+   isPublic: bool;
+   monthsActive: nat;
+   owner: principal;
+   sport: text;
+   state: text;
+   studyHoursEstimated: nat;
+   topStrongest: vec ArticleStat;
+   topWeakest: vec ArticleStat;
+ };
+type ReportShare = 
+ record {
+   coordinator: principal;
+   id: text;
+   reportId: text;
+   seen: bool;
+   sharedAt: int;
+ };
+type ArticleStat = 
+ record {
+   articleId: text;
+   masteryScore: nat;
+   title: text;
+ };
+service : {
+  generateReport: (input: SnapshotInput) -> (Result_1);
+  getMyReports: () -> (vec ReportSnapshot) query;
+  getMyUnseenShareCount: () -> (nat) query;
+  getReport: (id: text) -> (opt ReportSnapshot) query;
+  getSharedWithMe: () -> (vec ReportShare) query;
+  markShareSeen: (id: text) -> (Result_2);
+  metrics: () -> (record {
+                    reportCount: nat;
+                    shareCount: nat;
+                  }) query;
+  setPublic: (id: text, isPublic: bool) -> (Result_1);
+  shareWithCoordinator: (reportId: text, coordinator: principal) -> (Result);
+}

@@ -1,0 +1,87 @@
+type Result_6 = 
+ variant {
+   err: text;
+   ok: Assignment;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: vec Completion;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: vec Assignment;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: vec principal;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: AssociationRec;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: Completion;
+ };
+type Completion = 
+ record {
+   assignmentId: text;
+   completedAt: int;
+   member: principal;
+   score: nat;
+ };
+type AssociationRec = 
+ record {
+   coordinator: principal;
+   createdAt: int;
+   id: text;
+   joinCode: text;
+   name: text;
+   sport: text;
+ };
+type Assignment = 
+ record {
+   articleIds: vec text;
+   associationId: text;
+   casebook: bool;
+   createdAt: int;
+   dueAt: int;
+   id: text;
+   targetMembers: vec principal;
+   title: text;
+ };
+service : {
+  createAssignment: (associationId: text, title: text, articleIds: vec text,
+   casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_6);
+  createAssociation: (name: text, sport: text) -> (Result_2);
+  getAssignmentCompletions: (assignmentId: text) -> (Result_5) query;
+  getAssociation: (id: text) -> (opt AssociationRec) query;
+  getAssociationAssignments: (id: text) -> (Result_4) query;
+  getAssociationMembers: (id: text) -> (Result_3) query;
+  getMyAssignments: () -> (vec Assignment) query;
+  getMyAssociations: () -> (vec AssociationRec) query;
+  getMyCompletions: () -> (vec Completion) query;
+  getMyCoordinatedAssociations: () -> (vec AssociationRec) query;
+  isCoordinatorOf: (coordinator: principal, member: principal) ->
+   (bool) query;
+  joinAssociation: (joinCode: text) -> (Result_2);
+  metrics: () -> (record {
+                    assignmentCount: nat;
+                    associationCount: nat;
+                  }) query;
+  recordCompletion: (_assignmentId: text, _score: nat) -> (Result_1);
+  /// Records an assignment completion from a finished exam session graded by
+  /// the exam canister, taken on the assignment's articles. Each session
+  /// counts once; retaking replaces the earlier completion.
+  recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result);
+}

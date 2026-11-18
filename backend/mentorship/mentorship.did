@@ -1,0 +1,70 @@
+type Result_3 = 
+ variant {
+   err: text;
+   ok: Annotation;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: vec Annotation;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: MentorLink;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+type MentorLink = 
+ record {
+   answers: vec AnswerSnapshot;
+   avgElapsedSec: opt nat;
+   createdAt: int;
+   examId: text;
+   expiresAt: int;
+   id: text;
+   mentorPrincipal: opt principal;
+   owner: principal;
+   revoked: bool;
+   score: nat;
+   sportId: text;
+   token: text;
+ };
+type AnswerSnapshot = 
+ record {
+   chosenId: text;
+   correctId: text;
+   elapsedSec: nat;
+   isCorrect: bool;
+   questionId: text;
+ };
+type Annotation = 
+ record {
+   createdAt: int;
+   id: text;
+   linkId: text;
+   mentor: principal;
+   note: text;
+   questionId: text;
+   seen: bool;
+ };
+service : {
+  addAnnotation: (linkId: text, questionId: text, note: text) -> (Result_3);
+  createMentorLink: (examId: text, sportId: text, score: nat, avgElapsedSec:
+   opt nat, answers: vec AnswerSnapshot) -> (Result_1);
+  getAnnotationsForLink: (linkId: text) -> (Result_2) query;
+  getMentorDashboard: () -> (vec MentorLink) query;
+  getMyAnnotations: () -> (vec Annotation) query;
+  getMyMentorLinks: () -> (vec MentorLink) query;
+  getMyUnseenAnnotationCount: () -> (nat) query;
+  markAnnotationSeen: (id: text) -> (Result);
+  metrics: () -> (record {
+                    annotationCount: nat;
+                    linkCount: nat;
+                  }) query;
+  openMentorLink: (token: text) -> (Result_1);
+  revokeMentorLink: (id: text) -> (Result);
+}

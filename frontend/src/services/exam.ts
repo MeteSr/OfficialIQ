@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/exam";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,74 +70,12 @@ export function unrevealed(v: QuestionView): import("./question").Question {
   return { ...v, correctId: "", explanation: "", createdAt: 0n };
 }
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Mode    = I.Variant({ Solo: I.Null, ShareLink: I.Null, Timed: I.Null, Certification: I.Null });
-  const Config  = I.Record({ sportId: I.Text, articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, secPerQ: I.Nat, mode: Mode });
-  const Answer  = I.Record({ questionId: I.Text, chosenId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat });
-  const Session = I.Record({
-    id: I.Text, owner: I.Principal, config: Config, questionIds: I.Vec(I.Text),
-    answers: I.Vec(Answer), score: I.Opt(I.Nat), avgElapsedSec: I.Opt(I.Nat), shareToken: I.Opt(I.Text),
-    startedAt: I.Int, finishedAt: I.Opt(I.Int),
-  });
-  const Template = I.Record({
-    id: I.Text, name: I.Text, sportId: I.Text, questionCount: I.Nat, timeLimitSec: I.Nat,
-    casebookRatioPct: I.Nat, passThresholdPct: I.Nat,
-    articleWeights: I.Vec(I.Tuple(I.Text, I.Nat)), createdAt: I.Int,
-  });
-  const ResultS = I.Variant({ ok: Session, err: I.Text });
-  const Difficulty = I.Variant({ Beginner: I.Null, Intermediate: I.Null, Advanced: I.Null, Expert: I.Null });
-  const Choice = I.Record({ id: I.Text, text: I.Text });
-  const QView = I.Record({
-    id: I.Text, sportId: I.Text, articleId: I.Text, citation: I.Text, stem: I.Text,
-    choices: I.Vec(Choice), difficulty: Difficulty, isCasebook: I.Bool, isPointOfEmphasis: I.Bool,
-  });
-  const Pick = I.Record({ articleIds: I.Vec(I.Text), casebook: I.Bool, count: I.Nat, difficulty: I.Opt(Difficulty), adaptive: I.Bool });
-  const Source = I.Variant({ Picks: I.Vec(Pick), Ids: I.Vec(I.Text), ShareToken: I.Text });
-  const Feedback = I.Record({ questionId: I.Text, isCorrect: I.Bool, correctId: I.Text, explanation: I.Text, citation: I.Text });
-  const ResultStart = I.Variant({ ok: I.Record({ session: Session, questions: I.Vec(QView) }), err: I.Text });
-  const ResultFeedback = I.Variant({ ok: Feedback, err: I.Text });
-  const ResultFinish = I.Variant({ ok: I.Record({ session: Session, feedback: I.Vec(Feedback) }), err: I.Text });
-  const ResultText = I.Variant({ ok: I.Text, err: I.Text });
-  return I.Service({
-    createSession:      I.Func([Config, I.Vec(I.Text)], [ResultS],        []),
-    submitExam:         I.Func([I.Text, I.Vec(Answer)],  [ResultS],        []),
-    getMyExams:         I.Func([],                        [I.Vec(Session)], ["query"]),
-    getExamsFor:        I.Func([I.Principal],              [I.Vec(Session)], ["query"]),
-    getMemberExams:     I.Func([I.Principal],              [I.Vec(Session)], ["composite_query"]),
-    startGradedSession: I.Func([Config, Source],          [ResultStart],    []),
-    createShareLink:    I.Func([Config, I.Vec(Pick)],      [ResultText],     []),
-    answerQuestion:     I.Func([I.Text, I.Text, I.Text, I.Nat], [ResultFeedback], []),
-    finishSession:      I.Func([I.Text],                  [ResultFinish],   []),
-    submitGradedAnswers: I.Func([I.Text, I.Vec(I.Tuple(I.Text, I.Text, I.Nat))], [ResultFinish], []),
-    getByShareToken:    I.Func([I.Text],                  [I.Opt(Session)], ["query"]),
-    listExamTemplates:  I.Func([I.Text],                  [I.Vec(Template)], ["query"]),
-    getExamTemplate:    I.Func([I.Text],                  [I.Opt(Template)], ["query"]),
-    metrics:            I.Func([],                        [I.Record({ sessionCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("exam");
 
 function actor() {
-  return createActor<{
-    createSession:     (config: ExamConfig, qIds: string[]) => Promise<{ ok: ExamSession } | { err: string }>;
-    submitExam:        (id: string, answers: AnswerRecord[]) => Promise<{ ok: ExamSession } | { err: string }>;
-    getMyExams:        () => Promise<ExamSession[]>;
-    getExamsFor:       (p: any) => Promise<ExamSession[]>;
-    getMemberExams:    (p: any) => Promise<ExamSession[]>;
-    startGradedSession: (config: ExamConfig, source: QuestionSource) => Promise<{ ok: GradedStart } | { err: string }>;
-    createShareLink:   (config: ExamConfig, picks: Pick[]) => Promise<{ ok: string } | { err: string }>;
-    answerQuestion:    (sessionId: string, questionId: string, chosenId: string, elapsedSec: bigint) => Promise<{ ok: AnswerFeedback } | { err: string }>;
-    finishSession:     (sessionId: string) => Promise<{ ok: GradedFinish } | { err: string }>;
-    submitGradedAnswers: (sessionId: string, answers: [string, string, bigint][]) => Promise<{ ok: GradedFinish } | { err: string }>;
-    getByShareToken:   (token: string) => Promise<[] | [ExamSession]>;
-    listExamTemplates: (sportId: string) => Promise<ExamTemplate[]>;
-    getExamTemplate:   (id: string) => Promise<[] | [ExamTemplate]>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const examService = {

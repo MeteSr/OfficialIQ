@@ -1,8 +1,8 @@
 # Canister integration tests
 
 Real calls against the backend canisters on a local icp network, through the
-app's own IDL (`src/services/*`), so they also catch a canister change the
-app's hand-written IDL doesn't match. CI runs them on every PR
+IDL the app uses (`src/declarations`, generated from the canisters by
+`scripts/generate-declarations.sh`). CI runs them on every PR
 (`.github/workflows/ci.yml`, job "Canister integration tests").
 
 Run them locally (from the repo root, in WSL's own filesystem):

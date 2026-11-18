@@ -1,0 +1,204 @@
+type Result_6 = 
+ variant {
+   err: text;
+   ok: AnswerFeedback;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: GradedStart;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: ExamSession;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: GradedFinish;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: ExamTemplate;
+ };
+type QuestionView = 
+ record {
+   articleId: text;
+   choices: vec Choice;
+   citation: text;
+   difficulty: Difficulty;
+   id: text;
+   isCasebook: bool;
+   isPointOfEmphasis: bool;
+   sportId: text;
+   stem: text;
+ };
+type QuestionSource = 
+ variant {
+   Ids: vec text;
+   Picks: vec Pick;
+   ShareToken: text;
+ };
+type Pick = 
+ record {
+   adaptive: bool;
+   articleIds: vec text;
+   casebook: bool;
+   count: nat;
+   difficulty: opt Difficulty;
+ };
+type GradedStart = 
+ record {
+   questions: vec QuestionView;
+   session: ExamSession;
+ };
+type GradedResult = 
+ record {
+   answered: nat;
+   articleIds: vec text;
+   avgElapsedSec: nat;
+   correct: nat;
+   finishedAt: int;
+   id: text;
+   mode: ExamMode;
+   owner: principal;
+   questionCount: nat;
+   questionIds: vec text;
+   score: nat;
+   sportId: text;
+ };
+type GradedFinish = 
+ record {
+   feedback: vec AnswerFeedback;
+   session: ExamSession;
+ };
+type ExamTemplateInput = 
+ record {
+   articleWeights: vec record {
+                         text;
+                         nat;
+                       };
+   casebookRatioPct: nat;
+   name: text;
+   passThresholdPct: nat;
+   questionCount: nat;
+   sportId: text;
+   timeLimitSec: nat;
+ };
+type ExamTemplate = 
+ record {
+   articleWeights: vec record {
+                         text;
+                         nat;
+                       };
+   casebookRatioPct: nat;
+   createdAt: int;
+   id: text;
+   name: text;
+   passThresholdPct: nat;
+   questionCount: nat;
+   sportId: text;
+   timeLimitSec: nat;
+ };
+type ExamSession = 
+ record {
+   answers: vec AnswerRecord;
+   avgElapsedSec: opt nat;
+   config: ExamConfig;
+   finishedAt: opt int;
+   id: text;
+   owner: principal;
+   questionIds: vec text;
+   score: opt nat;
+   shareToken: opt text;
+   startedAt: int;
+ };
+type ExamMode = 
+ variant {
+   Certification;
+   ShareLink;
+   Solo;
+   Timed;
+ };
+type ExamConfig = 
+ record {
+   articleIds: vec text;
+   casebook: bool;
+   count: nat;
+   mode: ExamMode;
+   secPerQ: nat;
+   sportId: text;
+ };
+type Difficulty = 
+ variant {
+   Advanced;
+   Beginner;
+   Expert;
+   Intermediate;
+ };
+type Choice = 
+ record {
+   id: text;
+   "text": text;
+ };
+type AnswerRecord = 
+ record {
+   chosenId: text;
+   elapsedSec: nat;
+   isCorrect: bool;
+   questionId: text;
+ };
+type AnswerFeedback = 
+ record {
+   citation: text;
+   correctId: text;
+   explanation: text;
+   isCorrect: bool;
+   questionId: text;
+ };
+service : {
+  /// Answers one question and reveals it. One answer per question; a
+  /// timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
+  answerQuestion: (sessionId: text, questionId: text, chosenId: text,
+   elapsedSec: nat) -> (Result_6);
+  createSession: (config: ExamConfig, questionIds: vec text) -> (Result_2);
+  createShareLink: (config: ExamConfig, picks: vec Pick) -> (Result_5);
+  /// Finishes a session (unanswered questions count as wrong) and returns
+  /// the full answer key. Safe to call again.
+  finishSession: (sessionId: text) -> (Result_1);
+  getByShareToken: (token: text) -> (opt ExamSession) query;
+  getExamTemplate: (id: text) -> (opt ExamTemplate) query;
+  getExamsFor: (p: principal) -> (vec ExamSession) query;
+  getMemberExams: (p: principal) -> (vec ExamSession) composite_query;
+  getMyExams: () -> (vec ExamSession) query;
+  /// The server-computed result of a finished graded session, for the
+  /// session's owner and the ranking/challenge/association canisters.
+  gradedResult: (sessionId: text) -> (opt GradedResult) query;
+  listExamTemplates: (sportId: text) -> (vec ExamTemplate) query;
+  metrics: () -> (record {sessionCount: nat;}) query;
+  setAdmin: (p: principal) -> (Result_4);
+  startGradedSession: (config: ExamConfig, source: QuestionSource) ->
+   (Result_3);
+  submitExam: (_id: text, _answers: vec AnswerRecord) -> (Result_2);
+  /// Certification-style exams: answers are hidden until the end, so they
+  /// arrive as one batch, are graded here, and the session is finished.
+  submitGradedAnswers: (sessionId: text, answers:
+   vec record {
+         text;
+         text;
+         nat;
+       }) -> (Result_1);
+  upsertExamTemplate: (input: ExamTemplateInput) -> (Result);
+}

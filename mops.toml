@@ -14,30 +14,40 @@ ic = "6.0.0"
 
 [canisters.user]
 main = "backend/user/main.mo"
+candid = "backend/user/user.did"
 
 [canisters.content]
 main = "backend/content/main.mo"
+candid = "backend/content/content.did"
 
 [canisters.question]
 main = "backend/question/main.mo"
+candid = "backend/question/question.did"
 
 [canisters.exam]
 main = "backend/exam/main.mo"
+candid = "backend/exam/exam.did"
 
 [canisters.ranking]
 main = "backend/ranking/main.mo"
+candid = "backend/ranking/ranking.did"
 
 [canisters.challenge]
 main = "backend/challenge/main.mo"
+candid = "backend/challenge/challenge.did"
 
 [canisters.ai_proxy]
 main = "backend/ai_proxy/main.mo"
+candid = "backend/ai_proxy/ai_proxy.did"
 
 [canisters.mentorship]
 main = "backend/mentorship/main.mo"
+candid = "backend/mentorship/mentorship.did"
 
 [canisters.association]
 main = "backend/association/main.mo"
+candid = "backend/association/association.did"
 
 [canisters.report]
 main = "backend/report/main.mo"
+candid = "backend/report/report.did"

@@ -11,29 +11,17 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
 import Env "../lib/Env";
+import Types "../lib/Types";
 
 persistent actor Question {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type Difficulty = { #Beginner; #Intermediate; #Advanced; #Expert };
+  public type Difficulty = Types.Difficulty;
 
-  public type Choice = { id : Text; text : Text };
+  public type Choice = Types.Choice;
 
-  public type Question = {
-    id                : Text;
-    sportId           : Text;
-    articleId         : Text;
-    citation          : Text;
-    stem              : Text;
-    choices           : [Choice];
-    correctId         : Text;
-    explanation       : Text;
-    difficulty        : Difficulty;
-    isCasebook        : Bool;
-    isPointOfEmphasis : Bool;
-    createdAt         : Int;
-  };
+  public type Question = Types.Question;
 
   public type QuestionInput = {
     sportId           : Text;
@@ -335,13 +323,7 @@ persistent actor Question {
   // player. These two calls hand it full questions; only the exam canister
   // may make them (its ID comes from icp deploy's PUBLIC_CANISTER_ID:exam).
 
-  public type ExamPick = {
-    articleIds : [Text];
-    casebook   : Bool;
-    count      : Nat;
-    difficulty : ?Difficulty;
-    adaptive   : Bool; // most-overdue first for `player` (as getAdaptiveQuiz)
-  };
+  public type ExamPick = Types.ExamPick;
 
   func isExamCanister<system>(caller : Principal) : Bool {
     switch (Env.canisterId<system>("exam")) { case (?id) id == caller; case null false }
