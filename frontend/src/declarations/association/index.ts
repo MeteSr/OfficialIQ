@@ -52,6 +52,13 @@ export interface _SERVICE {
     Result_6
   >,
   'createAssociation' : ActorMethod<[string, string], Result_2>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / removes them from every association and its assignments, drops their
+   * / completions, and deletes the associations they coordinate (with their
+   * / assignments and everyone's completions of them). Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_1>,
   'getAssignmentCompletions' : ActorMethod<[string], Result_5>,
   'getAssociation' : ActorMethod<[string], [] | [AssociationRec]>,
   'getAssociationAssignments' : ActorMethod<[string], Result_4>,
@@ -97,6 +104,7 @@ export const Result_2 = IDL.Variant({
   'ok' : AssociationRec,
   'err' : IDL.Text,
 });
+export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Completion = IDL.Record({
   'member' : IDL.Principal,
   'completedAt' : IDL.Int,
@@ -115,7 +123,6 @@ export const Result_3 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Principal),
   'err' : IDL.Text,
 });
-export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
@@ -132,6 +139,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [],
     ),
   'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
   'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_5], ['query']),
   'getAssociation' : IDL.Func([IDL.Text], [IDL.Opt(AssociationRec)], ['query']),
   'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_4], ['query']),
@@ -187,6 +195,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'coordinator' : IDL.Principal,
   });
   const Result_2 = IDL.Variant({ 'ok' : AssociationRec, 'err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Completion = IDL.Record({
     'member' : IDL.Principal,
     'completedAt' : IDL.Int,
@@ -205,7 +214,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'ok' : IDL.Vec(IDL.Principal),
     'err' : IDL.Text,
   });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
   
   return IDL.Service({
@@ -222,6 +230,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [],
       ),
     'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
     'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_5], ['query']),
     'getAssociation' : IDL.Func(
         [IDL.Text],

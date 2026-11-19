@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
+import ReportQuestionButton from "../components/ReportQuestionButton";
 import { questionService, type Question, type UserQuestionHistory } from "../services/question";
 import { examService, unrevealed } from "../services/exam";
 import { rankingService } from "../services/ranking";
@@ -514,6 +515,7 @@ export default function QuizPage() {
             <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
+        {revealed && <ReportQuestionButton key={currentQ.id} questionId={currentQ.id} />}
       </div>
 
       <div style={{ padding: 16 }}>

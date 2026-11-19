@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { userService } from "../services/user";
+import { features } from "./features";
 
 const VAPID_PUBLIC_KEY = typeof VITE_VAPID_PUBLIC_KEY !== "undefined" ? VITE_VAPID_PUBLIC_KEY : "";
 
@@ -15,6 +16,16 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 export function isWebPushSupported(): boolean {
   return !Capacitor.isNativePlatform() && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+/**
+ * Whether this build can deliver streak notifications here at all: native
+ * push needs Firebase and an APNs key, web push the VAPID keys
+ * (src/lib/features.ts). The Me page hides the switch otherwise.
+ */
+export function isPushAvailable(): boolean {
+  if (Capacitor.isNativePlatform()) return features.nativePush;
+  return features.webPush && isWebPushSupported();
 }
 
 export async function isPushConfigured(): Promise<boolean> {
@@ -69,11 +80,17 @@ export async function disablePush(): Promise<void> {
 // Call once at app start (native shells only — no-op on web). The token
 // itself can't be requested synchronously; it shows up via this listener
 // some time after PushNotifications.register() resolves.
-export function registerNativePushListener() {
+export function registerNativePushListener(open?: (path: string) => void) {
   if (!Capacitor.isNativePlatform()) return;
   PushNotifications.addListener("registration", (token) => {
     userService.registerPushSubscription({
       Native: { token: token.value, platform: Capacitor.getPlatform() },
     }).catch(() => {});
+  });
+  // Tapping a notification opens the screen it points at (the relay sends
+  // `url` in the payload's data, as it does for Web Push).
+  PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+    const url = action.notification.data?.url;
+    if (open && typeof url === "string" && url.startsWith("/")) open(url);
   });
 }

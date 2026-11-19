@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type VideoSubmission, type CasebookPlay } from "../services/content";
+import { features } from "../lib/features";
+import { QuestionReportsPanel, AppErrorsPanel } from "../components/AdminPanels";
+
+type Tab = "questions" | "errors" | "clips";
 
 export default function ModerationQueuePage() {
   const navigate = useNavigate();
@@ -17,6 +21,7 @@ export default function ModerationQueuePage() {
   const [selectedPlay,  setSelectedPlay]  = useState<Record<string, string>>({});
   const [busyId,        setBusyId]        = useState<string | null>(null);
   const [loading,       setLoading]       = useState(true);
+  const [tab,           setTab]           = useState<Tab>("questions");
 
   useEffect(() => {
     if (!isAuthenticated) { setCheckingAdmin(false); return; }
@@ -42,7 +47,7 @@ export default function ModerationQueuePage() {
     }).finally(() => setLoading(false));
   }
 
-  useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
+  useEffect(() => { if (isAdmin && features.clipSubmissions) load(); }, [isAdmin]);
 
   async function handleApprove(s: VideoSubmission) {
     const playId = selectedPlay[s.id];
@@ -104,12 +109,25 @@ export default function ModerationQueuePage() {
           <span style={{ fontSize: 20 }}>🗂️</span>
           <span style={{ fontSize: 20, fontWeight: 700 }}>{t("moderation.title")}</span>
         </div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-          {t("moderation.pendingCount", { count: pending.length })}
+        <div role="tablist" style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          {(["questions", "errors", ...(features.clipSubmissions ? ["clips" as const] : [])] as Tab[]).map((k) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              style={{ minHeight: 36, padding: "0 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.4)", background: tab === k ? T.white : "transparent", color: tab === k ? T.navy : T.white, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              {t(`moderation.tab_${k}`)}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div style={{ padding: 16 }}>
+      {tab === "questions" && <div style={{ padding: 16 }}><QuestionReportsPanel /></div>}
+      {tab === "errors" && <div style={{ padding: 16 }}><AppErrorsPanel /></div>}
+      {tab === "clips" && <div style={{ padding: 16 }}>
+        <div style={{ fontSize: 13, color: T.muted, marginBottom: 12 }}>{t("moderation.pendingCount", { count: pending.length })}</div>
         {loading ? (
           <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : pending.length === 0 ? (
@@ -157,7 +175,7 @@ export default function ModerationQueuePage() {
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

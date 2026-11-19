@@ -23,6 +23,11 @@ export type Result_4 = { 'ok' : string } |
   { 'err' : string };
 export interface _SERVICE {
   'askRuleAssistant' : ActorMethod<[string, string], Result_4>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / drops their daily usage counter. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result>,
   'generatePersonalizedDrills' : ActorMethod<[string, bigint], Result_4>,
   'generateScenarios' : ActorMethod<[string, string, bigint], Result_4>,
   'getGlobalUsage' : ActorMethod<[], Result_3>,
@@ -45,6 +50,7 @@ export interface _SERVICE {
   'setPromptTemplate' : ActorMethod<[string, string], Result>,
 }
 export const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result_3 = IDL.Variant({
   'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
   'err' : IDL.Text,
@@ -58,10 +64,10 @@ export const Result_1 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
   'err' : IDL.Text,
 });
-export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
   'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result_4], []),
   'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result_4], []),
   'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
@@ -100,6 +106,7 @@ export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result_3 = IDL.Variant({
     'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
     'err' : IDL.Text,
@@ -110,10 +117,10 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'err' : IDL.Text,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
   return IDL.Service({
     'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
     'generatePersonalizedDrills' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [Result_4],

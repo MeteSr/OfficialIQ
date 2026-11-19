@@ -902,6 +902,34 @@ persistent actor Exam {
     Array.map<(Text, (Nat, Nat)), (Text, Nat)>(Map.toArray(totals), func((art, (c, t))) { (art, c * 100 / t) })
   };
 
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their exam sessions, share links, answer keys and any results
+  /// still waiting to be pushed. The user canister calls this before the
+  /// canisters those results go to. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (id in Index.take(sessionsByOwner, Principal.compare, p).values()) {
+      switch (Map.take(sessions, Text.compare, id)) {
+        case (?s) { switch (s.shareToken) { case (?t) Map.remove(shareIndex, Text.compare, t); case null {} } };
+        case null {};
+      };
+      Map.remove(answerKeys, Text.compare, id);
+      Map.remove(questionMeta, Text.compare, id);
+      Map.remove(outbox, Text.compare, id);
+      Set.remove(gradedIds, Text.compare, id);
+    };
+    let prefix = Principal.toText(p) # "|";
+    let keys = List.empty<Text>();
+    label scan for ((k, _) in Map.entriesFrom(fixedSetSessions, Text.compare, prefix)) {
+      if (not Text.startsWith(k, #text prefix)) break scan;
+      List.add(keys, k);
+    };
+    for (k in List.values(keys)) Map.remove(fixedSetSessions, Text.compare, k);
+    #ok(())
+  };
+
   public query func metrics() : async { sessionCount : Nat; pendingPushes : Nat; droppedPushes : Nat; answerKeys : Nat; prunedSessions : Nat } {
     { sessionCount = Map.size(sessions); pendingPushes = Map.size(outbox); droppedPushes; answerKeys = Map.size(answerKeys); prunedSessions }
   };

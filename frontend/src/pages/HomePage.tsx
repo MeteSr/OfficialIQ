@@ -11,6 +11,7 @@ import { MONTHLY_QUIZ_QUESTIONS, isInLastFiveDaysOfMonth, monthlyWindowDaysLeft 
 import { mentorshipService } from "../services/mentorship";
 import { reportService } from "../services/report";
 import { levelLabel, useSport } from "../lib/sport";
+import { features } from "../lib/features";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
@@ -320,9 +321,9 @@ export default function HomePage() {
         )}
 
         {/* Quick actions */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: features.audio ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
           {[
-            { label: t("home.audio"),      path: "/audio"    },
+            ...(features.audio ? [{ label: t("home.audio"), path: "/audio" }] : []),
             { label: t("home.commute"),    path: "/commute"  },
             { label: t("home.quickDrill"), path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (

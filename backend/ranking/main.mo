@@ -730,6 +730,58 @@ persistent actor Ranking {
     #ok(())
   };
 
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// drops their stats, history, streaks, friends and push events, takes
+  /// them off other people's friend lists and out of groups, and deletes the
+  /// groups they own. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    Map.remove(stats, Principal.compare, p);
+    Map.remove(examHistory, Principal.compare, p);
+    Map.remove(dailyActivity, Principal.compare, p);
+    Map.remove(skillCounters, Principal.compare, p);
+    Map.remove(pendingPushEvents, Principal.compare, p);
+    Map.remove(friends, Principal.compare, p);
+    // Others who added them as a friend. One pass over the friend lists,
+    // once per deleted account.
+    let friendOf = List.empty<(Principal, [Principal])>();
+    for ((owner, list) in Map.entries(friends)) {
+      if (Array.find<Principal>(list, func(f) { f == p }) != null) {
+        List.add(friendOf, (owner, Array.filter<Principal>(list, func(f) { f != p })));
+      };
+    };
+    for ((owner, list) in List.values(friendOf)) Map.add(friends, Principal.compare, owner, list);
+
+    let mine = switch (Map.take(myGroupIds, Principal.compare, p)) { case (?m) m; case null [] };
+    for (groupId in mine.values()) {
+      switch (Map.get(groups, Text.compare, groupId)) {
+        case null {};
+        case (?g) {
+          let members = switch (Map.get(groupMembers, Text.compare, groupId)) { case (?m) m; case null [] };
+          if (g.owner == p) {
+            // Their group goes with them.
+            for (m in members.values()) {
+              switch (Map.get(myGroupIds, Principal.compare, m)) {
+                case (?ids) Map.add(myGroupIds, Principal.compare, m, Array.filter<Text>(ids, func(id) { id != groupId }));
+                case null {};
+              };
+            };
+            Map.remove(groups, Text.compare, groupId);
+            Map.remove(groupMembers, Text.compare, groupId);
+            Map.remove(groupChallenges, Text.compare, groupId);
+          } else {
+            let kept = Array.filter<Principal>(members, func(m) { m != p });
+            Map.add(groupMembers, Text.compare, groupId, kept);
+            Map.add(groups, Text.compare, groupId, { g with memberCount = kept.size() });
+          };
+        };
+      };
+    };
+    #ok(())
+  };
+
   public query func metrics() : async { userCount : Nat } {
     { userCount = Map.size(stats) }
   };

@@ -33,8 +33,15 @@ export type ChallengeStatus = { 'Accepted' : null } |
   { 'Pending' : null };
 export type Result = { 'ok' : Challenge } |
   { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : string };
 export interface _SERVICE {
   'acceptChallenge' : ActorMethod<[string], Result>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes every challenge they sent or received. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_1>,
   'getChallenge' : ActorMethod<[string], [] | [Challenge]>,
   'getMyChallenges' : ActorMethod<[], Array<Challenge>>,
   'metrics' : ActorMethod<[], { 'challengeCount' : bigint }>,
@@ -76,9 +83,11 @@ export const Challenge = IDL.Record({
   'challenger' : IDL.Principal,
 });
 export const Result = IDL.Variant({ 'ok' : Challenge, 'err' : IDL.Text });
+export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
   'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
   'getMyChallenges' : IDL.Func([], [IDL.Vec(Challenge)], ['query']),
   'metrics' : IDL.Func(
@@ -124,9 +133,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'challenger' : IDL.Principal,
   });
   const Result = IDL.Variant({ 'ok' : Challenge, 'err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
   return IDL.Service({
     'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
     'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
     'getMyChallenges' : IDL.Func([], [IDL.Vec(Challenge)], ['query']),
     'metrics' : IDL.Func(

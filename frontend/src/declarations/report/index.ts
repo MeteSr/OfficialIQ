@@ -55,6 +55,12 @@ export interface SnapshotInput {
   'studyHoursEstimated' : bigint,
 }
 export interface _SERVICE {
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes their report cards and every share of them, and the shares
+   * / other officials sent them as a coordinator. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_2>,
   'generateReport' : ActorMethod<[SnapshotInput], Result_1>,
   'getMyReports' : ActorMethod<[], Array<ReportSnapshot>>,
   'getMyUnseenShareCount' : ActorMethod<[], bigint>,
@@ -68,6 +74,7 @@ export interface _SERVICE {
   'setPublic' : ActorMethod<[string, boolean], Result_1>,
   'shareWithCoordinator' : ActorMethod<[string, Principal], Result>,
 }
+export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const ArticleStat = IDL.Record({
   'title' : IDL.Text,
   'masteryScore' : IDL.Nat,
@@ -112,10 +119,10 @@ export const ReportShare = IDL.Record({
   'reportId' : IDL.Text,
   'coordinator' : IDL.Principal,
 });
-export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result = IDL.Variant({ 'ok' : ReportShare, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
   'generateReport' : IDL.Func([SnapshotInput], [Result_1], []),
   'getMyReports' : IDL.Func([], [IDL.Vec(ReportSnapshot)], ['query']),
   'getMyUnseenShareCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -134,6 +141,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
 export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ArticleStat = IDL.Record({
     'title' : IDL.Text,
     'masteryScore' : IDL.Nat,
@@ -175,10 +183,10 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'reportId' : IDL.Text,
     'coordinator' : IDL.Principal,
   });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result = IDL.Variant({ 'ok' : ReportShare, 'err' : IDL.Text });
   
   return IDL.Service({
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
     'generateReport' : IDL.Func([SnapshotInput], [Result_1], []),
     'getMyReports' : IDL.Func([], [IDL.Vec(ReportSnapshot)], ['query']),
     'getMyUnseenShareCount' : IDL.Func([], [IDL.Nat], ['query']),

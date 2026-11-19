@@ -34,6 +34,9 @@ export type PushSubscriptionInput =
   | { WebPush: { endpoint: string; p256dh: string; auth: string } }
   | { Native: { token: string; platform: string } };
 
+export type ClientErrorInput = { kind: string; message: string; stack: string; route: string; release: string; platform: string };
+export type ClientError = ClientErrorInput & { seq: bigint; at: bigint; signedIn: boolean };
+
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
 const MOCK_PROFILE: UserProfile = {
@@ -203,5 +206,40 @@ export const userService = {
     if (!CANISTER_ID) return null;
     const res = await actor().getMyPushSubscription();
     return res.length ? res[0] : null;
+  },
+
+  /**
+   * Deletes the caller's account. The profile is gone when this returns;
+   * the other canisters forget them shortly after (getDeletionStatus).
+   */
+  async deleteAccount(): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().deleteAccount();
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  /** How many canisters still hold the caller's data, or null when no deletion is running. */
+  async getDeletionStatus(): Promise<number | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getDeletionStatus();
+    return "InProgress" in res ? Number(res.InProgress.remaining) : null;
+  },
+
+  async logClientError(report: ClientErrorInput): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().logClientError(report);
+  },
+
+  /** Admin only: the newest app errors. */
+  async listClientErrors(limit = 100): Promise<ClientError[]> {
+    if (!CANISTER_ID) return [];
+    const res = await actor().listClientErrors(BigInt(limit));
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async isAdmin(): Promise<boolean> {
+    if (!CANISTER_ID) return false;
+    return actor().isAdminCaller();
   },
 };

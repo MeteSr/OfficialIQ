@@ -1,4 +1,5 @@
 import { canisterId } from "../lib/icEnv";
+import { sportOffered } from "../lib/features";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/content";
 import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays, getCachedAudioBlob } from "../lib/offlineDb";
@@ -128,7 +129,9 @@ export const contentService = {
   async listSports(): Promise<Sport[]> {
     if (!CANISTER_ID) return MOCK_SPORTS;
     try {
-      const sports = await actor().listSports();
+      // Sports this build doesn't offer (no licensed content yet) stay
+      // hidden even though the content canister has them registered.
+      const sports = (await actor().listSports()).filter(s => sportOffered(s.id));
       return sports.length ? sports : MOCK_SPORTS;
     } catch {
       return MOCK_SPORTS;
