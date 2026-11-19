@@ -1,10 +1,11 @@
 // Polls ranking.getPendingPushEvents() for streak milestones (7/30/100 days)
-// crossed since the last run and sends a notification to each subscribed
-// official, via their stored subscription in the user canister: Web Push for
-// the website, APNs for the iOS app, FCM for the Android app
-// (lib/nativePush.mjs). Acks each event on a successful send so it isn't
-// resent next run. A channel without its credentials is skipped and its
-// events stay queued until they're set.
+// crossed since the last run, and user.getPendingGameDayPushes() for games
+// starting within two hours (the game-day refresher, #63), and sends a
+// notification to each subscribed official, via their stored subscription
+// in the user canister: Web Push for the website, APNs for the iOS app, FCM
+// for the Android app (lib/nativePush.mjs). Acks each event on a successful
+// send so it isn't resent next run. A channel without its credentials is
+// skipped and its events stay queued until they're set.
 //
 // Motoko/the IC has no usable ECDSA-P256 signing primitive for VAPID JWTs
 // (threshold ECDSA is secp256k1, a different curve), so the actual signed,
@@ -55,8 +56,14 @@ const userIdlFactory = ({ IDL: I }) => {
   });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultSub = I.Variant({ ok: I.Opt(PushSubscription), err: I.Text });
+  const UpcomingGame = I.Record({
+    id: I.Text, opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text, createdAt: I.Int,
+  });
+  const ResultGameDay = I.Variant({ ok: I.Vec(I.Record({ official: I.Principal, game: UpcomingGame })), err: I.Text });
   return I.Service({
     getSubscriptionFor: I.Func([I.Principal], [ResultSub], ["query"]),
+    getPendingGameDayPushes: I.Func([], [ResultGameDay], ["query"]),
+    ackGameDayPush: I.Func([I.Text], [ResultUnit], []),
   });
 };
 
@@ -98,6 +105,20 @@ async function main() {
 
   let sent = 0, skipped = 0, errors = 0;
 
+  // How to reach a subscription on a channel this run has credentials for,
+  // or null (then the event stays queued for a later run).
+  function senderFor(sub, message) {
+    if ("WebPush" in sub && hasWebPush) {
+      return () => webpush.sendNotification(
+        { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
+        JSON.stringify(message),
+      );
+    }
+    if ("Native" in sub && sub.Native.platform === "ios" && apns) return () => apns.send(sub.Native.token, message);
+    if ("Native" in sub && sub.Native.platform === "android" && fcm) return () => fcm.send(sub.Native.token, message);
+    return null;
+  }
+
   for (const [memberPrincipal, milestones] of pending) {
     const subRes = await user.getSubscriptionFor(memberPrincipal);
     if ("err" in subRes) {
@@ -117,18 +138,7 @@ async function main() {
     for (const milestone of milestones) {
       const copy = MILESTONE_COPY[Number(milestone)] ?? { title: "OfficialIQ", body: `${milestone}-day streak!` };
 
-      const message = { title: copy.title, body: copy.body, url: "/home" };
-      let send = null;
-      if ("WebPush" in sub && hasWebPush) {
-        send = () => webpush.sendNotification(
-          { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
-          JSON.stringify(message),
-        );
-      } else if ("Native" in sub && sub.Native.platform === "ios" && apns) {
-        send = () => apns.send(sub.Native.token, message);
-      } else if ("Native" in sub && sub.Native.platform === "android" && fcm) {
-        send = () => fcm.send(sub.Native.token, message);
-      }
+      const send = senderFor(sub, { title: copy.title, body: copy.body, url: "/home" });
       if (!send) {
         // That channel isn't configured: keep the event for a later run.
         skipped++;
@@ -141,6 +151,33 @@ async function main() {
         sent++;
       } catch (err) {
         console.error(`  ✗ ${memberPrincipal.toText()} — ${milestone}-day milestone: ${err.statusCode ?? ""} ${err.message ?? err}`);
+        errors++;
+      }
+    }
+  }
+  // Game-day refreshers: one push per game, about two hours before it.
+  // The canister only lists officials who have a subscription.
+  const gameDayRes = await user.getPendingGameDayPushes();
+  if ("err" in gameDayRes) {
+    console.error(`  ✗ getPendingGameDayPushes: ${gameDayRes.err}`);
+    errors++;
+  } else {
+    for (const { official, game } of gameDayRes.ok) {
+      const subRes = await user.getSubscriptionFor(official);
+      if ("err" in subRes || subRes.ok.length === 0) { skipped++; continue; }
+      const send = senderFor(subRes.ok[0], {
+        title: "Game in 2 hours",
+        body: `5-minute refresher before ${game.opponent}`,
+        url: `/refresher/${game.id}`,
+      });
+      if (!send) { skipped++; continue; }
+      try {
+        await send();
+        await user.ackGameDayPush(game.id);
+        console.log(`  ✓ ${official.toText()} — game-day refresher for ${game.id}`);
+        sent++;
+      } catch (err) {
+        console.error(`  ✗ ${official.toText()} — game-day refresher for ${game.id}: ${err.statusCode ?? ""} ${err.message ?? err}`);
         errors++;
       }
     }

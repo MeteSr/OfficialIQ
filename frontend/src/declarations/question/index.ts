@@ -80,7 +80,9 @@ export type Result_3 = { 'ok' : Array<Question> } |
   { 'err' : string };
 export type Result_4 = { 'ok' : Array<QuestionReport> } |
   { 'err' : string };
-export type Result_5 = { 'ok' : Question } |
+export type Result_5 = { 'ok' : Array<[string, bigint, bigint]> } |
+  { 'err' : WeakArticlesError };
+export type Result_6 = { 'ok' : Question } |
   { 'err' : string };
 export type TagError = { 'tooMany' : null } |
   { 'notFound' : null } |
@@ -95,8 +97,9 @@ export interface UserQuestionHistory {
   'lastAnswered' : bigint,
   'repetitions' : bigint,
 }
+export type WeakArticlesError = { 'proOnly' : null };
 export interface _SERVICE {
-  'addQuestion' : ActorMethod<[QuestionInput], Result_5>,
+  'addQuestion' : ActorMethod<[QuestionInput], Result_6>,
   /**
    * / Called by the user canister when an official deletes their account:
    * / drops their spaced-repetition history and their question reports. The
@@ -118,6 +121,7 @@ export interface _SERVICE {
     [Array<string>],
     Array<[] | [UserQuestionHistory]>
   >,
+  'getMyWeakArticles' : ActorMethod<[string, bigint], Result_5>,
   'getQuestion' : ActorMethod<[string], [] | [Question]>,
   'getQuestionTags' : ActorMethod<[string], Array<string>>,
   'isAdminCaller' : ActorMethod<[], boolean>,
@@ -198,7 +202,7 @@ export const Question = IDL.Record({
   'choices' : IDL.Vec(Choice),
   'correctId' : IDL.Text,
 });
-export const Result_5 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
+export const Result_6 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
 export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const QuizFilter = IDL.Record({
   'casebook' : IDL.Bool,
@@ -216,6 +220,11 @@ export const UserQuestionHistory = IDL.Record({
   'questionId' : IDL.Text,
   'lastAnswered' : IDL.Int,
   'repetitions' : IDL.Nat,
+});
+export const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
+export const Result_5 = IDL.Variant({
+  'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
+  'err' : WeakArticlesError,
 });
 export const ReportReason = IDL.Variant({
   'Unclear' : IDL.Null,
@@ -263,7 +272,7 @@ export const TagError = IDL.Variant({
 export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
-  'addQuestion' : IDL.Func([QuestionInput], [Result_5], []),
+  'addQuestion' : IDL.Func([QuestionInput], [Result_6], []),
   'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
   'getAdaptiveQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
   'getAnswerRates' : IDL.Func(
@@ -285,6 +294,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(IDL.Text)],
       [IDL.Vec(IDL.Opt(UserQuestionHistory))],
       ['query'],
+    ),
+  'getMyWeakArticles' : IDL.Func(
+      [IDL.Text, IDL.Nat],
+      [Result_5],
+      ['composite_query'],
     ),
   'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),
   'getQuestionTags' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),
@@ -369,7 +383,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'choices' : IDL.Vec(Choice),
     'correctId' : IDL.Text,
   });
-  const Result_5 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
   const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const QuizFilter = IDL.Record({
     'casebook' : IDL.Bool,
@@ -387,6 +401,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'questionId' : IDL.Text,
     'lastAnswered' : IDL.Int,
     'repetitions' : IDL.Nat,
+  });
+  const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
+  const Result_5 = IDL.Variant({
+    'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
+    'err' : WeakArticlesError,
   });
   const ReportReason = IDL.Variant({
     'Unclear' : IDL.Null,
@@ -428,7 +447,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
   
   return IDL.Service({
-    'addQuestion' : IDL.Func([QuestionInput], [Result_5], []),
+    'addQuestion' : IDL.Func([QuestionInput], [Result_6], []),
     'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
     'getAdaptiveQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
     'getAnswerRates' : IDL.Func(
@@ -450,6 +469,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Text)],
         [IDL.Vec(IDL.Opt(UserQuestionHistory))],
         ['query'],
+      ),
+    'getMyWeakArticles' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [Result_5],
+        ['composite_query'],
       ),
     'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),
     'getQuestionTags' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),

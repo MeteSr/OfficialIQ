@@ -8,10 +8,10 @@ import Result "mo:core/Result";
 import Array "mo:core/Array";
 import Runtime "mo:core/Runtime";
 import Set "mo:core/Set";
+import List "mo:core/List";
 import Env "../lib/Env";
 import Timer "mo:core/Timer";
 import Error "mo:core/Error";
-import List "mo:core/List";
 import Stored "Stored";
 import Training "../lib/Training";
 import Billing "../lib/Billing";
@@ -112,6 +112,10 @@ persistent actor User {
     sportId  : Text;
     levelId  : Text;
     notes    : Text;
+    // True when gameDate carries a real start time, not just a day. Only
+    // those games get a game-day refresher push (#63). Optional so older
+    // app builds that send date-only games keep working.
+    hasStartTime : ?Bool;
   };
 
   // Web Push (browser/PWA) and native (Capacitor push-notifications plugin
@@ -474,12 +478,14 @@ persistent actor User {
     };
     let existing = switch (Map.get(upcomingGames, Principal.compare, caller)) { case (?g) g; case null [] };
     Map.add(upcomingGames, Principal.compare, caller, Array.concat<UpcomingGame>(existing, [game]));
+    if (input.hasStartTime == ?true) Set.add(timedGames, Text.compare, id);
     #ok(game)
   };
 
   public shared ({ caller }) func removeUpcomingGame(id : Text) : async Result.Result<(), Text> {
     let existing = switch (Map.get(upcomingGames, Principal.compare, caller)) { case (?g) g; case null [] };
     Map.add(upcomingGames, Principal.compare, caller, Array.filter<UpcomingGame>(existing, func(g) { g.id != id }));
+    if (Array.find<UpcomingGame>(existing, func(g) { g.id == id }) != null) Set.remove(timedGames, Text.compare, id);
     #ok(())
   };
 
@@ -1073,6 +1079,50 @@ persistent actor User {
     };
 
     { dueThisWeek = due; overdue = overdue; weekNumber = currentWeekInCycle + 1 }
+  };
+
+  // ─── Game-day refresher pushes (#63) ──────────────────────────────────────
+  // Two hours before a game with a start time, the push relay sends the
+  // official a link to a 5-minute refresher quiz. The decision of who is due
+  // lives here; the relay (frontend/scripts/send-pending-push.mjs) sends it
+  // and acks, so each game is pushed once.
+
+  // Game ids (unique across officials) entered with a real start time.
+  var timedGames : Set.Set<Text> = Set.empty<Text>();
+  // Game ids whose refresher push went out.
+  var gameDayPushed : Set.Set<Text> = Set.empty<Text>();
+
+  transient let GAME_DAY_LEAD_NS : Int = 2 * 3600 * 1_000_000_000;
+  transient let MAX_GAME_DAY_BATCH : Nat = 500;
+
+  public type GameDayPush = { official : Principal; game : UpcomingGame };
+
+  /// Games starting within the next two hours whose official has push set up
+  /// and hasn't been pushed for them yet. Push relay or admin only.
+  public shared query ({ caller }) func getPendingGameDayPushes() : async Result.Result<[GameDayPush], Text> {
+    if (not isAdmin(caller) and not isPushRelay(caller)) return #err("Admin only");
+    let now = Time.now();
+    let out = List.empty<GameDayPush>();
+    label scan for ((official, games) in Map.entries(upcomingGames)) {
+      if (Map.get(pushSubscriptions, Principal.compare, official) == null) continue scan;
+      // The refresher is Pro once the paywall is on (#71).
+      if (accessOf(official) == #free) continue scan;
+      for (g in games.values()) {
+        if (List.size(out) >= MAX_GAME_DAY_BATCH) break scan;
+        if (g.gameDate > now and g.gameDate <= now + GAME_DAY_LEAD_NS
+            and Set.contains(timedGames, Text.compare, g.id)
+            and not Set.contains(gameDayPushed, Text.compare, g.id)) {
+          List.add(out, { official; game = g });
+        };
+      };
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared ({ caller }) func ackGameDayPush(gameId : Text) : async Result.Result<(), Text> {
+    if (not isAdmin(caller) and not isPushRelay(caller)) return #err("Admin only");
+    Set.add(gameDayPushed, Text.compare, gameId);
+    #ok(())
   };
 
   public query func metrics() : async { userCount : Nat; pendingDeletions : Nat; completedDeletions : Nat; clientErrors : Nat; proBySource : [(Text, Nat)]; paywallEnabled : Bool } {

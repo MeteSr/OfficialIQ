@@ -14,6 +14,7 @@ type WeeklyQuizResult =
 type UpcomingGameInput = 
  record {
    gameDate: int;
+   hasStartTime: opt bool;
    levelId: text;
    notes: text;
    opponent: text;
@@ -56,13 +57,13 @@ type Role =
  };
 type Result_9 = 
  variant {
-   err: ClaimError;
-   ok: MyEntitlement;
+   err: TrainingAccessError;
+   ok: TrainingActivity;
  };
 type Result_8 = 
  variant {
-   err: TrainingAccessError;
-   ok: TrainingActivity;
+   err: text;
+   ok: vec GameDayPush;
  };
 type Result_7 = 
  variant {
@@ -94,15 +95,20 @@ type Result_2 =
    err: text;
    ok: StudyPace;
  };
-type Result_11 = 
+type Result_12 = 
  variant {
    err: SiblingError;
    ok: Access;
  };
-type Result_10 = 
+type Result_11 = 
  variant {
    err: text;
    ok: UpcomingGame;
+ };
+type Result_10 = 
+ variant {
+   err: ClaimError;
+   ok: MyEntitlement;
  };
 type Result_1 = 
  variant {
@@ -194,6 +200,11 @@ type HttpHeader =
    name: text;
    value: text;
  };
+type GameDayPush = 
+ record {
+   game: UpcomingGame;
+   official: principal;
+ };
 type EntitlementSource = 
  variant {
    appStore;
@@ -265,19 +276,20 @@ type Access =
 service : {
   /// For sibling canisters (ai_proxy, exam, and later #63/#65): what `p`
   /// gets. #paywallOff while billing is switched off.
-  accessFor: (p: principal) -> (Result_11) query;
-  addUpcomingGame: (input: UpcomingGameInput) -> (Result_10);
+  accessFor: (p: principal) -> (Result_12) query;
+  ackGameDayPush: (gameId: text) -> (Result_1);
+  addUpcomingGame: (input: UpcomingGameInput) -> (Result_11);
   becomeCoordinator: () -> (Result);
   /// Grants Pro from a finished Stripe Checkout: the session must name the
   /// caller as its client_reference_id, be complete, and have started a
   /// subscription that is active or trialing.
-  claimWebSubscription: (sessionId: text) -> (Result_9);
+  claimWebSubscription: (sessionId: text) -> (Result_10);
   createProfile: (req: ProfileUpdate) -> (Result);
   deleteAccount: () -> (Result_1);
   getDeletionStatus: () -> (DeletionStatus) query;
   /// A member's training activity, for the coordinator of an association
   /// they belong to.
-  getMemberTrainingActivity: (p: principal) -> (Result_8) composite_query;
+  getMemberTrainingActivity: (p: principal) -> (Result_9) composite_query;
   getMonthlyQuizHistory: () -> (vec MonthlyQuizResult) query;
   getMyEntitlement: () -> (MyEntitlement) query;
   getMyLinkedAccounts: () -> (vec LinkedAccount) query;
@@ -287,6 +299,9 @@ service : {
   getMyStudyPace: () -> (opt StudyPace) query;
   getMyTrainingActivity: () -> (TrainingActivity) query;
   getMyUpcomingGames: () -> (vec UpcomingGame) query;
+  /// Games starting within the next two hours whose official has push set up
+  /// and hasn't been pushed for them yet. Push relay or admin only.
+  getPendingGameDayPushes: () -> (Result_8) query;
   getProfile: (p: principal) -> (opt Profile) query;
   getPublicProfile: (p: principal) -> (opt PublicProfile) query;
   getSubscriptionFor: (p: principal) -> (Result_7) query;

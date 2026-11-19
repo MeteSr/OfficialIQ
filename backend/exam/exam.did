@@ -221,6 +221,10 @@ service : {
   /// The caller's finished graded sessions with the training time each is
   /// credited, for their transcript.
   getMyTraining: () -> (vec TrainingSession) query;
+  /// The questions a finished graded session got wrong or left unanswered,
+  /// for the session's owner and the sibling canisters (crew pregame reads
+  /// it so the crew's misses come from grading here, not the browser).
+  gradedMisses: (sessionId: text) -> (opt vec text) query;
   /// The server-computed result of a finished graded session, for the
   /// session's owner and the ranking/challenge/association canisters.
   gradedResult: (sessionId: text) -> (opt GradedResult) query;

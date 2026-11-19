@@ -53,6 +53,9 @@ const RuleChangesPage = lazy(() => import("./pages/RuleChangesPage"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage"));
 const AssociationTrainingPage = lazy(() => import("./pages/AssociationTrainingPage"));
 
+const RefresherPage = lazy(() => import("./pages/RefresherPage"));
+const CrewPage = lazy(() => import("./pages/CrewPage"));
+const CrewJoinPage = lazy(() => import("./pages/CrewPage").then(m => ({ default: m.CrewJoinPage })));
 // A feature this build has switched off (src/lib/features.ts) sends its
 // route home, so an old link or bookmark can't open an empty screen.
 function Gate({ on, children }: { on: boolean; children: ReactNode }) {
@@ -112,6 +115,9 @@ function AppShell() {
           <Route path="/ai-drills" element={<Gate on={features.ai}><AiDrillsPage /></Gate>} />
           <Route path="/ai-scenarios" element={<Gate on={features.ai}><ScenarioGeneratorPage /></Gate>} />
           <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/refresher/:gameId" element={<RefresherPage />} />
+          <Route path="/crew/join/:code" element={<CrewJoinPage />} />
+          <Route path="/crew/:id" element={<CrewPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
           <Route path="/association/:id/training" element={<AssociationTrainingPage />} />

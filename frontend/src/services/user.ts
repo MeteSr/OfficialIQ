@@ -41,7 +41,10 @@ export class ClaimFailed extends Error {
 
 export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
 export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
-export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: string; levelId: string; notes: string };
+// gameDate is JS milliseconds here (converted to nanoseconds on send).
+// hasStartTime: the date carries a real kickoff/tip time, so the game gets a
+// game-day refresher push two hours before it.
+export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: string; levelId: string; notes: string; hasStartTime?: boolean };
 
 export type PushSubscriptionInput =
   | { WebPush: { endpoint: string; p256dh: string; auth: string } }
@@ -220,7 +223,8 @@ export const userService = {
   // boundary rather than pushing unit-juggling onto every caller.
   async addUpcomingGame(input: UpcomingGameInput): Promise<UpcomingGame> {
     if (!CANISTER_ID) throw new Error("User canister not deployed");
-    const res = await actor().addUpcomingGame({ ...input, gameDate: BigInt(input.gameDate) * 1_000_000n });
+    const { hasStartTime, ...rest } = input;
+    const res = await actor().addUpcomingGame({ ...rest, gameDate: BigInt(input.gameDate) * 1_000_000n, hasStartTime: hasStartTime === undefined ? [] : [hasStartTime] });
     if ("err" in res) throw new Error(res.err);
     return res.ok;
   },

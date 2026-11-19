@@ -6,9 +6,9 @@ declare let self: ServiceWorkerGlobalScope;
 precacheAndRoute(self.__WB_MANIFEST);
 
 // Handles a Web Push message (issue #28) delivered via
-// scripts/send-pending-push.mjs. The payload is small and unencrypted
-// beyond what the Push protocol itself requires (no user PII in it —
-// just a streak milestone), so it's read as plain JSON.
+// scripts/send-pending-push.mjs: a streak milestone, or a game-day
+// refresher naming the official's own game. Web Push encrypts it to this
+// browser, and it's read as plain JSON.
 self.addEventListener("push", (event: PushEvent) => {
   let payload: { title?: string; body?: string; url?: string } = {};
   try {

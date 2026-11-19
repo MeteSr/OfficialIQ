@@ -13,6 +13,8 @@ import Random "mo:core/Random";
 import Set "mo:core/Set";
 import Env "../lib/Env";
 import Types "../lib/Types";
+import Billing "../lib/Billing";
+import Timer "mo:core/Timer";
 
 persistent actor Question {
 
@@ -150,6 +152,7 @@ persistent actor Question {
   /// the per-question totals, as recordAnswer did from the browser. Safe to
   /// repeat.
   public shared ({ caller }) func recordGradedAnswers(player : Principal, sessionId : Text, answers : [(Text, Bool)]) : async Result.Result<(), Text> {
+    refreshEnv<system>();
     if (not isExamCanister<system>(caller)) return #err("Exam canister only");
     if (answers.size() > 200) return #err("Too many answers");
     if (Set.contains(gradedAnswerSessions, Text.compare, sessionId)) return #ok(());
@@ -354,6 +357,67 @@ persistent actor Question {
       };
     };
     List.sliceToArray<(Text, Nat, Nat)>(out, 0, List.size(out))
+  };
+
+  // (articleId, wrong, answered) for the caller's own answers in a sport,
+  // the articles they miss most first, for the game-day refresher (#63).
+  // Reads only the caller's slice of `history`: its keys are
+  // "<principal>::<questionId>", so they sit together in key order.
+  // Articles answered right every time are left out.
+  //
+  // This targeting is what makes the game-day refresher (#63) a Pro feature
+  // (#71): once the paywall is on, a free official gets #proOnly. The user
+  // canister says who is Pro; if it can't be asked, the refresher works.
+  public type WeakArticlesError = { #proOnly };
+
+  // A query can't read canister environment variables, so the user
+  // canister's id is copied here by a timer after install and each upgrade,
+  // and by update calls (as the exam canister does).
+  var USER_ID : ?Principal = null;
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("user")) { case (?id) USER_ID := ?id; case null {} };
+  };
+
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
+
+  type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
+
+  public shared composite query ({ caller }) func getMyWeakArticles(sportId : Text, limit : Nat) : async Result.Result<[(Text, Nat, Nat)], WeakArticlesError> {
+    let access : Billing.Access = switch USER_ID {
+      case (?id) {
+        try {
+          switch (await (actor (id.toText()) : UserAccess).accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff }
+        } catch (_) { #paywallOff }
+      };
+      case null #paywallOff;
+    };
+    if (access == #free) return #err(#proOnly);
+    let prefix = Principal.toText(caller) # "::";
+    let byArticle = Map.empty<Text, AnswerTotals>();
+    label scan for ((key, h) in Map.entriesFrom(history, Text.compare, prefix)) {
+      if (not Text.startsWith(key, #text prefix)) break scan;
+      switch (Map.get(questions, Text.compare, h.questionId)) {
+        case (?q) {
+          if (q.sportId == sportId) {
+            let wrong = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
+            let prev = switch (Map.get(byArticle, Text.compare, q.articleId)) { case (?t) t; case null ({ answered = 0; wrong = 0 }) };
+            Map.add(byArticle, Text.compare, q.articleId, { answered = prev.answered + h.timesAnswered; wrong = prev.wrong + wrong });
+          };
+        };
+        case null {};
+      };
+    };
+    let entries = List.empty<(Text, Nat, Nat)>();
+    for ((articleId, t) in Map.entries(byArticle)) {
+      if (t.wrong > 0) List.add(entries, (articleId, t.wrong, t.answered));
+    };
+    // Most misses first, then the worse miss rate.
+    let sorted = List.sort<(Text, Nat, Nat)>(entries, func((_, wa, ta), (_, wb, tb)) {
+      if (wa > wb) #less else if (wa < wb) #greater
+      else if (wa * tb > wb * ta) #less else if (wa * tb < wb * ta) #greater else #equal
+    });
+    #ok(List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(Nat.min(limit, 20), List.size(sorted))))
   };
 
   // ─── Graded exams (exam canister only) ──────────────────────────────────────

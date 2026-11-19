@@ -11,6 +11,7 @@ import Env "../lib/Env";
 import Types "../lib/Types";
 import Index "../lib/Index";
 import Set "mo:core/Set";
+import Token "../lib/Token";
 
 persistent actor Challenge {
 
@@ -172,10 +173,183 @@ persistent actor Challenge {
     Map.get(challenges, Text.compare, id)
   };
 
+  // ─── Crew pregame (#64) ─────────────────────────────────────────────────
+  // Officials working the same game join a crew by its code, all play the
+  // same fixed question set (graded by the exam canister like a challenge,
+  // one session per player), and then see each other's misses. The question
+  // set comes from an exam share link, so the canister picked it and nobody
+  // saw the answers first.
+
+  public type CrewResult = {
+    principal  : Principal;
+    score      : Nat;
+    missed     : [Text];
+    finishedAt : Int;
+  };
+
+  public type Crew = {
+    id          : Text;
+    code        : Text;
+    creator     : Principal;
+    gameLabel   : Text;
+    gameDate    : Int;
+    sportId     : Text;
+    levelId     : Text;
+    questionIds : [Text];
+    members     : [Principal];
+    results     : [CrewResult];
+    createdAt   : Int;
+    expiresAt   : Int;
+  };
+
+  /// What someone holding the code sees before joining.
+  public type CrewPreview = {
+    id          : Text;
+    gameLabel   : Text;
+    gameDate    : Int;
+    sportId     : Text;
+    levelId     : Text;
+    memberCount : Nat;
+    questionCount : Nat;
+    expiresAt   : Int;
+  };
+
+  public type CrewInput = {
+    gameLabel   : Text;
+    gameDate    : Int;
+    sportId     : Text;
+    levelId     : Text;
+    questionIds : [Text];
+  };
+
+  var crews        : Map.Map<Text, Crew> = Map.empty<Text, Crew>();
+  var crewCodes    : Map.Map<Text, Text> = Map.empty<Text, Text>();
+  var crewsByMember : Index.Index<Principal> = Index.empty<Principal>();
+  var nextCrewId   : Nat = 0;
+
+  transient let MAX_CREW : Nat = 8;
+  transient let MAX_CREW_QUESTIONS : Nat = 15;
+  // A crew stays open until a while after its game, then closes.
+  transient let CREW_AFTER_GAME_NS : Int = 6 * 3600 * 1_000_000_000;
+  transient let MAX_CREW_AHEAD_NS : Int = 30 * 24 * 3600 * 1_000_000_000;
+
+  func previewOf(c : Crew) : CrewPreview {
+    { id = c.id; gameLabel = c.gameLabel; gameDate = c.gameDate; sportId = c.sportId; levelId = c.levelId;
+      memberCount = c.members.size(); questionCount = c.questionIds.size(); expiresAt = c.expiresAt }
+  };
+
+  func isMember(c : Crew, p : Principal) : Bool {
+    Array.find<Principal>(c.members, func(m) { m == p }) != null
+  };
+
+  public shared ({ caller }) func createCrew(input : CrewInput) : async Result.Result<Crew, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    let label_ = Text.trim(input.gameLabel, #char ' ');
+    if (label_.size() == 0 or label_.size() > 80) return #err("Game name must be 1-80 characters");
+    if (input.questionIds.size() == 0 or input.questionIds.size() > MAX_CREW_QUESTIONS) return #err("1-" # Nat.toText(MAX_CREW_QUESTIONS) # " questions");
+    let now = Time.now();
+    if (input.gameDate + CREW_AFTER_GAME_NS < now) return #err("That game is already over");
+    if (input.gameDate > now + MAX_CREW_AHEAD_NS) return #err("Crews open up to 30 days before a game");
+    // Join codes are bearer links, so they come from raw_rand.
+    let code = await Token.code(10);
+    if (Map.get(crewCodes, Text.compare, code) != null) return #err("Try again");
+    let id = "crew" # Nat.toText(nextCrewId);
+    nextCrewId += 1;
+    let crew : Crew = {
+      id; code; creator = caller; gameLabel = label_; gameDate = input.gameDate;
+      sportId = input.sportId; levelId = input.levelId; questionIds = input.questionIds;
+      members = [caller]; results = []; createdAt = now;
+      expiresAt = input.gameDate + CREW_AFTER_GAME_NS;
+    };
+    Map.add(crews, Text.compare, id, crew);
+    Map.add(crewCodes, Text.compare, code, id);
+    Index.add(crewsByMember, Principal.compare, caller, id);
+    #ok(crew)
+  };
+
+  public query func getCrewPreview(code : Text) : async ?CrewPreview {
+    switch (Map.get(crewCodes, Text.compare, Token.normalizeCode(code))) {
+      case null null;
+      case (?id) switch (Map.get(crews, Text.compare, id)) { case (?c) ?previewOf(c); case null null };
+    }
+  };
+
+  public shared ({ caller }) func joinCrew(code : Text) : async Result.Result<Crew, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    let id = switch (Map.get(crewCodes, Text.compare, Token.normalizeCode(code))) {
+      case (?id) id;
+      case null return #err("Crew not found");
+    };
+    let c = switch (Map.get(crews, Text.compare, id)) { case (?c) c; case null return #err("Crew not found") };
+    if (isMember(c, caller)) return #ok(c);
+    if (Time.now() > c.expiresAt) return #err("This crew has closed");
+    if (c.members.size() >= MAX_CREW) return #err("This crew is full");
+    let updated = { c with members = Array.concat<Principal>(c.members, [caller]) };
+    Map.add(crews, Text.compare, id, updated);
+    // A member who left and comes back is already indexed.
+    if (Array.find<Text>(Index.ids(crewsByMember, Principal.compare, caller), func(x) { x == id }) == null) {
+      Index.add(crewsByMember, Principal.compare, caller, id);
+    };
+    #ok(updated)
+  };
+
+  /// Members only: the crew with everyone's results and misses.
+  public shared query ({ caller }) func getCrew(id : Text) : async ?Crew {
+    switch (Map.get(crews, Text.compare, id)) {
+      case (?c) { if (isMember(c, caller)) ?c else null };
+      case null null;
+    }
+  };
+
+  public shared query ({ caller }) func getMyCrews() : async [Crew] {
+    Array.filter<Crew>(Index.rows(crewsByMember, Principal.compare, caller, crews), func(c) { isMember(c, caller) })
+  };
+
+  /// Records the caller's score and misses from the graded exam session they
+  /// played this crew's questions in.
+  public shared ({ caller }) func submitCrewResult(id : Text, sessionId : Text) : async Result.Result<Crew, Text> {
+    let examId = switch (Env.canisterId<system>("exam")) { case (?e) e; case null return #err("Exam canister not configured") };
+    let c0 = switch (Map.get(crews, Text.compare, id)) { case (?c) c; case null return #err("Crew not found") };
+    if (not isMember(c0, caller)) return #err("Not in this crew");
+    let exam = actor (Principal.toText(examId)) : Types.ExamMisses;
+    let r = switch (await exam.gradedResult(sessionId)) {
+      case (?r) r;
+      case null return #err("No finished graded exam with that id");
+    };
+    let missed = switch (await exam.gradedMisses(sessionId)) {
+      case (?m) m;
+      case null return #err("No finished graded exam with that id");
+    };
+    if (r.owner != caller) return #err("Not your exam");
+    // Re-read after the awaits.
+    let c = switch (Map.get(crews, Text.compare, id)) { case (?c) c; case null return #err("Crew not found") };
+    if (r.questionIds != c.questionIds) return #err("That exam doesn't match this crew's questions");
+    if (Set.contains(usedSessions, Text.compare, sessionId)) return #err("That exam was already used");
+    if (Array.find<CrewResult>(c.results, func(x) { x.principal == caller }) != null) return #err("Result already submitted");
+    if (Time.now() > c.expiresAt) return #err("This crew has closed");
+    let res : CrewResult = { principal = caller; score = r.score; missed; finishedAt = Time.now() };
+    let updated = { c with results = Array.concat<CrewResult>(c.results, [res]) };
+    Map.add(crews, Text.compare, id, updated);
+    Set.add(usedSessions, Text.compare, sessionId);
+    #ok(updated)
+  };
+
+  public shared ({ caller }) func leaveCrew(id : Text) : async Result.Result<(), Text> {
+    let c = switch (Map.get(crews, Text.compare, id)) { case (?c) c; case null return #err("Crew not found") };
+    if (not isMember(c, caller)) return #err("Not in this crew");
+    // A result already played stays (the session can't be replayed), but
+    // only members' results are shown.
+    Map.add(crews, Text.compare, id, { c with members = Array.filter<Principal>(c.members, func(m) { m != caller }) });
+    // crewsByMember keeps the id; getMyCrews filters by membership.
+    #ok(())
+  };
+
   // ─── Account deletion ──────────────────────────────────────────────────────
 
   /// Called by the user canister when an official deletes their account:
-  /// deletes every challenge they sent or received. Safe to repeat.
+  /// deletes every challenge they sent or received, and takes them (and
+  /// their results) out of every crew; a crew left with no members is
+  /// deleted. Safe to repeat.
   public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
     if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
     for (id in Index.take(challengesByParticipant, Principal.compare, p).values()) {
@@ -187,10 +361,28 @@ persistent actor Challenge {
         case null {};
       };
     };
+    for (id in Index.take(crewsByMember, Principal.compare, p).values()) {
+      switch (Map.get(crews, Text.compare, id)) {
+        case (?c) {
+          let members = Array.filter<Principal>(c.members, func(m) { m != p });
+          if (members.size() == 0) {
+            Map.remove(crews, Text.compare, id);
+            Map.remove(crewCodes, Text.compare, c.code);
+          } else {
+            Map.add(crews, Text.compare, id, { c with
+              members;
+              results = Array.filter<CrewResult>(c.results, func(r) { r.principal != p });
+              creator = if (c.creator == p) Principal.anonymous() else c.creator;
+            });
+          };
+        };
+        case null {};
+      };
+    };
     #ok(())
   };
 
-  public query func metrics() : async { challengeCount : Nat } {
-    { challengeCount = Map.size(challenges) }
+  public query func metrics() : async { challengeCount : Nat; crewCount : Nat } {
+    { challengeCount = Map.size(challenges); crewCount = Map.size(crews) }
   };
 }

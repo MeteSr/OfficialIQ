@@ -74,4 +74,10 @@ module {
   public type ExamResults = actor {
     gradedResult : shared query Text -> async ?GradedResult;
   };
+
+  /// ExamResults plus the missed question ids of a finished session.
+  public type ExamMisses = actor {
+    gradedResult : shared query Text -> async ?GradedResult;
+    gradedMisses : shared query Text -> async ?[Text];
+  };
 }

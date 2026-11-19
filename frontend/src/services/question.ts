@@ -216,6 +216,19 @@ export const questionService = {
   },
 
   /** How often every official got each question right, keyed by question id. Missing ids have no answers yet. */
+  /** The caller's articles with the most missed answers in a sport, worst first (game-day refresher). */
+  /**
+   * The caller's most-missed articles, for the game-day refresher. That
+   * targeting is Pro once the paywall is on (#71): then a free official
+   * gets proOnly.
+   */
+  async getMyWeakArticles(sportId: string, limit = 5): Promise<{ proOnly: boolean; rows: { articleId: string; wrong: number; answered: number }[] }> {
+    if (!CANISTER_ID) return { proOnly: false, rows: [] };
+    const res = await actor().getMyWeakArticles(sportId, BigInt(limit));
+    if ("err" in res) return { proOnly: true, rows: [] };
+    return { proOnly: false, rows: res.ok.map(([articleId, wrong, answered]) => ({ articleId, wrong: Number(wrong), answered: Number(answered) })) };
+  },
+
   async getAnswerRates(questionIds: string[]): Promise<Map<string, { wrongCount: number; totalCount: number }>> {
     const out = new Map<string, { wrongCount: number; totalCount: number }>();
     if (!CANISTER_ID || questionIds.length === 0) return out;

@@ -31,24 +31,82 @@ export type ChallengeStatus = { 'Accepted' : null } |
   { 'Completed' : null } |
   { 'Expired' : null } |
   { 'Pending' : null };
+export interface Crew {
+  'id' : string,
+  'creator' : Principal,
+  'members' : Array<Principal>,
+  'expiresAt' : bigint,
+  'levelId' : string,
+  'code' : string,
+  'createdAt' : bigint,
+  'results' : Array<CrewResult>,
+  'gameLabel' : string,
+  'sportId' : string,
+  'gameDate' : bigint,
+  'questionIds' : Array<string>,
+}
+export interface CrewInput {
+  'levelId' : string,
+  'gameLabel' : string,
+  'sportId' : string,
+  'gameDate' : bigint,
+  'questionIds' : Array<string>,
+}
+export interface CrewPreview {
+  'id' : string,
+  'expiresAt' : bigint,
+  'levelId' : string,
+  'memberCount' : bigint,
+  'gameLabel' : string,
+  'sportId' : string,
+  'gameDate' : bigint,
+  'questionCount' : bigint,
+}
+export interface CrewResult {
+  'principal' : Principal,
+  'missed' : Array<string>,
+  'score' : bigint,
+  'finishedAt' : bigint,
+}
 export type Result = { 'ok' : Challenge } |
   { 'err' : string };
-export type Result_1 = { 'ok' : null } |
+export type Result_1 = { 'ok' : Crew } |
+  { 'err' : string };
+export type Result_2 = { 'ok' : null } |
   { 'err' : string };
 export interface _SERVICE {
   'acceptChallenge' : ActorMethod<[string], Result>,
+  'createCrew' : ActorMethod<[CrewInput], Result_1>,
   /**
    * / Called by the user canister when an official deletes their account:
-   * / deletes every challenge they sent or received. Safe to repeat.
+   * / deletes every challenge they sent or received, and takes them (and
+   * / their results) out of every crew; a crew left with no members is
+   * / deleted. Safe to repeat.
    */
-  'forgetUser' : ActorMethod<[Principal], Result_1>,
+  'forgetUser' : ActorMethod<[Principal], Result_2>,
   'getChallenge' : ActorMethod<[string], [] | [Challenge]>,
+  /**
+   * / Members only: the crew with everyone's results and misses.
+   */
+  'getCrew' : ActorMethod<[string], [] | [Crew]>,
+  'getCrewPreview' : ActorMethod<[string], [] | [CrewPreview]>,
   'getMyChallenges' : ActorMethod<[], Array<Challenge>>,
-  'metrics' : ActorMethod<[], { 'challengeCount' : bigint }>,
+  'getMyCrews' : ActorMethod<[], Array<Crew>>,
+  'joinCrew' : ActorMethod<[string], Result_1>,
+  'leaveCrew' : ActorMethod<[string], Result_2>,
+  'metrics' : ActorMethod<
+    [],
+    { 'challengeCount' : bigint, 'crewCount' : bigint }
+  >,
   'sendChallenge' : ActorMethod<
     [Principal, string, Array<string>, Array<string>, bigint],
     Result
   >,
+  /**
+   * / Records the caller's score and misses from the graded exam session they
+   * / played this crew's questions in.
+   */
+  'submitCrewResult' : ActorMethod<[string, string], Result_1>,
   /**
    * / Records the caller's result from a finished exam session graded by the
    * / exam canister. The session must cover exactly this challenge's
@@ -83,16 +141,60 @@ export const Challenge = IDL.Record({
   'challenger' : IDL.Principal,
 });
 export const Result = IDL.Variant({ 'ok' : Challenge, 'err' : IDL.Text });
-export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+export const CrewInput = IDL.Record({
+  'levelId' : IDL.Text,
+  'gameLabel' : IDL.Text,
+  'sportId' : IDL.Text,
+  'gameDate' : IDL.Int,
+  'questionIds' : IDL.Vec(IDL.Text),
+});
+export const CrewResult = IDL.Record({
+  'principal' : IDL.Principal,
+  'missed' : IDL.Vec(IDL.Text),
+  'score' : IDL.Nat,
+  'finishedAt' : IDL.Int,
+});
+export const Crew = IDL.Record({
+  'id' : IDL.Text,
+  'creator' : IDL.Principal,
+  'members' : IDL.Vec(IDL.Principal),
+  'expiresAt' : IDL.Int,
+  'levelId' : IDL.Text,
+  'code' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'results' : IDL.Vec(CrewResult),
+  'gameLabel' : IDL.Text,
+  'sportId' : IDL.Text,
+  'gameDate' : IDL.Int,
+  'questionIds' : IDL.Vec(IDL.Text),
+});
+export const Result_1 = IDL.Variant({ 'ok' : Crew, 'err' : IDL.Text });
+export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+export const CrewPreview = IDL.Record({
+  'id' : IDL.Text,
+  'expiresAt' : IDL.Int,
+  'levelId' : IDL.Text,
+  'memberCount' : IDL.Nat,
+  'gameLabel' : IDL.Text,
+  'sportId' : IDL.Text,
+  'gameDate' : IDL.Int,
+  'questionCount' : IDL.Nat,
+});
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
-  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+  'createCrew' : IDL.Func([CrewInput], [Result_1], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
   'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
+  'getCrew' : IDL.Func([IDL.Text], [IDL.Opt(Crew)], ['query']),
+  'getCrewPreview' : IDL.Func([IDL.Text], [IDL.Opt(CrewPreview)], ['query']),
   'getMyChallenges' : IDL.Func([], [IDL.Vec(Challenge)], ['query']),
+  'getMyCrews' : IDL.Func([], [IDL.Vec(Crew)], ['query']),
+  'joinCrew' : IDL.Func([IDL.Text], [Result_1], []),
+  'leaveCrew' : IDL.Func([IDL.Text], [Result_2], []),
   'metrics' : IDL.Func(
       [],
-      [IDL.Record({ 'challengeCount' : IDL.Nat })],
+      [IDL.Record({ 'challengeCount' : IDL.Nat, 'crewCount' : IDL.Nat })],
       ['query'],
     ),
   'sendChallenge' : IDL.Func(
@@ -100,6 +202,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [Result],
       [],
     ),
+  'submitCrewResult' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'submitGradedResult' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
   'submitResult' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
 });
@@ -133,16 +236,60 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'challenger' : IDL.Principal,
   });
   const Result = IDL.Variant({ 'ok' : Challenge, 'err' : IDL.Text });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const CrewInput = IDL.Record({
+    'levelId' : IDL.Text,
+    'gameLabel' : IDL.Text,
+    'sportId' : IDL.Text,
+    'gameDate' : IDL.Int,
+    'questionIds' : IDL.Vec(IDL.Text),
+  });
+  const CrewResult = IDL.Record({
+    'principal' : IDL.Principal,
+    'missed' : IDL.Vec(IDL.Text),
+    'score' : IDL.Nat,
+    'finishedAt' : IDL.Int,
+  });
+  const Crew = IDL.Record({
+    'id' : IDL.Text,
+    'creator' : IDL.Principal,
+    'members' : IDL.Vec(IDL.Principal),
+    'expiresAt' : IDL.Int,
+    'levelId' : IDL.Text,
+    'code' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'results' : IDL.Vec(CrewResult),
+    'gameLabel' : IDL.Text,
+    'sportId' : IDL.Text,
+    'gameDate' : IDL.Int,
+    'questionIds' : IDL.Vec(IDL.Text),
+  });
+  const Result_1 = IDL.Variant({ 'ok' : Crew, 'err' : IDL.Text });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const CrewPreview = IDL.Record({
+    'id' : IDL.Text,
+    'expiresAt' : IDL.Int,
+    'levelId' : IDL.Text,
+    'memberCount' : IDL.Nat,
+    'gameLabel' : IDL.Text,
+    'sportId' : IDL.Text,
+    'gameDate' : IDL.Int,
+    'questionCount' : IDL.Nat,
+  });
   
   return IDL.Service({
     'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
-    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+    'createCrew' : IDL.Func([CrewInput], [Result_1], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
     'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
+    'getCrew' : IDL.Func([IDL.Text], [IDL.Opt(Crew)], ['query']),
+    'getCrewPreview' : IDL.Func([IDL.Text], [IDL.Opt(CrewPreview)], ['query']),
     'getMyChallenges' : IDL.Func([], [IDL.Vec(Challenge)], ['query']),
+    'getMyCrews' : IDL.Func([], [IDL.Vec(Crew)], ['query']),
+    'joinCrew' : IDL.Func([IDL.Text], [Result_1], []),
+    'leaveCrew' : IDL.Func([IDL.Text], [Result_2], []),
     'metrics' : IDL.Func(
         [],
-        [IDL.Record({ 'challengeCount' : IDL.Nat })],
+        [IDL.Record({ 'challengeCount' : IDL.Nat, 'crewCount' : IDL.Nat })],
         ['query'],
       ),
     'sendChallenge' : IDL.Func(
@@ -156,6 +303,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [Result],
         [],
       ),
+    'submitCrewResult' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
     'submitGradedResult' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
     'submitResult' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
   });

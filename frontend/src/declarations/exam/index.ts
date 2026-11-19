@@ -190,6 +190,12 @@ export interface _SERVICE {
    */
   'getMyTraining' : ActorMethod<[], Array<TrainingSession>>,
   /**
+   * / The questions a finished graded session got wrong or left unanswered,
+   * / for the session's owner and the sibling canisters (crew pregame reads
+   * / it so the crew's misses come from grading here, not the browser).
+   */
+  'gradedMisses' : ActorMethod<[string], [] | [Array<string>]>,
+  /**
    * / The server-computed result of a finished graded session, for the
    * / session's owner and the ranking/challenge/association canisters.
    */
@@ -389,6 +395,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
   'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
+  'gradedMisses' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(IDL.Vec(IDL.Text))],
+      ['query'],
+    ),
   'gradedResult' : IDL.Func([IDL.Text], [IDL.Opt(GradedResult)], ['query']),
   'listExamTemplates' : IDL.Func(
       [IDL.Text],
@@ -598,6 +609,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
     'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
+    'gradedMisses' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(IDL.Vec(IDL.Text))],
+        ['query'],
+      ),
     'gradedResult' : IDL.Func([IDL.Text], [IDL.Opt(GradedResult)], ['query']),
     'listExamTemplates' : IDL.Func(
         [IDL.Text],

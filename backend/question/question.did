@@ -1,3 +1,4 @@
+type WeakArticlesError = variant {proOnly;};
 type UserQuestionHistory = 
  record {
    easiness: float64;
@@ -15,10 +16,19 @@ type TagError =
    notFound;
    tooMany;
  };
-type Result_5 = 
+type Result_6 = 
  variant {
    err: text;
    ok: Question;
+ };
+type Result_5 = 
+ variant {
+   err: WeakArticlesError;
+   ok: vec record {
+             text;
+             nat;
+             nat;
+           };
  };
 type Result_4 = 
  variant {
@@ -123,7 +133,7 @@ type Choice =
    "text": text;
  };
 service : {
-  addQuestion: (input: QuestionInput) -> (Result_5);
+  addQuestion: (input: QuestionInput) -> (Result_6);
   /// Called by the user canister when an official deletes their account:
   /// drops their spaced-repetition history and their question reports. The
   /// per-question answer totals stay: they are counts with no one's
@@ -146,6 +156,8 @@ service : {
         }) query;
   getMyHistoryBatch: (questionIds: vec text) ->
    (vec opt UserQuestionHistory) query;
+  getMyWeakArticles: (sportId: text, limit: nat) ->
+   (Result_5) composite_query;
   getQuestion: (id: text) -> (opt Question) query;
   getQuestionTags: (questionId: text) -> (vec text) query;
   isAdminCaller: () -> (bool) query;
