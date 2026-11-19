@@ -34,6 +34,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [games, setGames] = useState<UpcomingGame[]>([]);
+  const [recentGames, setRecentGames] = useState<UpcomingGame[]>([]);
   const [recommendedPlays, setRecommendedPlays] = useState<CasebookPlay[]>([]);
   const [recommendSource, setRecommendSource] = useState("");
 
@@ -57,6 +58,7 @@ export default function SchedulePage() {
       const [acc, gm] = await Promise.all([userService.getMyLinkedAccounts(), userService.getMyUpcomingGames()]);
       setAccounts(acc);
       setGames(gm);
+      userService.getMyRecentGames().then(setRecentGames).catch(() => setRecentGames([]));
       const now = Date.now();
       challengeService.getMyCrews()
         .then(cs => setCrews(cs.filter(c => gameTimeMs(c.expiresAt) > now).sort((a, b) => Number(a.gameDate - b.gameDate))))
@@ -189,6 +191,25 @@ export default function SchedulePage() {
               </div>
             );
           })}
+
+          {/* Recent games: log calls (issue #66) */}
+          {recentGames.length > 0 && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 4px" }}>{t("callLog.recentGames")}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>{t("callLog.logCallsHint")}</div>
+              {recentGames.map(g => (
+                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{g.opponent}</div>
+                    <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{formatDate(g.gameDate)}</div>
+                  </div>
+                  <button onClick={() => navigate(`/calls/${g.id}`)} style={{ padding: "9px 14px", background: T.navy, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                    {t("callLog.logCalls")}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
 
           {/* Upcoming games */}
           <div style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>{t("schedule.upcomingGames")}</div>

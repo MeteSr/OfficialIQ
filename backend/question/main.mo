@@ -14,6 +14,7 @@ import Set "mo:core/Set";
 import Env "../lib/Env";
 import Types "../lib/Types";
 import Billing "../lib/Billing";
+import CallLog "../lib/CallLog";
 import Timer "mo:core/Timer";
 
 persistent actor Question {
@@ -221,6 +222,30 @@ persistent actor Question {
 
   // Never-answered questions are treated as due right now, so they interleave
   // naturally with genuinely overdue ones once sorted ascending by due date.
+  // ─── Review boosts (issue #66) ─────────────────────────────────────────────
+  //
+  // When an official queues a post-game call for review, the user canister
+  // boosts that call's article here: its questions sort as overdue in the
+  // adaptive picker (CallLog.boostedDue) until the call is marked reviewed
+  // or BOOST_DAYS pass. "<player>|<articleId>" -> boost expiry.
+  let reviewBoosts : Map.Map<Text, Int> = Map.empty<Text, Int>();
+
+  func boostKey(player : Principal, articleId : Text) : Text = player.toText() # "|" # articleId;
+
+  /// The due date the adaptive picker sorts by: the spaced-repetition due
+  /// date, pulled forward while the question's article is boosted.
+  func pickDue(player : Principal, q : Question) : Int =
+    CallLog.boostedDue(dueDate(player, q.id), reviewBoosts.get(Text.compare, boostKey(player, q.articleId)), Time.now());
+
+  /// User canister only: boost (or stop boosting) an article for a player.
+  public shared ({ caller }) func setReviewBoost(player : Principal, articleId : Text, on : Bool) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    if (articleId.size() > 200) return #err("Article id too long");
+    if (on) reviewBoosts.add(Text.compare, boostKey(player, articleId), Time.now() + CallLog.BOOST_DAYS * 86_400_000_000_000)
+    else reviewBoosts.remove(Text.compare, boostKey(player, articleId));
+    #ok(())
+  };
+
   func dueDate(caller : Principal, questionId : Text) : Int {
     switch (Map.get(history, Text.compare, Principal.toText(caller) # "::" # questionId)) {
       case (?h) h.nextDue;
@@ -242,7 +267,7 @@ persistent actor Question {
     for ((_, q) in Map.entries(questions)) {
       if (matchesFilter(q, filter)) { List.add(matches, q) };
     };
-    List.sortInPlace<Question>(matches, func(a, b) { Int.compare(dueDate(caller, a.id), dueDate(caller, b.id)) });
+    List.sortInPlace<Question>(matches, func(a, b) { Int.compare(pickDue(caller, a), pickDue(caller, b)) });
     List.sliceToArray<Question>(matches, 0, Nat.min(filter.count, List.size(matches)))
   };
 
@@ -525,7 +550,7 @@ persistent actor Question {
       // stable, so ties (e.g. never-answered questions) stay in random order.
       shuffle(matches, rng);
       if (pick.adaptive) {
-        List.sortInPlace<Question>(matches, func(a, b) { Int.compare(dueDate(player, a.id), dueDate(player, b.id)) });
+        List.sortInPlace<Question>(matches, func(a, b) { Int.compare(pickDue(player, a), pickDue(player, b)) });
       };
       for (q in List.sliceToArray<Question>(matches, 0, Nat.min(pick.count, List.size(matches))).values()) List.add(out, q);
     };
@@ -641,6 +666,13 @@ persistent actor Question {
       List.add(keys, k);
     };
     for (k in List.values(keys)) Map.remove(history, Text.compare, k);
+    let boostPrefix = p.toText() # "|";
+    let boosts = List.empty<Text>();
+    label scanBoosts for ((k, _) in reviewBoosts.entriesFrom(Text.compare, boostPrefix)) {
+      if (not k.startsWith(#text boostPrefix)) break scanBoosts;
+      boosts.add(k);
+    };
+    for (k in boosts.values()) reviewBoosts.remove(Text.compare, k);
     let reports = List.empty<QuestionReport>();
     for ((_, r) in Map.entries(questionReports)) { if (r.reporter == p) List.add(reports, r) };
     for (r in List.values(reports)) {

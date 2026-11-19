@@ -71,9 +71,9 @@ export type ReportReason = { 'Unclear' : null } |
   { 'WrongAnswer' : null } |
   { 'Outdated' : null };
 export type Result = { 'ok' : null } |
-  { 'err' : TagError };
-export type Result_1 = { 'ok' : null } |
   { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : TagError };
 export type Result_2 = { 'ok' : QuestionReport } |
   { 'err' : string };
 export type Result_3 = { 'ok' : Array<Question> } |
@@ -106,7 +106,7 @@ export interface _SERVICE {
    * / per-question answer totals stay: they are counts with no one's
    * / identity in them. Safe to repeat.
    */
-  'forgetUser' : ActorMethod<[Principal], Result_1>,
+  'forgetUser' : ActorMethod<[Principal], Result>,
   'getAdaptiveQuiz' : ActorMethod<[QuizFilter], Array<Question>>,
   'getAnswerRates' : ActorMethod<
     [Array<string>],
@@ -164,16 +164,20 @@ export interface _SERVICE {
    */
   'recordGradedAnswers' : ActorMethod<
     [Principal, string, Array<[string, boolean]>],
-    Result_1
+    Result
   >,
   'reportQuestion' : ActorMethod<[string, ReportReason, string], Result_2>,
   'resolveQuestionReport' : ActorMethod<[string, string], Result_2>,
   'sampleQuiz' : ActorMethod<[QuizFilter], Array<Question>>,
-  'setAdmin' : ActorMethod<[Principal], Result_1>,
+  'setAdmin' : ActorMethod<[Principal], Result>,
   /**
    * / Replaces a question's tags (an empty list removes them). Admin only.
    */
-  'setQuestionTags' : ActorMethod<[string, Array<string>], Result>,
+  'setQuestionTags' : ActorMethod<[string, Array<string>], Result_1>,
+  /**
+   * / User canister only: boost (or stop boosting) an article for a player.
+   */
+  'setReviewBoost' : ActorMethod<[Principal, string, boolean], Result>,
 }
 export const Difficulty = IDL.Variant({
   'Beginner' : IDL.Null,
@@ -209,7 +213,7 @@ export const Question = IDL.Record({
   'correctId' : IDL.Text,
 });
 export const Result_6 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
-export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const QuizFilter = IDL.Record({
   'casebook' : IDL.Bool,
   'difficulty' : IDL.Opt(Difficulty),
@@ -275,11 +279,11 @@ export const TagError = IDL.Variant({
   'notFound' : IDL.Null,
   'notAdmin' : IDL.Null,
 });
-export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
+export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'addQuestion' : IDL.Func([QuestionInput], [Result_6], []),
-  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
   'getAdaptiveQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
   'getAnswerRates' : IDL.Func(
       [IDL.Vec(IDL.Text)],
@@ -344,7 +348,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'recordAnswer' : IDL.Func([IDL.Text, IDL.Bool], [], []),
   'recordGradedAnswers' : IDL.Func(
       [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool))],
-      [Result_1],
+      [Result],
       [],
     ),
   'reportQuestion' : IDL.Func(
@@ -354,8 +358,13 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'resolveQuestionReport' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
   'sampleQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
-  'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
-  'setQuestionTags' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [Result], []),
+  'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
+  'setQuestionTags' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [Result_1], []),
+  'setReviewBoost' : IDL.Func(
+      [IDL.Principal, IDL.Text, IDL.Bool],
+      [Result],
+      [],
+    ),
 });
 
 export const idlInitArgs: IDL.Type[] = [];
@@ -395,7 +404,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'correctId' : IDL.Text,
   });
   const Result_6 = IDL.Variant({ 'ok' : Question, 'err' : IDL.Text });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const QuizFilter = IDL.Record({
     'casebook' : IDL.Bool,
     'difficulty' : IDL.Opt(Difficulty),
@@ -455,11 +464,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'notFound' : IDL.Null,
     'notAdmin' : IDL.Null,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : TagError });
   
   return IDL.Service({
     'addQuestion' : IDL.Func([QuestionInput], [Result_6], []),
-    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
     'getAdaptiveQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
     'getAnswerRates' : IDL.Func(
         [IDL.Vec(IDL.Text)],
@@ -524,7 +533,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'recordAnswer' : IDL.Func([IDL.Text, IDL.Bool], [], []),
     'recordGradedAnswers' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool))],
-        [Result_1],
+        [Result],
         [],
       ),
     'reportQuestion' : IDL.Func(
@@ -534,8 +543,13 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'resolveQuestionReport' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
     'sampleQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
-    'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
-    'setQuestionTags' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [Result], []),
+    'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
+    'setQuestionTags' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [Result_1], []),
+    'setReviewBoost' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Bool],
+        [Result],
+        [],
+      ),
   });
 };
 

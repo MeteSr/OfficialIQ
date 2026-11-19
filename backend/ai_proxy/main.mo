@@ -383,6 +383,32 @@ persistent actor AiProxy {
     await callClaude(sysPrompt, userMsg, 700)
   };
 
+  // Post-game call log (issue #66): matches an official's note about a call
+  // to one of the rules the app sends (articles and casebook plays it has
+  // already loaded, one per line as "id | citation | title"). The reply is
+  // JSON naming one candidate id; the app checks it against the list and
+  // shows it for the official to accept or change. Counts against the same
+  // daily cap as the rule assistant.
+  transient let DEFAULT_CALL_MATCHER_SYSTEM : Text = "You match an officiating call an official was unsure about to the rule that governs it. You are given the official's note and a list of candidate rules, one per line as 'id | citation | title'. Reply with ONLY a JSON object, no prose and no markdown fences: {\"id\": <the id of the single best candidate, copied exactly>, \"reason\": <one sentence on why that rule applies>}. Choose only from the candidates. If none applies, reply {\"id\": null, \"reason\": <one sentence>}.";
+  transient let MAX_CALL_NOTE_CHARS : Nat = 1_000;
+
+  public shared ({ caller }) func suggestRuleForCall(note : Text, candidates : Text) : async Result.Result<Text, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Sign in to match calls to rules");
+    if (note.trim(#char ' ').size() == 0) return #err("Write a note about the call first");
+    if (note.size() > MAX_CALL_NOTE_CHARS) return #err("Note is too long");
+    if (candidates.size() == 0 or candidates.size() > MAX_CONTEXT_CHARS) return #err("Rule list is empty or too long");
+    refreshEnv<system>();
+    let access = await* accessOf(caller);
+    lastAccess.add(Principal.compare, caller, access);
+    switch (checkAndConsume(caller, access)) {
+      case (#err(e)) return #err(e);
+      case (#ok()) {};
+    };
+    let sysPrompt = getTemplate("call_matcher_system", DEFAULT_CALL_MATCHER_SYSTEM);
+    let userMsg = "Call note: " # note # "\n\nCandidate rules:\n" # candidates;
+    await callClaude(sysPrompt, userMsg, 300)
+  };
+
   // On-demand personalized practice: the frontend derives the official's
   // weakest articles (already computed for ProgressPage/report cards) and
   // passes a short context blob describing them. Results are ephemeral —
