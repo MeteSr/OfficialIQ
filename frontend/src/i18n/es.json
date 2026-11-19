@@ -36,7 +36,6 @@
     "aiScenarioGenerator": "Generador de Escenarios IA",
     "reportCard": "Boletín de Progreso",
     "reportCardsShared": "Boletines Compartidos Conmigo",
-    "clipModerationQueue": "Cola de Moderación de Videos",
     "saving": "Guardando…",
     "pushUpdateFailed": "No se pudo actualizar la configuración de notificaciones",
     "clearAllConfirm": "¿Eliminar todo el contenido descargado sin conexión (artículos, preguntas y audio)?",
@@ -70,7 +69,6 @@
     "darkModeTitle": "Modo oscuro",
     "darkModeDesc": "Alterna entre las paletas oscura y clara de OfficialIQ.",
     "pushSupported": "Recibe una notificación al alcanzar una racha de 7/30/100 días.",
-    "pushUnsupported": "No compatible con este navegador.",
     "friends": "Amigos",
     "copied": "¡Copiado!",
     "copyShareLink": "Copiar mi enlace para compartir",
@@ -88,7 +86,12 @@
     "groupDevice": "Dispositivo",
     "friendStreak_one": "RACHA DE {{count}} DÍA",
     "friendStreak_other": "RACHA DE {{count}} DÍAS",
-    "friendAccuracy": "{{pct}}% DE PRECISIÓN"
+    "friendAccuracy": "{{pct}}% DE PRECISIÓN",
+    "groupAccount": "Cuenta",
+    "privacyPolicy": "Política de privacidad",
+    "terms": "Términos de uso",
+    "deleteAccount": "Eliminar cuenta",
+    "moderationQueue": "Cola de moderación"
   },
   "common": {
     "loading": "Cargando…",
@@ -180,14 +183,22 @@
   "moderation": {
     "signInRequired": "Se requiere iniciar sesión.",
     "adminsOnly": "Esta página es solo para administradores de contenido.",
-    "title": "Cola de Moderación de Videos",
+    "title": "Cola de moderación",
     "pendingCount_one": "{{count}} envío pendiente",
     "pendingCount_other": "{{count}} envíos pendientes",
     "nothingPending": "Nada pendiente de revisión.",
     "linkToPlay": "Vincular a jugada del manual de casos",
     "selectPlay": "Selecciona una jugada…",
     "approve": "Aprobar",
-    "reject": "Rechazar"
+    "reject": "Rechazar",
+    "tab_questions": "Reportes de preguntas",
+    "tab_errors": "Errores de la app",
+    "tab_clips": "Videos",
+    "noReports": "No hay reportes de preguntas abiertos.",
+    "noErrors": "No se han reportado errores.",
+    "keyedAnswer": "Respuesta correcta registrada",
+    "resolutionPlaceholder": "Qué cambiaste (opcional)",
+    "markResolved": "Marcar como resuelto"
   },
   "ruleAssistant": {
     "signInPrompt": "Inicia sesión para preguntar al asistente de reglas",
@@ -1039,5 +1050,43 @@
     "title": "Termina de iniciar sesión en la app",
     "body": "Esta página completa el inicio de sesión en la app OfficialIQ de tu teléfono. Si la estás viendo, la app no se abrió: vuelve a OfficialIQ y toca Iniciar sesión otra vez.",
     "web": "¿Usas OfficialIQ en el navegador? Continúa aquí."
+  },
+  "reportQuestion": {
+    "open": "Reportar un problema con esta pregunta",
+    "title": "¿Qué tiene de malo esta pregunta?",
+    "reasonWrongAnswer": "Respuesta incorrecta",
+    "reasonUnclear": "Poco clara",
+    "reasonOutdated": "Regla desactualizada",
+    "reasonTypo": "Error de escritura",
+    "reasonOther": "Otra cosa",
+    "notePlaceholder": "Cuéntanos más (opcional)",
+    "send": "Enviar reporte",
+    "sending": "Enviando…",
+    "thanks": "Gracias. Revisaremos esta pregunta.",
+    "already": "Ya reportaste esta pregunta.",
+    "failed": "No se pudo enviar el reporte. Inténtalo de nuevo."
+  },
+  "deleteAccount": {
+    "title": "Eliminar cuenta",
+    "intro": "Esto elimina tu cuenta de OfficialIQ de forma permanente. No se puede deshacer. Eliminamos:",
+    "itemProfile": "Tu perfil, plan de estudio, calendario y cuentas vinculadas",
+    "itemResults": "Tu historial de cuestionarios y exámenes, calificación, rachas e insignias",
+    "itemSocial": "Tus amigos, desafíos, membresías de grupos y resultados de asignaciones",
+    "itemOwned": "Los grupos de estudio que creaste y las asociaciones que coordinas, para todos sus miembros",
+    "itemShared": "Las tarjetas de reporte, enlaces de mentor y reportes de preguntas que creaste",
+    "kept": "Se conservan los conteos anónimos de respuestas por pregunta, sin nada que te identifique.",
+    "identity": "Tu Internet Identity es independiente y no se elimina. Puedes administrarla en id.ai.",
+    "confirmWord": "ELIMINAR",
+    "typeToConfirm": "Escribe {{word}} para confirmar",
+    "confirm": "Eliminar mi cuenta",
+    "deleting": "Eliminando…",
+    "failed": "No se pudo eliminar tu cuenta. Revisa tu conexión e inténtalo de nuevo.",
+    "doneTitle": "Cuenta eliminada",
+    "doneBody": "Tu cuenta fue eliminada y se cerró tu sesión. El resto de tus datos se elimina en unos minutos.",
+    "signInFirst": "Inicia sesión con la cuenta que quieres eliminar."
+  },
+  "legal": {
+    "draft": "Borrador: este documento aún no es definitivo.",
+    "englishOnly": "Este documento solo está disponible en inglés."
   }
 }

@@ -1,7 +1,10 @@
 // Polls ranking.getPendingPushEvents() for streak milestones (7/30/100 days)
-// crossed since the last run and sends a real Web Push to each subscribed
-// official, via their stored subscription in the user canister. Acks each
-// event on successful send so it isn't resent next run.
+// crossed since the last run and sends a notification to each subscribed
+// official, via their stored subscription in the user canister: Web Push for
+// the website, APNs for the iOS app, FCM for the Android app
+// (lib/nativePush.mjs). Acks each event on a successful send so it isn't
+// resent next run. A channel without its credentials is skipped and its
+// events stay queued until they're set.
 //
 // Motoko/the IC has no usable ECDSA-P256 signing primitive for VAPID JWTs
 // (threshold ECDSA is secp256k1, a different curve), so the actual signed,
@@ -19,14 +22,14 @@
 //     node scripts/send-pending-push.mjs [environment]
 //
 // Meant to run periodically (cron) or manually by an admin — see
-// scripts/send-push.sh. Native (Capacitor/FCM/APNs) tokens are registered
-// (see user.mo's PushSubscription#Native) but not sent to yet — that needs
-// a real Firebase project / APNs certificate, a human/business task like
-// the rest of issue #31's store-submission requirements.
+// scripts/send-push.sh. Native credentials (all optional, see docs/MOBILE.md):
+//   APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID   iOS (APNs token auth)
+//   FCM_SERVICE_ACCOUNT_JSON                 Android (Firebase)
 
 import webpush from "web-push";
 import { Actor } from "@icp-sdk/core/agent";
 import { connect, environmentFromArgs } from "./lib/icp.mjs";
+import { apnsSender, fcmSender } from "./lib/nativePush.mjs";
 
 const NETWORK = environmentFromArgs();
 
@@ -61,13 +64,17 @@ async function main() {
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const subject = process.env.VAPID_SUBJECT;
-  if (!privateKey || !publicKey || !subject) {
+  const hasWebPush = !!(privateKey && publicKey && subject);
+  if (hasWebPush) webpush.setVapidDetails(subject, publicKey, privateKey);
+  const apns = apnsSender();
+  const fcm = fcmSender();
+  if (!hasWebPush && !apns && !fcm) {
     throw new Error(
-      "VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, and VAPID_SUBJECT must all be set. " +
-      "Generate a key pair with: npx web-push generate-vapid-keys",
+      "No push channel is configured. Set VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY and VAPID_SUBJECT for the website " +
+      "(npx web-push generate-vapid-keys), and/or the APNs and FCM secrets for the apps (docs/MOBILE.md).",
     );
   }
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  console.log(`Channels: web push ${hasWebPush ? "on" : "off"}, iOS ${apns ? "on" : "off"}, Android ${fcm ? "on" : "off"}`);
 
   const { agent, principal, ids } = await connect(NETWORK, ["ranking", "user"]);
   const rankingId = ids.ranking;
@@ -110,25 +117,36 @@ async function main() {
     for (const milestone of milestones) {
       const copy = MILESTONE_COPY[Number(milestone)] ?? { title: "OfficialIQ", body: `${milestone}-day streak!` };
 
-      if ("WebPush" in sub) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
-            JSON.stringify({ title: copy.title, body: copy.body, url: "/home" }),
-          );
-          await ranking.ackPushEvent(memberPrincipal, milestone);
-          console.log(`  ✓ ${memberPrincipal.toText()} — ${milestone}-day milestone`);
-          sent++;
-        } catch (err) {
-          console.error(`  ✗ ${memberPrincipal.toText()} — ${milestone}-day milestone: ${err.statusCode ?? ""} ${err.message ?? err}`);
-          errors++;
-        }
-      } else if ("Native" in sub) {
-        console.log(`  · ${memberPrincipal.toText()} — ${milestone}-day milestone: native token registered but sending isn't wired yet (needs a Firebase/APNs project — see issue #31)`);
+      const message = { title: copy.title, body: copy.body, url: "/home" };
+      let send = null;
+      if ("WebPush" in sub && hasWebPush) {
+        send = () => webpush.sendNotification(
+          { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
+          JSON.stringify(message),
+        );
+      } else if ("Native" in sub && sub.Native.platform === "ios" && apns) {
+        send = () => apns.send(sub.Native.token, message);
+      } else if ("Native" in sub && sub.Native.platform === "android" && fcm) {
+        send = () => fcm.send(sub.Native.token, message);
+      }
+      if (!send) {
+        // That channel isn't configured: keep the event for a later run.
         skipped++;
+        continue;
+      }
+      try {
+        await send();
+        await ranking.ackPushEvent(memberPrincipal, milestone);
+        console.log(`  ✓ ${memberPrincipal.toText()} — ${milestone}-day milestone`);
+        sent++;
+      } catch (err) {
+        console.error(`  ✗ ${memberPrincipal.toText()} — ${milestone}-day milestone: ${err.statusCode ?? ""} ${err.message ?? err}`);
+        errors++;
       }
     }
   }
+  apns?.close();
+  fcm?.close();
 
   console.log("");
   console.log(`Done. Sent: ${sent}, skipped: ${skipped}, errors: ${errors}`);

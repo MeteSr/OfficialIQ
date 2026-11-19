@@ -10,6 +10,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Set "mo:core/Set";
+import Env "../lib/Env";
 
 persistent actor Content {
 
@@ -328,6 +329,23 @@ persistent actor Content {
         #ok(updated)
       };
     }
+  };
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their clip submissions that weren't used. An approved clip is
+  /// already part of a casebook play, so it stays, with the submitter
+  /// replaced by the anonymous principal. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    let theirs = List.empty<VideoSubmission>();
+    for ((_, s) in Map.entries(submissions)) { if (s.submitter == p) List.add(theirs, s) };
+    for (s in List.values(theirs)) {
+      switch (s.status) {
+        case (#Approved) Map.add(submissions, Text.compare, s.id, { s with submitter = Principal.anonymous() });
+        case _ Map.remove(submissions, Text.compare, s.id);
+      };
+    };
+    #ok(())
   };
 
   public shared ({ caller }) func upsertPointOfEmphasis(input : PoeInput) : async Result.Result<PointOfEmphasis, Text> {

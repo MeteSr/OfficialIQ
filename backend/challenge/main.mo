@@ -172,6 +172,24 @@ persistent actor Challenge {
     Map.get(challenges, Text.compare, id)
   };
 
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes every challenge they sent or received. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (id in Index.take(challengesByParticipant, Principal.compare, p).values()) {
+      switch (Map.take(challenges, Text.compare, id)) {
+        case (?ch) {
+          let other = if (ch.challenger == p) ch.challenged else ch.challenger;
+          Index.removeId(challengesByParticipant, Principal.compare, other, id);
+        };
+        case null {};
+      };
+    };
+    #ok(())
+  };
+
   public query func metrics() : async { challengeCount : Nat } {
     { challengeCount = Map.size(challenges) }
   };

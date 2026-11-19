@@ -6,8 +6,9 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
-
 import Index "../lib/Index";
+import Env "../lib/Env";
+
 persistent actor Report {
 
   // ─── Types ────────────────────────────────────────────────────────────────
@@ -183,6 +184,32 @@ persistent actor Report {
       if (not s.seen) count += 1;
     };
     count
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their report cards and every share of them, and the shares
+  /// other officials sent them as a coordinator. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    let mine = switch (Map.take(myReportIds, Principal.compare, p)) { case (?m) m; case null [] };
+    for (reportId in mine.values()) {
+      Map.remove(reports, Text.compare, reportId);
+      for (sid in Index.take(sharesByReport, Text.compare, reportId).values()) {
+        switch (Map.take(shares, Text.compare, sid)) {
+          case (?s) Index.removeId(sharesByCoordinator, Principal.compare, s.coordinator, sid);
+          case null {};
+        };
+      };
+    };
+    for (sid in Index.take(sharesByCoordinator, Principal.compare, p).values()) {
+      switch (Map.take(shares, Text.compare, sid)) {
+        case (?s) Index.removeId(sharesByReport, Text.compare, s.reportId, sid);
+        case null {};
+      };
+    };
+    #ok(())
   };
 
   public query func metrics() : async { reportCount : Nat; shareCount : Nat } {

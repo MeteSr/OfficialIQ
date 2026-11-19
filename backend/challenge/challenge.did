@@ -1,3 +1,8 @@
+type Result_1 = 
+ variant {
+   err: text;
+   ok;
+ };
 type Result = 
  variant {
    err: text;
@@ -33,6 +38,9 @@ type Challenge =
  };
 service : {
   acceptChallenge: (id: text) -> (Result);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes every challenge they sent or received. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_1);
   getChallenge: (id: text) -> (opt Challenge) query;
   getMyChallenges: () -> (vec Challenge) query;
   metrics: () -> (record {challengeCount: nat;}) query;

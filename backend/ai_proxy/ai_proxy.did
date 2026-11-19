@@ -36,6 +36,9 @@ type HttpHeader =
  };
 service : {
   askRuleAssistant: (question: text, context: text) -> (Result_4);
+  /// Called by the user canister when an official deletes their account:
+  /// drops their daily usage counter. Safe to repeat.
+  forgetUser: (p: principal) -> (Result);
   generatePersonalizedDrills: (weakAreasContext: text, count: nat) ->
    (Result_4);
   generateScenarios: (instructions: text, articleContext: text, count:

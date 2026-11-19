@@ -8,6 +8,12 @@
 	     callback. Both are verified against the origin's
 	     /.well-known/apple-app-site-association. APP_LINK_HOST is a build setting
 	     (localhost by default; the release workflow passes the real host). -->
+	<!-- Push notifications (streak milestones). Xcode's automatic signing adds
+	     the capability to the app ID; exported App Store builds use the
+	     production APNs environment whatever this says. The relay sends with
+	     an APNs key (frontend/scripts/lib/nativePush.mjs). -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:$(APP_LINK_HOST)</string>

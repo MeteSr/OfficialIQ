@@ -8,6 +8,7 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Time "mo:core/Time";
 import Error "mo:core/Error";
+import Env "../lib/Env";
 import Array "mo:core/Array";
 
 // HTTPS outcalls go through the `ic` mops package's builder, which selects
@@ -352,6 +353,14 @@ persistent actor AiProxy {
     let sysPrompt = getTemplate("scenario_generator_system", DEFAULT_SCENARIO_SYSTEM);
     let userMsg = "Generate exactly " # Nat.toText(count) # " questions.\nInstructions: " # instructions # "\n\nRulebook context:\n" # articleContext;
     await callClaude(sysPrompt, userMsg, 3000)
+  };
+
+  /// Called by the user canister when an official deletes their account:
+  /// drops their daily usage counter. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    Map.remove(rateLimits, Principal.compare, p);
+    #ok(())
   };
 
   public query func metrics() : async { ok : Bool; aiConfigured : Bool } {

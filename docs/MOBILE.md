@@ -130,6 +130,40 @@ makes and renews them through the API key.
 | `PLAY_SERVICE_ACCOUNT_JSON` | secret | Google Cloud service account key |
 | `ANDROID_CERT_SHA256` | variable | Play Console → App integrity (both keys) |
 | `NATIVE_WEB_ORIGIN` | variable, optional | Only for a custom domain |
+| `GOOGLE_SERVICES_JSON` | secret | Firebase → Android app → `google-services.json` |
+| `FCM_SERVICE_ACCOUNT_JSON` | secret, `production` env | Firebase → Service accounts → new private key |
+| `APNS_KEY_P8` | secret, `production` env | Apple Developer → Keys → APNs key `.p8` |
+| `APNS_KEY_ID` | secret, `production` env | that key's ID |
+| `FEATURE_NATIVE_PUSH` | variable | `true` once the four above are set |
+
+### Push notifications
+
+Streak milestones (7, 30 and 100 days) reach the apps through Apple's and
+Google's push services. The app registers its device token with the user
+canister; the push relay (`push-relay.yml`, every 15 minutes) sends to
+APNs and FCM directly (`frontend/scripts/lib/nativePush.mjs`). Until the
+credentials exist, the relay skips phones and keeps their notifications
+queued, and the app hides the notification switch.
+
+1. **Firebase (Android).** Create a Firebase project, add an Android app
+   with package `app.officialiq.study`, download `google-services.json`
+   → secret `GOOGLE_SERVICES_JSON` (the whole file). The release workflow
+   writes it into the Android project before building.
+2. **Firebase service account (relay).** Project settings → Service
+   accounts → Generate new private key → secret
+   `FCM_SERVICE_ACCOUNT_JSON` on the `production` environment.
+3. **APNs key (iOS).** Apple Developer → Certificates, Identifiers &
+   Profiles → Keys → create a key with Apple Push Notifications service
+   enabled, download the `.p8` once → secret `APNS_KEY_P8` (the file's
+   contents) and `APNS_KEY_ID` on the `production` environment. The relay
+   uses the `APPLE_TEAM_ID` variable as the team. The app's entitlement is
+   already in `ios/App/App/App.entitlements`; automatic signing adds the
+   capability to the app ID.
+4. Set the repository variable `FEATURE_NATIVE_PUSH` to `true` and run
+   Mobile release. Leave it unset until steps 1 to 3 are done: turning push
+   on in an Android build without Firebase config crashes the app.
+5. On a test phone, turn on notifications on the Me tab, then check the
+   next push relay run's log lists the device's platform as "on".
 
 ## Testing sign-in on a phone
 

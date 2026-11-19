@@ -15,7 +15,12 @@ name: Push relay (streak milestones)
 #                        events. Never the deploy key: that one controls
 #                        every canister.
 #   VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT — from
-#     `npx --prefix frontend web-push generate-vapid-keys`
+#     `npx --prefix frontend web-push generate-vapid-keys` (the website)
+#   APNS_KEY_P8, APNS_KEY_ID — an APNs key from the Apple Developer account,
+#     with the APPLE_TEAM_ID variable (the iOS app)
+#   FCM_SERVICE_ACCOUNT_JSON — a Firebase service account (the Android app)
+# Each channel is optional; one without its secrets is skipped
+# (docs/MOBILE.md, "Push notifications").
 
 on:
   schedule:
@@ -71,3 +76,7 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
+          APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+          APNS_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}

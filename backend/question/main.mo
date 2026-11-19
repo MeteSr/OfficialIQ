@@ -412,7 +412,120 @@ persistent actor Question {
     #ok(Array.filterMap<Text, Question>(ids, func(id) { Map.get(questions, Text.compare, id) }))
   };
 
-  public query func metrics() : async { questionCount : Nat } {
-    { questionCount = Map.size(questions) }
+  // ─── Question reports ──────────────────────────────────────────────────────
+  //
+  // Officials flag a question they think is wrong or unclear. Reports go to
+  // an admin queue (the app's moderation page); an admin fixes the question
+  // with addQuestion/content tools and closes the report. One open report
+  // per official per question.
+
+  public type ReportReason = { #WrongAnswer; #Unclear; #Outdated; #Typo; #Other };
+
+  public type QuestionReport = {
+    id         : Text;
+    questionId : Text;
+    reporter   : Principal;
+    reason     : ReportReason;
+    note       : Text;
+    createdAt  : Int;
+    resolved   : Bool;
+    resolution : Text;
+    resolvedAt : ?Int;
+  };
+
+  // "<questionId>|<reporter>" -> report.
+  var questionReports : Map.Map<Text, QuestionReport> = Map.empty<Text, QuestionReport>();
+  var openReportCount : Nat = 0;
+
+  let MAX_REPORT_NOTE_CHARS : Nat = 500;
+  let MAX_OPEN_REPORTS : Nat = 2_000;
+
+  func reportKey(questionId : Text, reporter : Principal) : Text {
+    questionId # "|" # Principal.toText(reporter)
+  };
+
+  public shared ({ caller }) func reportQuestion(questionId : Text, reason : ReportReason, note : Text) : async Result.Result<QuestionReport, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(note) > MAX_REPORT_NOTE_CHARS) return #err("Note is too long");
+    if (Map.get(questions, Text.compare, questionId) == null) return #err("Question not found");
+    let key = reportKey(questionId, caller);
+    switch (Map.get(questionReports, Text.compare, key)) {
+      case (?r) { if (not r.resolved) return #err("You already reported this question") };
+      case null {};
+    };
+    if (openReportCount >= MAX_OPEN_REPORTS) return #err("The report queue is full, try again later");
+    let r : QuestionReport = {
+      id = key; questionId; reporter = caller; reason; note;
+      createdAt = Time.now(); resolved = false; resolution = ""; resolvedAt = null;
+    };
+    Map.add(questionReports, Text.compare, key, r);
+    openReportCount += 1;
+    #ok(r)
+  };
+
+  /// Admin queue. Open reports only, or every report when `includeResolved`.
+  public shared query ({ caller }) func listQuestionReports(includeResolved : Bool) : async Result.Result<[QuestionReport], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let out = List.empty<QuestionReport>();
+    for ((_, r) in Map.entries(questionReports)) {
+      if (includeResolved or not r.resolved) List.add(out, r);
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared ({ caller }) func resolveQuestionReport(id : Text, resolution : Text) : async Result.Result<QuestionReport, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    if (Text.size(resolution) > MAX_REPORT_NOTE_CHARS) return #err("Resolution is too long");
+    switch (Map.get(questionReports, Text.compare, id)) {
+      case null #err("Report not found");
+      case (?r) {
+        if (r.resolved) return #ok(r);
+        let updated = { r with resolved = true; resolution; resolvedAt = ?Time.now() };
+        Map.add(questionReports, Text.compare, id, updated);
+        if (openReportCount > 0) openReportCount -= 1;
+        #ok(updated)
+      };
+    }
+  };
+
+  /// Questions the caller has an open report on, so the app can show
+  /// "Reported" instead of the button.
+  public shared query ({ caller }) func myOpenReports(questionIds : [Text]) : async [Text] {
+    Array.filter<Text>(Array.sliceToArray<Text>(questionIds, 0, Nat.min(questionIds.size(), 200)), func(qid) {
+      switch (Map.get(questionReports, Text.compare, reportKey(qid, caller))) {
+        case (?r) not r.resolved;
+        case null false;
+      }
+    })
+  };
+
+  public shared query ({ caller }) func isAdminCaller() : async Bool { isAdmin(caller) };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// drops their spaced-repetition history and their question reports. The
+  /// per-question answer totals stay: they are counts with no one's
+  /// identity in them. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    let prefix = Principal.toText(p) # "::";
+    let keys = List.empty<Text>();
+    label scan for ((k, _) in Map.entriesFrom(history, Text.compare, prefix)) {
+      if (not Text.startsWith(k, #text prefix)) break scan;
+      List.add(keys, k);
+    };
+    for (k in List.values(keys)) Map.remove(history, Text.compare, k);
+    let reports = List.empty<QuestionReport>();
+    for ((_, r) in Map.entries(questionReports)) { if (r.reporter == p) List.add(reports, r) };
+    for (r in List.values(reports)) {
+      Map.remove(questionReports, Text.compare, r.id);
+      if (not r.resolved and openReportCount > 0) openReportCount -= 1;
+    };
+    #ok(())
+  };
+
+  public query func metrics() : async { questionCount : Nat; openReports : Nat } {
+    { questionCount = Map.size(questions); openReports = openReportCount }
   };
 }

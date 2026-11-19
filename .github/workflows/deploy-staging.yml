@@ -118,6 +118,15 @@ jobs:
           NATIVE_WEB_ORIGIN: ${{ vars.NATIVE_WEB_ORIGIN }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+          # What the website build switches on (frontend/build-config/features.ts).
+          # Unset variables keep the launch defaults: NCAA only, no audio or
+          # clip submissions, web push once the VAPID public key exists.
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          LAUNCH_SPORTS: ${{ vars.LAUNCH_SPORTS }}
+          FEATURE_AUDIO: ${{ vars.FEATURE_AUDIO }}
+          FEATURE_CLIP_SUBMISSIONS: ${{ vars.FEATURE_CLIP_SUBMISSIONS }}
+          FEATURE_AI: ${{ vars.FEATURE_AI }}
+          FEATURE_WEB_PUSH: ${{ vars.FEATURE_WEB_PUSH }}
 
       - name: Commit canister ID mappings
         # Must run even when the deploy failed partway: a created canister is

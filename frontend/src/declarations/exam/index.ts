@@ -140,6 +140,13 @@ export interface _SERVICE {
    * / the full answer key. Safe to call again.
    */
   'finishSession' : ActorMethod<[string], Result_1>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes their exam sessions, share links, answer keys and any results
+   * / still waiting to be pushed. The user canister calls this before the
+   * / canisters those results go to. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_4>,
   'getByShareToken' : ActorMethod<[string], [] | [ExamSession]>,
   'getExamTemplate' : ActorMethod<[string], [] | [ExamTemplate]>,
   'getExamsFor' : ActorMethod<[Principal], Array<ExamSession>>,
@@ -236,6 +243,7 @@ export const GradedFinish = IDL.Record({
   'session' : ExamSession,
 });
 export const Result_1 = IDL.Variant({ 'ok' : GradedFinish, 'err' : IDL.Text });
+export const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const ExamTemplate = IDL.Record({
   'id' : IDL.Text,
   'timeLimitSec' : IDL.Nat,
@@ -261,7 +269,6 @@ export const GradedResult = IDL.Record({
   'finishedAt' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
-export const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const QuestionSource = IDL.Variant({
   'Ids' : IDL.Vec(IDL.Text),
   'ShareToken' : IDL.Text,
@@ -304,6 +311,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'createSession' : IDL.Func([ExamConfig, IDL.Vec(IDL.Text)], [Result_2], []),
   'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_5], []),
   'finishSession' : IDL.Func([IDL.Text], [Result_1], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_4], []),
   'getByShareToken' : IDL.Func([IDL.Text], [IDL.Opt(ExamSession)], ['query']),
   'getExamTemplate' : IDL.Func([IDL.Text], [IDL.Opt(ExamTemplate)], ['query']),
   'getExamsFor' : IDL.Func([IDL.Principal], [IDL.Vec(ExamSession)], ['query']),
@@ -405,6 +413,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'session' : ExamSession,
   });
   const Result_1 = IDL.Variant({ 'ok' : GradedFinish, 'err' : IDL.Text });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ExamTemplate = IDL.Record({
     'id' : IDL.Text,
     'timeLimitSec' : IDL.Nat,
@@ -430,7 +439,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'finishedAt' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
-  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const QuestionSource = IDL.Variant({
     'Ids' : IDL.Vec(IDL.Text),
     'ShareToken' : IDL.Text,
@@ -473,6 +481,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'createSession' : IDL.Func([ExamConfig, IDL.Vec(IDL.Text)], [Result_2], []),
     'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_5], []),
     'finishSession' : IDL.Func([IDL.Text], [Result_1], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_4], []),
     'getByShareToken' : IDL.Func([IDL.Text], [IDL.Opt(ExamSession)], ['query']),
     'getExamTemplate' : IDL.Func(
         [IDL.Text],

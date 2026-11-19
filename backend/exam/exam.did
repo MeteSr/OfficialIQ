@@ -178,6 +178,11 @@ service : {
   /// Finishes a session (unanswered questions count as wrong) and returns
   /// the full answer key. Safe to call again.
   finishSession: (sessionId: text) -> (Result_1);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their exam sessions, share links, answer keys and any results
+  /// still waiting to be pushed. The user canister calls this before the
+  /// canisters those results go to. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_4);
   getByShareToken: (token: text) -> (opt ExamSession) query;
   getExamTemplate: (id: text) -> (opt ExamTemplate) query;
   getExamsFor: (p: principal) -> (vec ExamSession) query;

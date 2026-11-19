@@ -306,6 +306,61 @@ persistent actor Association {
     false
   };
 
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// removes them from every association and its assignments, drops their
+  /// completions, and deletes the associations they coordinate (with their
+  /// assignments and everyone's completions of them). Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (key in Index.take(completionsByMember, Principal.compare, p).values()) {
+      Map.remove(completions, Text.compare, key);
+    };
+    let mine = switch (Map.take(myAssociations, Principal.compare, p)) { case (?a) a; case null [] };
+    for (id in mine.values()) {
+      let ms = switch (Map.get(members, Text.compare, id)) { case (?ms) ms; case null [] };
+      Map.add(members, Text.compare, id, Array.filter<Principal>(ms, func(m) { m != p }));
+    };
+    // Named in an assignment's target list.
+    for (aid in Map.keys(assignments)) {
+      switch (Map.get(assignments, Text.compare, aid)) {
+        case (?a) {
+          if (Array.find<Principal>(a.targetMembers, func(m) { m == p }) != null) {
+            Map.add(assignments, Text.compare, aid, { a with targetMembers = Array.filter<Principal>(a.targetMembers, func(m) { m != p }) });
+          };
+        };
+        case null {};
+      };
+    };
+    for (id in Index.take(associationsByCoordinator, Principal.compare, p).values()) {
+      switch (Map.take(associations, Text.compare, id)) {
+        case (?rec) Map.remove(joinCodeIndex, Text.compare, rec.joinCode);
+        case null {};
+      };
+      let ms = switch (Map.take(members, Text.compare, id)) { case (?ms) ms; case null [] };
+      for (m in ms.values()) {
+        switch (Map.get(myAssociations, Principal.compare, m)) {
+          case (?ids) Map.add(myAssociations, Principal.compare, m, Array.filter<Text>(ids, func(x) { x != id }));
+          case null {};
+        };
+      };
+      let aids = switch (Map.take(assignmentsByAssoc, Text.compare, id)) { case (?xs) xs; case null [] };
+      for (aid in aids.values()) {
+        Map.remove(assignments, Text.compare, aid);
+        let prefix = aid # "|";
+        let keys = List.empty<Text>();
+        label scan for ((key, c) in Map.entriesFrom(completions, Text.compare, prefix)) {
+          if (not Text.startsWith(key, #text prefix)) break scan;
+          List.add(keys, key);
+          Index.removeId(completionsByMember, Principal.compare, c.member, key);
+        };
+        for (key in List.values(keys)) Map.remove(completions, Text.compare, key);
+      };
+    };
+    #ok(())
+  };
+
   public query func metrics() : async { associationCount : Nat; assignmentCount : Nat } {
     { associationCount = Map.size(associations); assignmentCount = Map.size(assignments) }
   };

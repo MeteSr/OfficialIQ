@@ -125,6 +125,32 @@ spend limit, used for nothing else, so a leaked key can cost at most that
 limit. Rotate it by re-running `set-ai-config` with the new key, then
 delete the old one in the Console.
 
+### 8. What the app shows (feature switches)
+
+Repository variables decide which parts of the app a build turns on
+(`frontend/build-config/features.ts`), so a feature that needs content or
+an account that isn't ready yet stays hidden instead of showing an empty
+screen. The deploy and mobile release workflows pass them to the build;
+change one and redeploy (or re-run Mobile release) to apply it.
+
+| Variable | Default | Turns on |
+|---|---|---|
+| `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app |
+| `FEATURE_AUDIO` | off | Narrated articles (after `generate-audio.sh` has run) |
+| `FEATURE_CLIP_SUBMISSIONS` | off | Officials submitting casebook video clips |
+| `FEATURE_AI` | on | Rule assistant and AI drills (needs the key from step 7) |
+| `FEATURE_WEB_PUSH` | on when the `VAPID_PUBLIC_KEY` secret exists | Streak notifications on the website |
+| `FEATURE_NATIVE_PUSH` | off | Streak notifications in the apps (docs/MOBILE.md, "Push notifications") |
+
+### 9. Moderation queue
+
+Admins see a **Moderation Queue** row on the Me tab. It has the question
+reports officials send from a quiz ("Report a problem with this
+question"), the app's error log (crashes and failed loads, with nothing
+identifying the official), and, when clip submissions are on, clips
+waiting for review. Fix a reported question with the content tools, then
+mark the report resolved.
+
 ## Day-to-day usage
 
 This follows the same pipeline shape as HomeGentic:

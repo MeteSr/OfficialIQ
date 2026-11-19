@@ -6,10 +6,12 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Set "mo:core/Set";
 import Env "../lib/Env";
+import Timer "mo:core/Timer";
+import Error "mo:core/Error";
+import List "mo:core/List";
 
 persistent actor User {
 
@@ -210,6 +212,9 @@ persistent actor User {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
+    // Otherwise the erasure still running would delete the new account's
+    // data in the other canisters.
+    if (Map.get(erasures, Principal.compare, caller) != null) return #err("Your old account is still being deleted. Try again in a few minutes.");
 
     let p : Profile = {
       principal         = caller;
@@ -383,6 +388,186 @@ persistent actor User {
     #ok(())
   };
 
+  // ─── Account deletion ──────────────────────────────────────────────────────
+  //
+  // App Store guideline 5.1.1(v) and Google Play's account deletion policy:
+  // an official can delete their account and its data from inside the app.
+  // deleteAccount removes everything this canister holds at once, then a
+  // timer asks every other canister to forget them (forgetUser), retrying
+  // with backoff until each one has. Exam goes first, so a result it hasn't
+  // pushed yet can't re-create stats in ranking after ranking has forgotten
+  // them.
+
+  let ERASE_TARGETS : [Text] = ["exam", "challenge", "mentorship", "association", "report", "ranking", "question", "content", "ai_proxy"];
+
+  type Erasure = { pending : [Text]; attempts : Nat; nextTry : Int; requestedAt : Int };
+  var erasures : Map.Map<Principal, Erasure> = Map.empty<Principal, Erasure>();
+  var completedErasures : Nat = 0;
+
+  public type DeletionStatus = { #NotRequested; #InProgress : { remaining : Nat }; };
+
+  public shared ({ caller }) func deleteAccount() : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    Map.remove(profiles, Principal.compare, caller);
+    Map.remove(studyPaces, Principal.compare, caller);
+    Map.remove(progress, Principal.compare, caller);
+    Map.remove(weeklyQuizHistory, Principal.compare, caller);
+    Map.remove(monthlyQuizHistory, Principal.compare, caller);
+    Map.remove(linkedAccounts, Principal.compare, caller);
+    Map.remove(upcomingGames, Principal.compare, caller);
+    Map.remove(pushSubscriptions, Principal.compare, caller);
+    if (Map.get(erasures, Principal.compare, caller) == null) {
+      Map.add(erasures, Principal.compare, caller, { pending = ERASE_TARGETS; attempts = 0; nextTry = 0; requestedAt = Time.now() });
+    };
+    armErase<system>(Time.now());
+    #ok(())
+  };
+
+  public shared query ({ caller }) func getDeletionStatus() : async DeletionStatus {
+    switch (Map.get(erasures, Principal.compare, caller)) {
+      case (?e) #InProgress({ remaining = e.pending.size() });
+      case null #NotRequested;
+    }
+  };
+
+  type Forgetful = actor { forgetUser : shared Principal -> async Result.Result<(), Text> };
+
+  transient var eraseTimer : ?(Timer.TimerId, Int) = null;
+
+  func armErase<system>(at : Int) {
+    let now = Time.now();
+    switch eraseTimer {
+      case (?(_, fires)) { if (fires <= at) return };
+      case null {};
+    };
+    switch eraseTimer { case (?(id, _)) Timer.cancelTimer(id); case null {} };
+    let delayNs = Int.abs(Int.max(at - now, 0));
+    let id = Timer.setTimer<system>(#nanoseconds delayNs, func() : async () { await flushErasures() });
+    eraseTimer := ?(id, now + delayNs);
+  };
+
+  // Timers don't survive an upgrade; pick the queue up again.
+  system func postupgrade() {
+    if (not Map.isEmpty(erasures)) armErase<system>(Time.now());
+  };
+
+  func flushErasures() : async () {
+    eraseTimer := null;
+    let now = Time.now();
+    let due = List.empty<Principal>();
+    for ((p, e) in Map.entries(erasures)) { if (e.nextTry <= now) List.add(due, p) };
+    for (p in List.values(due)) { await* erase(p) };
+    var next : ?Int = null;
+    for ((_, e) in Map.entries(erasures)) {
+      next := ?(switch next { case (?n) Int.min(n, e.nextTry); case null e.nextTry });
+    };
+    switch next {
+      case (?at) armErase<system>(Int.max(at, Time.now() + 60_000_000_000));
+      case null {};
+    };
+  };
+
+  // Works through one official's remaining canisters in order, stopping at
+  // the first that fails so the order holds on the retry.
+  func erase<system>(p : Principal) : async* () {
+    let e = switch (Map.get(erasures, Principal.compare, p)) { case (?e) e; case null return };
+    var remaining = e.pending;
+    label targets for (name in e.pending.values()) {
+      switch (Env.canisterId<system>(name)) {
+        // Not deployed alongside this one (e.g. a partial local deploy):
+        // nothing there to forget.
+        case null {};
+        case (?cid) {
+          let ok = try {
+            switch (await (actor (Principal.toText(cid)) : Forgetful).forgetUser(p)) { case (#ok) true; case (#err(_)) false }
+          } catch (_ : Error.Error) false;
+          if (not ok) break targets;
+        };
+      };
+      remaining := Array.sliceToArray<Text>(remaining, 1, remaining.size());
+    };
+    if (remaining.size() == 0) {
+      Map.remove(erasures, Principal.compare, p);
+      completedErasures += 1;
+    } else {
+      // 1, 2, 4 ... minutes, then hourly, until it goes through. Never
+      // dropped: the official was told their data would be deleted.
+      let backoff = 60_000_000_000 * Nat.pow(2, Nat.min(e.attempts, 6));
+      Map.add(erasures, Principal.compare, p, { e with pending = remaining; attempts = e.attempts + 1; nextTry = Time.now() + backoff });
+    };
+  };
+
+  // ─── App error log ─────────────────────────────────────────────────────────
+  //
+  // The app reports crashes and failed loads here (src/lib/errorReporting.ts)
+  // so they're visible without a third-party crash service, and so no extra
+  // party sees users' data. Nothing identifies the official: the caller isn't
+  // stored, and the app strips principals from messages before sending. The
+  // log keeps the latest MAX_CLIENT_ERRORS entries; admins read it on the
+  // app's moderation page.
+
+  public type ClientErrorInput = {
+    kind     : Text; // "crash" | "unhandled" | "load"
+    message  : Text;
+    stack    : Text;
+    route    : Text;
+    release  : Text;
+    platform : Text; // "web" | "android" | "ios"
+  };
+
+  public type ClientError = {
+    seq      : Nat;
+    at       : Int;
+    kind     : Text;
+    message  : Text;
+    stack    : Text;
+    route    : Text;
+    release  : Text;
+    platform : Text;
+    signedIn : Bool;
+  };
+
+  let MAX_CLIENT_ERRORS : Nat = 500;
+  var clientErrors : Map.Map<Nat, ClientError> = Map.empty<Nat, ClientError>();
+  var nextClientErrorSeq : Nat = 0;
+
+  func clip(t : Text, n : Nat) : Text {
+    if (Text.size(t) <= n) return t;
+    var out = "";
+    var i = 0;
+    label take for (c in t.chars()) {
+      if (i >= n) break take;
+      out #= Text.fromChar(c);
+      i += 1;
+    };
+    out
+  };
+
+  public shared ({ caller }) func logClientError(e : ClientErrorInput) : async () {
+    let seq = nextClientErrorSeq;
+    nextClientErrorSeq += 1;
+    Map.add(clientErrors, Nat.compare, seq, {
+      seq; at = Time.now();
+      kind = clip(e.kind, 16); message = clip(e.message, 500); stack = clip(e.stack, 2_000);
+      route = clip(e.route, 200); release = clip(e.release, 40); platform = clip(e.platform, 16);
+      signedIn = not Principal.isAnonymous(caller);
+    });
+    if (seq >= MAX_CLIENT_ERRORS) Map.remove(clientErrors, Nat.compare, seq - MAX_CLIENT_ERRORS);
+  };
+
+  /// Newest first, at most `limit`.
+  public shared query ({ caller }) func listClientErrors(limit : Nat) : async Result.Result<[ClientError], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let out = List.empty<ClientError>();
+    label newest for ((_, e) in Map.reverseEntries(clientErrors)) {
+      if (List.size(out) >= limit) break newest;
+      List.add(out, e);
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared query ({ caller }) func isAdminCaller() : async Bool { isAdmin(caller) };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
@@ -506,7 +691,7 @@ persistent actor User {
     { dueThisWeek = due; overdue = overdue; weekNumber = currentWeekInCycle + 1 }
   };
 
-  public query func metrics() : async { userCount : Nat } {
-    { userCount = Map.size(profiles) }
+  public query func metrics() : async { userCount : Nat; pendingDeletions : Nat; completedDeletions : Nat; clientErrors : Nat } {
+    { userCount = Map.size(profiles); pendingDeletions = Map.size(erasures); completedDeletions = completedErasures; clientErrors = nextClientErrorSeq }
   };
 }

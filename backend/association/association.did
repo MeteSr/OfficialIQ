@@ -64,6 +64,11 @@ service : {
   createAssignment: (associationId: text, title: text, articleIds: vec text,
    casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_6);
   createAssociation: (name: text, sport: text) -> (Result_2);
+  /// Called by the user canister when an official deletes their account:
+  /// removes them from every association and its assignments, drops their
+  /// completions, and deletes the associations they coordinate (with their
+  /// assignments and everyone's completions of them). Safe to repeat.
+  forgetUser: (p: principal) -> (Result_1);
   getAssignmentCompletions: (assignmentId: text) -> (Result_5) query;
   getAssociation: (id: text) -> (opt AssociationRec) query;
   getAssociationAssignments: (id: text) -> (Result_4) query;

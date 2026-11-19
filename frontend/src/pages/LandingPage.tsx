@@ -481,6 +481,8 @@ export default function LandingPage() {
             );
           })}
         </div>
+        <a href="/privacy" style={{ fontFamily: T.font, fontSize: 12.5, color: faint }}>{t("me.privacyPolicy")}</a>
+        <a href="/terms" style={{ fontFamily: T.font, fontSize: 12.5, color: faint }}>{t("me.terms")}</a>
         <span style={{ fontFamily: T.font, fontSize: 12.5, color: faint }}>
           {t("landing.footerCopyright", { year: new Date().getFullYear() })}
         </span>

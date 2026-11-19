@@ -146,6 +146,13 @@ export interface VideoSubmission {
 }
 export interface _SERVICE {
   'approveSubmission' : ActorMethod<[string, string], Result_5>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes their clip submissions that weren't used. An approved clip is
+   * / already part of a casebook play, so it stays, with the submitter
+   * / replaced by the anonymous principal. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_6>,
   'getArticle' : ActorMethod<[ArticleId], [] | [Article]>,
   'getArticleAudio' : ActorMethod<[ArticleId], [] | [Uint8Array]>,
   'getMechanicsScenario' : ActorMethod<[string], [] | [MechanicsScenario]>,
@@ -197,6 +204,7 @@ export const Result_5 = IDL.Variant({
   'ok' : VideoSubmission,
   'err' : IDL.Text,
 });
+export const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const ArticleId = IDL.Text;
 export const Article = IDL.Record({
   'id' : ArticleId,
@@ -277,7 +285,6 @@ export const Sport = IDL.Record({
   'levels' : IDL.Vec(SportLevel),
   'rulebookYear' : IDL.Text,
 });
-export const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result_2 = IDL.Variant({ 'ok' : CasebookPlay, 'err' : IDL.Text });
 export const ArticleInput = IDL.Record({
   'title' : IDL.Text,
@@ -326,6 +333,7 @@ export const Result = IDL.Variant({ 'ok' : Sport, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'approveSubmission' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_6], []),
   'getArticle' : IDL.Func([ArticleId], [IDL.Opt(Article)], ['query']),
   'getArticleAudio' : IDL.Func(
       [ArticleId],
@@ -399,6 +407,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'citation' : IDL.Text,
   });
   const Result_5 = IDL.Variant({ 'ok' : VideoSubmission, 'err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ArticleId = IDL.Text;
   const Article = IDL.Record({
     'id' : ArticleId,
@@ -476,7 +485,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'levels' : IDL.Vec(SportLevel),
     'rulebookYear' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result_2 = IDL.Variant({ 'ok' : CasebookPlay, 'err' : IDL.Text });
   const ArticleInput = IDL.Record({
     'title' : IDL.Text,
@@ -519,6 +527,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   
   return IDL.Service({
     'approveSubmission' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_6], []),
     'getArticle' : IDL.Func([ArticleId], [IDL.Opt(Article)], ['query']),
     'getArticleAudio' : IDL.Func(
         [ArticleId],

@@ -21,4 +21,10 @@ module {
     };
     null
   };
+
+  /// True when `caller` is the named sibling canister. False when that
+  /// canister's id isn't configured, so a guard built on it fails closed.
+  public func isCanister<system>(caller : Principal, name : Text) : Bool {
+    switch (canisterId<system>(name)) { case (?id) id == caller; case null false }
+  };
 }

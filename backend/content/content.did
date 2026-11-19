@@ -182,6 +182,11 @@ type Article =
  };
 service : {
   approveSubmission: (id: text, playId: text) -> (Result_5);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their clip submissions that weren't used. An approved clip is
+  /// already part of a casebook play, so it stays, with the submitter
+  /// replaced by the anonymous principal. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_6);
   getArticle: (id: ArticleId) -> (opt Article) query;
   getArticleAudio: (id: ArticleId) -> (opt blob) query;
   getMechanicsScenario: (id: text) -> (opt MechanicsScenario) query;

@@ -52,6 +52,13 @@ export interface _SERVICE {
     [string, string, bigint, [] | [bigint], Array<AnswerSnapshot>],
     Result_1
   >,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes the exam answers they shared (with the notes on them), and
+   * / for links they mentored, deletes their notes and closes the link
+   * / rather than leaving it open for someone else to claim. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result>,
   'getAnnotationsForLink' : ActorMethod<[string], Result_2>,
   'getMentorDashboard' : ActorMethod<[], Array<MentorLink>>,
   'getMyAnnotations' : ActorMethod<[], Array<Annotation>>,
@@ -97,11 +104,11 @@ export const MentorLink = IDL.Record({
   'examId' : IDL.Text,
 });
 export const Result_1 = IDL.Variant({ 'ok' : MentorLink, 'err' : IDL.Text });
+export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result_2 = IDL.Variant({
   'ok' : IDL.Vec(Annotation),
   'err' : IDL.Text,
 });
-export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'addAnnotation' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [Result_3], []),
@@ -110,6 +117,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [Result_1],
       [],
     ),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
   'getAnnotationsForLink' : IDL.Func([IDL.Text], [Result_2], ['query']),
   'getMentorDashboard' : IDL.Func([], [IDL.Vec(MentorLink)], ['query']),
   'getMyAnnotations' : IDL.Func([], [IDL.Vec(Annotation)], ['query']),
@@ -160,11 +168,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'examId' : IDL.Text,
   });
   const Result_1 = IDL.Variant({ 'ok' : MentorLink, 'err' : IDL.Text });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result_2 = IDL.Variant({
     'ok' : IDL.Vec(Annotation),
     'err' : IDL.Text,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
   return IDL.Service({
     'addAnnotation' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [Result_3], []),
@@ -179,6 +187,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
     'getAnnotationsForLink' : IDL.Func([IDL.Text], [Result_2], ['query']),
     'getMentorDashboard' : IDL.Func([], [IDL.Vec(MentorLink)], ['query']),
     'getMyAnnotations' : IDL.Func([], [IDL.Vec(Annotation)], ['query']),

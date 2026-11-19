@@ -8,6 +8,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Token "../lib/Token";
 import Index "../lib/Index";
+import Env "../lib/Env";
 
 persistent actor Mentorship {
 
@@ -233,6 +234,44 @@ persistent actor Mentorship {
     var count = 0;
     for (a in List.values(myAnnotations(caller))) { if (not a.seen) count += 1 };
     count
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes the exam answers they shared (with the notes on them), and
+  /// for links they mentored, deletes their notes and closes the link
+  /// rather than leaving it open for someone else to claim. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (id in Index.take(linksByOwner, Principal.compare, p).values()) {
+      switch (Map.take(links, Text.compare, id)) {
+        case (?l) {
+          Map.remove(tokenIndex, Text.compare, l.token);
+          switch (l.mentorPrincipal) { case (?m) Index.removeId(linksByMentor, Principal.compare, m, id); case null {} };
+        };
+        case null {};
+      };
+      for (aid in Index.take(annotationsByLink, Text.compare, id).values()) Map.remove(annotations, Text.compare, aid);
+    };
+    for (id in Index.take(linksByMentor, Principal.compare, p).values()) {
+      switch (Map.get(links, Text.compare, id)) {
+        case (?l) Map.add(links, Text.compare, id, { l with mentorPrincipal = null; revoked = true });
+        case null {};
+      };
+      for (aid in Index.ids(annotationsByLink, Text.compare, id).values()) {
+        switch (Map.get(annotations, Text.compare, aid)) {
+          case (?a) {
+            if (a.mentor == p) {
+              Map.remove(annotations, Text.compare, aid);
+              Index.removeId(annotationsByLink, Text.compare, id, aid);
+            };
+          };
+          case null {};
+        };
+      };
+    };
+    #ok(())
   };
 
   public query func metrics() : async { linkCount : Nat; annotationCount : Nat } {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useAuthStore } from "./store/authStore";
@@ -13,6 +13,8 @@ import StudyPage from "./pages/StudyPage";
 import ExamPage from "./pages/ExamPage";
 import RanksPage from "./pages/RanksPage";
 import MePage from "./pages/MePage";
+import { features } from "./lib/features";
+import { installErrorReporting } from "./lib/errorReporting";
 
 // The bottom-nav tabs ship in the main bundle; every other page is its own
 // chunk, loaded when first opened. The service worker precaches all chunks
@@ -44,6 +46,14 @@ const ScenarioGeneratorPage = lazy(() => import("./pages/ScenarioGeneratorPage")
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
+const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+
+// A feature this build has switched off (src/lib/features.ts) sends its
+// route home, so an old link or bookmark can't open an empty screen.
+function Gate({ on, children }: { on: boolean; children: ReactNode }) {
+  return on ? <>{children}</> : <Navigate to="/home" replace />;
+}
 
 // The landing page is the one route that isn't part of the mobile app
 // shell below — a signed-out visitor at "/" should see a real, full-width
@@ -79,7 +89,7 @@ function AppShell() {
           <Route path="/weekly-quiz" element={<WeeklyQuizPage />} />
           <Route path="/monthly-quiz" element={<MonthlyQuizPage />} />
           <Route path="/progress" element={<ProgressPage />} />
-          <Route path="/audio" element={<AudioModePage />} />
+          <Route path="/audio" element={<Gate on={features.audio}><AudioModePage /></Gate>} />
           <Route path="/groups" element={<GroupsPage />} />
           <Route path="/groups/:id" element={<GroupDetailPage />} />
           <Route path="/exam-sim" element={<CertExamPage />} />
@@ -89,19 +99,20 @@ function AppShell() {
           <Route path="/association" element={<AssociationPage />} />
           <Route path="/association/:id" element={<AssociationDetailPage />} />
           <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
-          <Route path="/submit-clip" element={<VideoSubmissionPage />} />
+          <Route path="/submit-clip" element={<Gate on={features.clipSubmissions}><VideoSubmissionPage /></Gate>} />
           <Route path="/moderation" element={<ModerationQueuePage />} />
           <Route path="/reports" element={<ReportCardPage />} />
           <Route path="/reports/shared" element={<SharedReportsPage />} />
           <Route path="/report/:id" element={<PublicReportPage />} />
-          <Route path="/ask" element={<RuleAssistantPage />} />
-          <Route path="/ai-drills" element={<AiDrillsPage />} />
-          <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
+          <Route path="/ask" element={<Gate on={features.ai}><RuleAssistantPage /></Gate>} />
+          <Route path="/ai-drills" element={<Gate on={features.ai}><AiDrillsPage /></Gate>} />
+          <Route path="/ai-scenarios" element={<Gate on={features.ai}><ScenarioGeneratorPage /></Gate>} />
           <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
           <Route path="/quiz/share/:token" element={<QuizPage />} />
           <Route path="/quiz/:articleId" element={<QuizPage />} />
+          <Route path="/account/delete" element={<DeleteAccountPage />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>
@@ -112,12 +123,25 @@ function AppShell() {
 }
 
 export default function App() {
-  useEffect(() => { registerOfflineSync(); registerNativePushListener(); }, []);
+  const navigate = useNavigate();
+  useEffect(() => {
+    installErrorReporting();
+    registerOfflineSync();
+    registerNativePushListener((path) => navigate(path));
+  }, [navigate]);
   const location = useLocation();
   const isLandingRoute = location.pathname === "/";
 
   // Outside the auth provider: nothing here needs a session.
   if (location.pathname === "/native-callback") return <NativeCallbackPage />;
+  // Public: the stores link here, and visitors read them before signing in.
+  if (location.pathname === "/privacy" || location.pathname === "/terms") {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <LegalPage doc={location.pathname === "/privacy" ? "privacy" : "terms"} />
+      </Suspense>
+    );
+  }
 
   return (
     <AuthProvider>
