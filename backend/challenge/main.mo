@@ -98,20 +98,10 @@ persistent actor Challenge {
       case (?ch) {
         if (ch.challenged != caller) return #err("Not your challenge");
         if (Time.now() > ch.expiresAt) {
-          Map.add(challenges, Text.compare, id, {
-            id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
-            sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
-            count = ch.count; status = #Expired; results = ch.results;
-            createdAt = ch.createdAt; expiresAt = ch.expiresAt;
-          });
+          Map.add(challenges, Text.compare, id, { ch with status = #Expired });
           return #err("Challenge expired");
         };
-        let updated : Challenge = {
-          id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
-          sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
-          count = ch.count; status = #Accepted; results = ch.results;
-          createdAt = ch.createdAt; expiresAt = ch.expiresAt;
-        };
+        let updated : Challenge = { ch with status = #Accepted };
         Map.add(challenges, Text.compare, id, updated);
         #ok(updated)
       };
@@ -167,14 +157,7 @@ persistent actor Challenge {
     let res : ChallengeResult = { principal = caller; score; finishedAt = Time.now() };
     let newResults = Array.concat<ChallengeResult>(ch.results, [res]);
     let done = newResults.size() == 2;
-    let updated : Challenge = {
-      id = ch.id; challenger = ch.challenger; challenged = ch.challenged;
-      sport = ch.sport; articleIds = ch.articleIds; questionIds = ch.questionIds;
-      count = ch.count;
-      status = if (done) #Completed else ch.status;
-      results = newResults;
-      createdAt = ch.createdAt; expiresAt = ch.expiresAt;
-    };
+    let updated : Challenge = { ch with status = if (done) #Completed else ch.status; results = newResults };
     Map.add(challenges, Text.compare, id, updated);
     #ok(updated)
   };

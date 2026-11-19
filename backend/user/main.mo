@@ -230,15 +230,12 @@ persistent actor User {
     switch (Map.get(profiles, Principal.compare, caller)) {
       case null { #err("Profile not found") };
       case (?existing) {
-        let updated : Profile = {
-          principal         = existing.principal;
+        let updated : Profile = { existing with
           displayName       = req.displayName;
-          role              = existing.role;
           sport             = req.sport;
           level             = req.level;
           state             = req.state;
           preferredLanguage = if (req.preferredLanguage == "") "en" else req.preferredLanguage;
-          createdAt         = existing.createdAt;
         };
         Map.add(profiles, Principal.compare, caller, updated);
         // The leaderboards copy name and state; tell ranking (fire and
