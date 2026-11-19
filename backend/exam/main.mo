@@ -652,34 +652,48 @@ persistent actor Exam {
     };
   };
 
-  transient var timerPending = false;
+  // The one pending flush timer: its id and when it fires.
+  transient var timer : ?(Timer.TimerId, Int) = null;
 
-  /// Makes sure a timer will process the outbox and expired keys.
+  /// Makes sure a flush runs no later than `at`. A timer that fires later
+  /// (e.g. one waiting a week for the next answer key to expire) is
+  /// replaced, so a newly finished session isn't held behind it.
+  func arm<system>(at : Int) {
+    let now = Time.now();
+    switch timer {
+      case (?(_, fires)) { if (fires <= at) return };
+      case null {};
+    };
+    switch timer { case (?(id, _)) Timer.cancelTimer(id); case null {} };
+    let delayNs = Int.abs(Int.max(at - now, 0));
+    let id = Timer.setTimer<system>(#nanoseconds delayNs, func() : async () { await flush() });
+    timer := ?(id, now + delayNs);
+  };
+
+  /// Called after a session finishes: deliver anything due now.
   func kick<system>() {
-    if (timerPending) return;
-    if (Map.isEmpty(outbox) and keyExpiryHead >= List.size(keyExpiry)) return;
-    timerPending := true;
-    ignore Timer.setTimer<system>(#seconds 0, func() : async () { await flush() });
+    if (not Map.isEmpty(outbox)) arm<system>(Time.now())
+    else scheduleNext<system>();
   };
 
   // Timers don't survive an upgrade; pick the queue up again.
   system func postupgrade() { kick<system>() };
 
   func flush() : async () {
-    // Cleared first: if anything below traps, the next finish (or upgrade)
-    // starts a new timer.
-    timerPending := false;
+    // This timer has fired. Cleared first, so if anything below traps the
+    // next finish (or upgrade) starts a new one.
+    timer := null;
     pruneKeys();
     let now = Time.now();
     // Ids first: the map changes across the awaits below.
     let due = List.empty<Text>();
     for ((id, o) in Map.entries(outbox)) { if (o.nextTry <= now) List.add(due, id) };
     for (id in List.values(due)) { await* deliver(id) };
-    if (not timerPending) scheduleNext<system>();
+    scheduleNext<system>();
   };
 
+  // Arms the timer for the next retry or key expiry, at least a minute out.
   func scheduleNext<system>() {
-    let now = Time.now();
     var next : ?Int = null;
     for ((_, o) in Map.entries(outbox)) {
       next := ?(switch next { case (?n) Int.min(n, o.nextTry); case null o.nextTry });
@@ -690,11 +704,7 @@ persistent actor Exam {
     };
     switch next {
       case null {};
-      case (?at) {
-        let secs = Int.abs(Int.max(at - now, MINUTE_NS)) / 1_000_000_000;
-        timerPending := true;
-        ignore Timer.setTimer<system>(#seconds secs, func() : async () { await flush() });
-      };
+      case (?at) arm<system>(Int.max(at, Time.now() + MINUTE_NS));
     };
   };
 
