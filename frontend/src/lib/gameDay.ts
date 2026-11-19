@@ -21,14 +21,24 @@ export function playArticles(levelArticleIds: string[], emphasisArticleIds: stri
  * Three rules questions from the articles this official misses most (most
  * overdue first, so recent misses lead), then two casebook plays at the
  * game's level. With no answer history yet, the rules questions come from
- * the whole level instead.
+ * the whole level instead. Early in a season with published rule changes
+ * (lib/ruleChanges.refresherRuleChanges), one of the three rules questions
+ * comes from the changes quiz instead (#68). Still five questions.
  */
-export function refresherPicks(weakArticleIds: string[], levelArticleIds: string[], emphasisArticleIds: string[]): Pick[] {
+export function refresherPicks(
+  weakArticleIds: string[], levelArticleIds: string[], emphasisArticleIds: string[],
+  ruleChanges: { articleIds: string[]; tag: string } | null = null,
+): Pick[] {
   const weak = weakArticleIds.slice(0, 3);
-  return [
-    { articleIds: weak.length > 0 ? weak : levelArticleIds, casebook: false, count: 3n, difficulty: [], adaptive: true, tag: [] },
-    { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 2n, difficulty: [], adaptive: false, tag: [] },
-  ];
+  const changes = ruleChanges && ruleChanges.articleIds.length > 0 ? ruleChanges : null;
+  const rules: Pick = {
+    articleIds: weak.length > 0 ? weak : levelArticleIds, casebook: false, count: changes ? 2n : 3n, difficulty: [], adaptive: true, tag: [],
+  };
+  const plays: Pick = { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 2n, difficulty: [], adaptive: false, tag: [] };
+  // First, so the exam canister can't give its question to the weak-articles pick.
+  return changes
+    ? [{ articleIds: changes.articleIds, casebook: false, count: 1n, difficulty: [], adaptive: true, tag: [changes.tag] }, rules, plays]
+    : [rules, plays];
 }
 
 /** Six questions the whole crew shares: three rules, three plays at the level. Not adaptive, so not tuned to whoever created it. */

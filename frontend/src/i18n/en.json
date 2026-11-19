@@ -1260,7 +1260,8 @@
     "joinCrew": "Join crew",
     "joining": "Joining…",
     "signInToJoin": "Sign in to join",
-    "proOnly": "The game-day refresher is part of OfficialIQ Pro: a 5-minute quiz on the rules you miss most, two hours before each game."
+    "proOnly": "The game-day refresher is part of OfficialIQ Pro: a 5-minute quiz on the rules you miss most, two hours before each game.",
+    "focusRuleChanges": "Plus one question on this season's rule changes."
   },
   "readiness": {
     "title": "Certification readiness",

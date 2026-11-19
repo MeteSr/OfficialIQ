@@ -1260,7 +1260,8 @@
     "joinCrew": "Unirse al equipo",
     "joining": "Uniéndote…",
     "signInToJoin": "Inicia sesión para unirte",
-    "proOnly": "El repaso para el día del partido es parte de OfficialIQ Pro: un cuestionario de 5 minutos sobre las reglas que más fallas, dos horas antes de cada partido."
+    "proOnly": "El repaso para el día del partido es parte de OfficialIQ Pro: un cuestionario de 5 minutos sobre las reglas que más fallas, dos horas antes de cada partido.",
+    "focusRuleChanges": "Más una pregunta sobre los cambios de reglas de esta temporada."
   },
   "readiness": {
     "title": "Preparación para la certificación",

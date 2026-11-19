@@ -13,6 +13,7 @@ import { contentService } from "../services/content";
 import { questionService } from "../services/question";
 import { examService, type GradedFinish } from "../services/exam";
 import type { Question } from "../services/question";
+import { currentSeason, refresherRuleChanges } from "../lib/ruleChanges";
 import { REFRESHER_SEC_PER_Q, gameTimeMs, loadLevelContext, pickedArticleIds, refresherPicks } from "../lib/gameDay";
 
 type Phase = "intro" | "quiz" | "done";
@@ -35,17 +36,21 @@ export default function RefresherPage() {
     const game = games.find(g => g.id === gameId) ?? null;
     const sportId = game?.sportId || profileSport.sportId;
     const levelId = game?.levelId || profileSport.levelId;
-    const [level, weak] = await Promise.all([
+    const season = currentSeason(Date.now());
+    const [level, weak, changes] = await Promise.all([
       loadLevelContext(sportId, levelId, {
         listArticles: (s, l) => contentService.listArticles(s, l),
         listPointsOfEmphasis: (season) => contentService.listPointsOfEmphasis(season),
       }),
       questionService.getMyWeakArticles(sportId, 3),
+      // Optional: without them the refresher is just its usual five.
+      contentService.listRuleChanges(sportId, season).catch(() => []),
     ]);
     if (weak.proOnly) return { proOnly: true as const };
     const titles = new Map(level.articles.map(a => [a.id, a.title]));
-    const picks = refresherPicks(weak.rows.map(w => w.articleId), level.articles.map(a => a.id), level.emphasisArticleIds);
-    return { proOnly: false as const, game, sportId, picks, weakTitles: weak.rows.map(w => titles.get(w.articleId) ?? w.articleId) };
+    const ruleChanges = refresherRuleChanges(Date.now(), changes);
+    const picks = refresherPicks(weak.rows.map(w => w.articleId), level.articles.map(a => a.id), level.emphasisArticleIds, ruleChanges);
+    return { proOnly: false as const, game, sportId, picks, withRuleChanges: ruleChanges !== null, weakTitles: weak.rows.map(w => titles.get(w.articleId) ?? w.articleId) };
   }, [gameId, profileSport.sportId, profileSport.levelId]);
 
   const start = useCallback(() => {
@@ -91,7 +96,7 @@ export default function RefresherPage() {
     );
   }
 
-  const { game, weakTitles } = plan.data;
+  const { game, weakTitles, withRuleChanges } = plan.data;
   const label = game ? game.opponent : t("gameDay.refresherTitle");
 
   if (phase === "quiz") {
@@ -141,6 +146,7 @@ export default function RefresherPage() {
         {weakTitles.map(title => (
           <div key={title} style={{ fontSize: 13, padding: "6px 10px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 6 }}>{title}</div>
         ))}
+        {withRuleChanges && <div style={{ fontSize: 13, color: T.muted, marginTop: 10 }}>{t("gameDay.focusRuleChanges")}</div>}
         <div style={{ fontSize: 13, color: T.muted, margin: "10px 0 20px" }}>{t("gameDay.focusPlays")}</div>
         <button onClick={() => setPhase("quiz")} style={{ width: "100%", padding: "14px 0", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
           {t("gameDay.startRefresher")}
