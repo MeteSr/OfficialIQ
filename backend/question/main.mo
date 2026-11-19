@@ -265,6 +265,25 @@ persistent actor Question {
     })
   };
 
+  /// A sport's whole question bank, a page at a time in id order, for the
+  /// app's offline cache (sampleQuiz capped it at 500 per type with no way
+  /// to get the rest). Pass the previous page's `next` as `after`.
+  public query func listForSync(sportId : Text, after : ?Text, limit : Nat) : async { questions : [Question]; next : ?Text } {
+    let cap = Nat.min(limit, 500);
+    if (cap == 0) return { questions = []; next = null };
+    let out = List.empty<Question>();
+    let from = switch after { case (?a) Map.entriesFrom(questions, Text.compare, a); case null Map.entries(questions) };
+    var next : ?Text = null;
+    label scan for ((id, q) in from) {
+      if (after == ?id) continue scan;
+      if (q.sportId == sportId) {
+        if (List.size(out) == cap) { next := ?List.at(out, cap - 1).id; break scan };
+        List.add(out, q);
+      };
+    };
+    { questions = List.toArray(out); next }
+  };
+
   public query func sampleQuiz(filter : QuizFilter) : async [Question] {
     let buf = VarArray.repeat<Question>({
       id = ""; sportId = ""; articleId = ""; citation = ""; stem = "";

@@ -133,6 +133,19 @@ export const questionService = {
     }
   },
 
+  /** A sport's whole question bank, fetched a page at a time (for the offline cache). */
+  async listAllForSync(sportId: string, pageSize = 500): Promise<Question[]> {
+    if (!CANISTER_ID) return MOCK_QUESTIONS.filter(q => q.sportId === sportId);
+    const all: Question[] = [];
+    let after: [] | [string] = [];
+    for (;;) {
+      const page = await actor().listForSync(sportId, after, BigInt(pageSize));
+      all.push(...page.questions);
+      if (page.next.length === 0) return all;
+      after = page.next;
+    }
+  },
+
   async getQuestion(id: string): Promise<Question | null> {
     if (!CANISTER_ID) return MOCK_QUESTIONS.find(q => q.id === id) ?? null;
     try {

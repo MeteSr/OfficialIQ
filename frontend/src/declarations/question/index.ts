@@ -86,6 +86,15 @@ export interface _SERVICE {
     Array<[] | [UserQuestionHistory]>
   >,
   'getQuestion' : ActorMethod<[string], [] | [Question]>,
+  /**
+   * / A sport's whole question bank, a page at a time in id order, for the
+   * / app's offline cache (sampleQuiz capped it at 500 per type with no way
+   * / to get the rest). Pass the previous page's `next` as `after`.
+   */
+  'listForSync' : ActorMethod<
+    [string, [] | [string], bigint],
+    { 'next' : [] | [string], 'questions' : Array<Question> }
+  >,
   'metrics' : ActorMethod<[], { 'questionCount' : bigint }>,
   'pickForExam' : ActorMethod<[string, Array<ExamPick>, Principal], Result_1>,
   'questionsForExam' : ActorMethod<[Array<string>], Result_1>,
@@ -191,6 +200,16 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),
+  'listForSync' : IDL.Func(
+      [IDL.Text, IDL.Opt(IDL.Text), IDL.Nat],
+      [
+        IDL.Record({
+          'next' : IDL.Opt(IDL.Text),
+          'questions' : IDL.Vec(Question),
+        }),
+      ],
+      ['query'],
+    ),
   'metrics' : IDL.Func(
       [],
       [IDL.Record({ 'questionCount' : IDL.Nat })],
@@ -300,6 +319,16 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),
+    'listForSync' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Text), IDL.Nat],
+        [
+          IDL.Record({
+            'next' : IDL.Opt(IDL.Text),
+            'questions' : IDL.Vec(Question),
+          }),
+        ],
+        ['query'],
+      ),
     'metrics' : IDL.Func(
         [],
         [IDL.Record({ 'questionCount' : IDL.Nat })],

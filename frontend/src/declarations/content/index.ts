@@ -155,6 +155,11 @@ export interface _SERVICE {
   'listMechanicsScenarios' : ActorMethod<[], Array<MechanicsScenario>>,
   'listPendingSubmissions' : ActorMethod<[], Result_7>,
   'listPlays' : ActorMethod<[ArticleId], Array<CasebookPlay>>,
+  /**
+   * / The plays of several articles in one call (offline sync used to make
+   * / one listPlays call per article).
+   */
+  'listPlaysFor' : ActorMethod<[Array<ArticleId>], Array<CasebookPlay>>,
   'listPointsOfEmphasis' : ActorMethod<[string], Array<PointOfEmphasis>>,
   'listSports' : ActorMethod<[], Array<Sport>>,
   'metrics' : ActorMethod<
@@ -346,6 +351,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'listPendingSubmissions' : IDL.Func([], [Result_7], ['query']),
   'listPlays' : IDL.Func([ArticleId], [IDL.Vec(CasebookPlay)], ['query']),
+  'listPlaysFor' : IDL.Func(
+      [IDL.Vec(ArticleId)],
+      [IDL.Vec(CasebookPlay)],
+      ['query'],
+    ),
   'listPointsOfEmphasis' : IDL.Func(
       [IDL.Text],
       [IDL.Vec(PointOfEmphasis)],
@@ -534,6 +544,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'listPendingSubmissions' : IDL.Func([], [Result_7], ['query']),
     'listPlays' : IDL.Func([ArticleId], [IDL.Vec(CasebookPlay)], ['query']),
+    'listPlaysFor' : IDL.Func(
+        [IDL.Vec(ArticleId)],
+        [IDL.Vec(CasebookPlay)],
+        ['query'],
+      ),
     'listPointsOfEmphasis' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(PointOfEmphasis)],

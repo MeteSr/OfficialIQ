@@ -176,6 +176,12 @@ export const contentService = {
     }
   },
 
+  /** The plays of several articles in one call (for the offline cache). */
+  async listPlaysFor(articleIds: string[]): Promise<CasebookPlay[]> {
+    if (!CANISTER_ID || articleIds.length === 0) return [];
+    return actor().listPlaysFor(articleIds);
+  },
+
   async getArticleAudio(id: string): Promise<Uint8Array | null> {
     if (!CANISTER_ID) return (await getCachedAudioBlob(id)) ?? null;
     try {

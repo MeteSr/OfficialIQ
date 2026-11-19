@@ -9,6 +9,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
+import Set "mo:core/Set";
 
 persistent actor Content {
 
@@ -450,6 +451,18 @@ persistent actor Content {
       if (p.articleId == articleId) { buf[i] := p; i += 1 };
     };
     VarArray.sliceToArray<CasebookPlay>(buf, 0, i)
+  };
+
+  /// The plays of several articles in one call (offline sync used to make
+  /// one listPlays call per article).
+  public query func listPlaysFor(articleIds : [ArticleId]) : async [CasebookPlay] {
+    if (articleIds.size() > 500) return [];
+    let wanted = Set.fromIter<Text>(articleIds.values(), Text.compare);
+    let out = List.empty<CasebookPlay>();
+    for ((_, p) in Map.entries(plays)) {
+      if (Set.contains(wanted, Text.compare, p.articleId)) List.add(out, p);
+    };
+    List.toArray(out)
   };
 
   public query func listMechanicsScenarios() : async [MechanicsScenario] {

@@ -100,6 +100,14 @@ service : {
   getMyHistoryBatch: (questionIds: vec text) ->
    (vec opt UserQuestionHistory) query;
   getQuestion: (id: text) -> (opt Question) query;
+  /// A sport's whole question bank, a page at a time in id order, for the
+  /// app's offline cache (sampleQuiz capped it at 500 per type with no way
+  /// to get the rest). Pass the previous page's `next` as `after`.
+  listForSync: (sportId: text, after: opt text, limit: nat) ->
+   (record {
+      next: opt text;
+      questions: vec Question;
+    }) query;
   metrics: () -> (record {questionCount: nat;}) query;
   pickForExam: (sportId: text, picks: vec ExamPick, player: principal) ->
    (Result_1);

@@ -17,14 +17,8 @@ export async function syncAllContent(sportId: string, levelId: string): Promise<
   const articles = await contentService.listArticles(sportId, levelId);
   await cacheArticles(articles);
 
-  const plays = (await Promise.all(articles.map(a => contentService.listPlays(a.id)))).flat();
-  await cachePlays(plays);
-
-  const [rules, casebook] = await Promise.all([
-    questionService.sampleQuiz({ sportId, articleIds: [], casebook: false, difficulty: [], count: 500n }),
-    questionService.sampleQuiz({ sportId, articleIds: [], casebook: true, difficulty: [], count: 500n }),
-  ]);
-  await cacheQuestions([...rules, ...casebook]);
+  await cachePlays(await contentService.listPlaysFor(articles.map(a => a.id)));
+  await cacheQuestions(await questionService.listAllForSync(sportId));
 }
 
 async function replay(action: PendingAction): Promise<void> {

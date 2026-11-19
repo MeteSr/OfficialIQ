@@ -192,6 +192,9 @@ service : {
   listMechanicsScenarios: () -> (vec MechanicsScenario) query;
   listPendingSubmissions: () -> (Result_7) query;
   listPlays: (articleId: ArticleId) -> (vec CasebookPlay) query;
+  /// The plays of several articles in one call (offline sync used to make
+  /// one listPlays call per article).
+  listPlaysFor: (articleIds: vec ArticleId) -> (vec CasebookPlay) query;
   listPointsOfEmphasis: (season: text) -> (vec PointOfEmphasis) query;
   listSports: () -> (vec Sport) query;
   metrics: () -> (record {
