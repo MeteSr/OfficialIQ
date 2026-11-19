@@ -2,6 +2,7 @@ import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/user";
 import type { ClaimError, MyEntitlement } from "../lib/plan";
+import type { CallMatch } from "../lib/callLog";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
@@ -31,6 +32,21 @@ export type StudyDay = { day: bigint; seconds: bigint };
 export type TrainingActivity = { studyDays: StudyDay[]; weeklyQuizzes: WeeklyQuizResult[]; monthlyQuizzes: MonthlyQuizResult[] };
 
 export type { MyEntitlement } from "../lib/plan";
+
+export type CallStatus = { open: null } | { queued: null } | { reviewed: null };
+export type CallLogEntry = {
+  id: string; gameId: string; note: string; match: [] | [CallMatch]; status: CallStatus; createdAt: bigint; updatedAt: bigint;
+};
+export type CallLogError =
+  | { notSignedIn: null } | { gameNotFound: null } | { gameNotPlayed: null } | { gameTooOld: null } | { emptyNote: null }
+  | { noteTooLong: null } | { tooMany: null } | { notFound: null } | { invalidMatch: null };
+
+/** A rejected call-log change; Object.keys(reason)[0] names it. */
+export class CallLogFailed extends Error {
+  constructor(public readonly reason: CallLogError) {
+    super(Object.keys(reason)[0]);
+  }
+}
 
 export type CertGoal = { examDate: bigint; templateId: [] | [string]; updatedAt: bigint };
 export type CertGoalError = { notSignedIn: null } | { inPast: null } | { tooFar: null } | { invalidTemplate: null };
@@ -187,6 +203,52 @@ export const userService = {
     const res = await actor().getMemberTrainingActivity(p);
     if ("err" in res) throw new Error("Not authorized");
     return res.ok;
+  },
+
+  // ─── Post-game call log (issue #66) ───
+
+  /** Games from the last 30 days that have started, newest first. */
+  async getMyRecentGames(): Promise<UpcomingGame[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyRecentGames();
+  },
+
+  async getMyCallLogs(): Promise<CallLogEntry[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyCallLogs();
+  },
+
+  async getMyReviewQueue(): Promise<CallLogEntry[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyReviewQueue();
+  },
+
+  async addCallLog(gameId: string, note: string): Promise<CallLogEntry> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().addCallLog(gameId, note);
+    if ("err" in res) throw new CallLogFailed(res.err);
+    return res.ok;
+  },
+
+  /** Accepts (or changes) a call's rule, which queues it for review. */
+  async setCallMatch(id: string, match: CallMatch): Promise<CallLogEntry> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().setCallMatch(id, match);
+    if ("err" in res) throw new CallLogFailed(res.err);
+    return res.ok;
+  },
+
+  async markCallReviewed(id: string): Promise<CallLogEntry> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().markCallReviewed(id);
+    if ("err" in res) throw new CallLogFailed(res.err);
+    return res.ok;
+  },
+
+  async deleteCallLog(id: string): Promise<void> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().deleteCallLog(id);
+    if ("err" in res) throw new CallLogFailed(res.err);
   },
 
   /** The official's certification exam date and template (issue #65). */

@@ -12,28 +12,28 @@ export type Access = { 'pro' : null } |
   { 'free' : null } |
   { 'paywallOff' : null };
 export interface HttpHeader { 'value' : string, 'name' : string }
-export type Result = { 'ok' : null } |
+export type Result = { 'ok' : string } |
   { 'err' : string };
-export type Result_1 = { 'ok' : Array<[string, string]> } |
+export type Result_1 = { 'ok' : null } |
   { 'err' : string };
-export type Result_2 = { 'ok' : Uint8Array } |
+export type Result_2 = { 'ok' : Array<[string, string]> } |
   { 'err' : string };
-export type Result_3 = {
+export type Result_3 = { 'ok' : Uint8Array } |
+  { 'err' : string };
+export type Result_4 = {
     'ok' : { 'usedToday' : bigint, 'limitPerDay' : bigint }
   } |
   { 'err' : string };
-export type Result_4 = { 'ok' : string } |
-  { 'err' : string };
 export interface _SERVICE {
-  'askRuleAssistant' : ActorMethod<[string, string], Result_4>,
+  'askRuleAssistant' : ActorMethod<[string, string], Result>,
   /**
    * / Called by the user canister when an official deletes their account:
    * / drops their daily usage counter. Safe to repeat.
    */
-  'forgetUser' : ActorMethod<[Principal], Result>,
-  'generatePersonalizedDrills' : ActorMethod<[string, bigint], Result_4>,
-  'generateScenarios' : ActorMethod<[string, string, bigint], Result_4>,
-  'getGlobalUsage' : ActorMethod<[], Result_3>,
+  'forgetUser' : ActorMethod<[Principal], Result_1>,
+  'generatePersonalizedDrills' : ActorMethod<[string, bigint], Result>,
+  'generateScenarios' : ActorMethod<[string, string, bigint], Result>,
+  'getGlobalUsage' : ActorMethod<[], Result_4>,
   /**
    * / The caller's AI usage today and their cap, by tier (issue #71).
    */
@@ -57,21 +57,22 @@ export interface _SERVICE {
   >,
   'httpPost' : ActorMethod<
     [string, Array<HttpHeader>, string, bigint],
-    Result_2
+    Result_3
   >,
   'isAdminCaller' : ActorMethod<[], boolean>,
   'isConfigured' : ActorMethod<[], boolean>,
-  'listPromptTemplates' : ActorMethod<[], Result_1>,
+  'listPromptTemplates' : ActorMethod<[], Result_2>,
   'metrics' : ActorMethod<[], { 'ok' : boolean, 'aiConfigured' : boolean }>,
-  'setAdmin' : ActorMethod<[Principal], Result>,
-  'setAnthropicKey' : ActorMethod<[string], Result>,
-  'setClaudeModel' : ActorMethod<[string], Result>,
-  'setGlobalDailyLimit' : ActorMethod<[bigint], Result>,
-  'setPromptTemplate' : ActorMethod<[string, string], Result>,
+  'setAdmin' : ActorMethod<[Principal], Result_1>,
+  'setAnthropicKey' : ActorMethod<[string], Result_1>,
+  'setClaudeModel' : ActorMethod<[string], Result_1>,
+  'setGlobalDailyLimit' : ActorMethod<[bigint], Result_1>,
+  'setPromptTemplate' : ActorMethod<[string, string], Result_1>,
+  'suggestRuleForCall' : ActorMethod<[string, string], Result>,
 }
-export const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
-export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
-export const Result_3 = IDL.Variant({
+export const Result = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+export const Result_4 = IDL.Variant({
   'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
   'err' : IDL.Text,
 });
@@ -81,21 +82,21 @@ export const Access = IDL.Variant({
   'paywallOff' : IDL.Null,
 });
 export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
-export const Result_2 = IDL.Variant({
+export const Result_3 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Nat8),
   'err' : IDL.Text,
 });
-export const Result_1 = IDL.Variant({
+export const Result_2 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
   'err' : IDL.Text,
 });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
-  'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
-  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
-  'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result_4], []),
-  'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result_4], []),
-  'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+  'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+  'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
+  'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result], []),
+  'getGlobalUsage' : IDL.Func([], [Result_4], ['query']),
   'getMyAiUsage' : IDL.Func(
       [],
       [
@@ -121,30 +122,31 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'httpPost' : IDL.Func(
       [IDL.Text, IDL.Vec(HttpHeader), IDL.Text, IDL.Nat64],
-      [Result_2],
+      [Result_3],
       [],
     ),
   'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
   'isConfigured' : IDL.Func([], [IDL.Bool], ['query']),
-  'listPromptTemplates' : IDL.Func([], [Result_1], ['query']),
+  'listPromptTemplates' : IDL.Func([], [Result_2], ['query']),
   'metrics' : IDL.Func(
       [],
       [IDL.Record({ 'ok' : IDL.Bool, 'aiConfigured' : IDL.Bool })],
       ['query'],
     ),
-  'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
-  'setAnthropicKey' : IDL.Func([IDL.Text], [Result], []),
-  'setClaudeModel' : IDL.Func([IDL.Text], [Result], []),
-  'setGlobalDailyLimit' : IDL.Func([IDL.Nat], [Result], []),
-  'setPromptTemplate' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+  'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
+  'setAnthropicKey' : IDL.Func([IDL.Text], [Result_1], []),
+  'setClaudeModel' : IDL.Func([IDL.Text], [Result_1], []),
+  'setGlobalDailyLimit' : IDL.Func([IDL.Nat], [Result_1], []),
+  'setPromptTemplate' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+  'suggestRuleForCall' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
 });
 
 export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
-  const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
-  const Result_3 = IDL.Variant({
+  const Result = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result_4 = IDL.Variant({
     'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
     'err' : IDL.Text,
   });
@@ -154,26 +156,18 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'paywallOff' : IDL.Null,
   });
   const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat8), 'err' : IDL.Text });
-  const Result_1 = IDL.Variant({
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat8), 'err' : IDL.Text });
+  const Result_2 = IDL.Variant({
     'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'err' : IDL.Text,
   });
   
   return IDL.Service({
-    'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
-    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
-    'generatePersonalizedDrills' : IDL.Func(
-        [IDL.Text, IDL.Nat],
-        [Result_4],
-        [],
-      ),
-    'generateScenarios' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat],
-        [Result_4],
-        [],
-      ),
-    'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+    'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
+    'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
+    'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result], []),
+    'getGlobalUsage' : IDL.Func([], [Result_4], ['query']),
     'getMyAiUsage' : IDL.Func(
         [],
         [
@@ -199,22 +193,23 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'httpPost' : IDL.Func(
         [IDL.Text, IDL.Vec(HttpHeader), IDL.Text, IDL.Nat64],
-        [Result_2],
+        [Result_3],
         [],
       ),
     'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
     'isConfigured' : IDL.Func([], [IDL.Bool], ['query']),
-    'listPromptTemplates' : IDL.Func([], [Result_1], ['query']),
+    'listPromptTemplates' : IDL.Func([], [Result_2], ['query']),
     'metrics' : IDL.Func(
         [],
         [IDL.Record({ 'ok' : IDL.Bool, 'aiConfigured' : IDL.Bool })],
         ['query'],
       ),
-    'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
-    'setAnthropicKey' : IDL.Func([IDL.Text], [Result], []),
-    'setClaudeModel' : IDL.Func([IDL.Text], [Result], []),
-    'setGlobalDailyLimit' : IDL.Func([IDL.Nat], [Result], []),
-    'setPromptTemplate' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+    'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
+    'setAnthropicKey' : IDL.Func([IDL.Text], [Result_1], []),
+    'setClaudeModel' : IDL.Func([IDL.Text], [Result_1], []),
+    'setGlobalDailyLimit' : IDL.Func([IDL.Nat], [Result_1], []),
+    'setPromptTemplate' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+    'suggestRuleForCall' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
   });
 };
 

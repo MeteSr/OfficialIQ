@@ -14,6 +14,7 @@ import Timer "mo:core/Timer";
 import Error "mo:core/Error";
 import Stored "Stored";
 import Training "../lib/Training";
+import CallLog "../lib/CallLog";
 import Billing "../lib/Billing";
 import Json "../lib/Json";
 import Blob "mo:core/Blob";
@@ -500,6 +501,141 @@ persistent actor User {
     #ok(())
   };
 
+  // ─── Post-game call log (issue #66) ────────────────────────────────────────
+  //
+  // After a game an official notes calls they weren't sure about. The app
+  // suggests a rule for each (ai_proxy.suggestRuleForCall); the official
+  // accepts or changes it, which queues the call for review: the question
+  // canister then puts that article's questions first in their adaptive
+  // quizzes until they mark the call reviewed. Private to the official.
+  // Rules in lib/CallLog.mo.
+
+  public type CallMatch = { articleId : Text; citation : Text; playId : ?Text };
+  public type CallStatus = { #open; #queued; #reviewed };
+  public type CallLogEntry = {
+    id        : Text;
+    gameId    : Text;
+    note      : Text;
+    match     : ?CallMatch;
+    status    : CallStatus;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+  public type CallLogError = {
+    #notSignedIn;
+    #gameNotFound;
+    #gameNotPlayed;
+    #gameTooOld;
+    #emptyNote;
+    #noteTooLong;
+    #tooMany;
+    #notFound;
+    #invalidMatch;
+  };
+
+  let callLogs : Map.Map<Principal, [CallLogEntry]> = Map.empty<Principal, [CallLogEntry]>();
+  var nextCallId : Nat = 0;
+  transient let RECENT_GAME_NS : Int = 30 * 86_400_000_000_000;
+
+  func callsOf(p : Principal) : [CallLogEntry] =
+    switch (callLogs.get(Principal.compare, p)) { case (?cs) cs; case null [] };
+
+  /// The caller's games from the last 30 days that have started, newest
+  /// first: the ones calls can be logged against.
+  public shared query ({ caller }) func getMyRecentGames() : async [UpcomingGame] {
+    let now = Time.now();
+    let all = switch (upcomingGames.get(Principal.compare, caller)) { case (?g) g; case null [] };
+    all.filter(func g = g.gameDate <= now and g.gameDate >= now - RECENT_GAME_NS)
+      .sort(func(a, b) = Int.compare(b.gameDate, a.gameDate))
+  };
+
+  public shared ({ caller }) func addCallLog(gameId : Text, note : Text) : async Result.Result<CallLogEntry, CallLogError> {
+    if (caller.isAnonymous()) return #err(#notSignedIn);
+    let games = switch (upcomingGames.get(Principal.compare, caller)) { case (?g) g; case null [] };
+    let game = switch (games.find(func g = g.id == gameId)) { case (?g) g; case null return #err(#gameNotFound) };
+    switch (CallLog.canLog(game.gameDate, Time.now())) {
+      case (?#notYet) return #err(#gameNotPlayed);
+      case (?#tooOld) return #err(#gameTooOld);
+      case null {};
+    };
+    switch (CallLog.validateNote(note)) {
+      case (?#empty) return #err(#emptyNote);
+      case (?#tooLong) return #err(#noteTooLong);
+      case null {};
+    };
+    let existing = callsOf(caller);
+    if (existing.size() >= CallLog.MAX_CALLS) return #err(#tooMany);
+    let now = Time.now();
+    let c : CallLogEntry = { id = "call" # nextCallId.toText(); gameId; note = note.trim(#char ' '); match = null; status = #open; createdAt = now; updatedAt = now };
+    nextCallId += 1;
+    callLogs.add(Principal.compare, caller, existing.concat([c]));
+    #ok(c)
+  };
+
+  type ReviewBoost = actor { setReviewBoost : shared (Principal, Text, Bool) -> async Result.Result<(), Text> };
+
+  // Best effort: the call is queued either way, and a missed boost only
+  // means the next quiz isn't reordered.
+  func setBoost(p : Principal, articleId : Text, on : Bool) : async () {
+    switch (Env.canisterId<system>("question")) {
+      case (?id) { try { ignore await (actor (id.toText()) : ReviewBoost).setReviewBoost(p, articleId, on) } catch (_) {} };
+      case null {};
+    };
+  };
+
+  // Stops boosting `articleId` unless another of p's calls still has it queued.
+  func releaseBoost(p : Principal, articleId : Text) : async () {
+    let stillQueued = callsOf(p).find(func c = c.status == #queued and (switch (c.match) { case (?m) m.articleId == articleId; case null false })) != null;
+    if (not stillQueued) await setBoost(p, articleId, false);
+  };
+
+  func updateCall(p : Principal, id : Text, f : CallLogEntry -> CallLogEntry) : ?CallLogEntry {
+    var updated : ?CallLogEntry = null;
+    let next = callsOf(p).map(func c = if (c.id == id) { let u = f(c); updated := ?u; u } else c);
+    if (updated != null) callLogs.add(Principal.compare, p, next);
+    updated
+  };
+
+  /// Accepts (or changes) the rule for a call, which queues it for review.
+  public shared ({ caller }) func setCallMatch(id : Text, m : CallMatch) : async Result.Result<CallLogEntry, CallLogError> {
+    if (m.articleId.size() == 0 or m.articleId.size() > 200 or m.citation.size() > 200) return #err(#invalidMatch);
+    switch (m.playId) { case (?pid) { if (pid.size() > 200) return #err(#invalidMatch) }; case null {} };
+    let before = switch (callsOf(caller).find(func c = c.id == id)) { case (?c) c; case null return #err(#notFound) };
+    let updated = switch (updateCall(caller, id, func c = { c with match = ?m; status = #queued; updatedAt = Time.now() })) {
+      case (?u) u;
+      case null return #err(#notFound);
+    };
+    await setBoost(caller, m.articleId, true);
+    switch (before.match) { case (?old) { if (old.articleId != m.articleId) await releaseBoost(caller, old.articleId) }; case null {} };
+    #ok(updated)
+  };
+
+  public shared ({ caller }) func markCallReviewed(id : Text) : async Result.Result<CallLogEntry, CallLogError> {
+    let updated = switch (updateCall(caller, id, func c = { c with status = #reviewed; updatedAt = Time.now() })) {
+      case (?u) u;
+      case null return #err(#notFound);
+    };
+    switch (updated.match) { case (?m) await releaseBoost(caller, m.articleId); case null {} };
+    #ok(updated)
+  };
+
+  public shared ({ caller }) func deleteCallLog(id : Text) : async Result.Result<(), CallLogError> {
+    let all = callsOf(caller);
+    let gone = switch (all.find(func c = c.id == id)) { case (?c) c; case null return #err(#notFound) };
+    callLogs.add(Principal.compare, caller, all.filter(func c = c.id != id));
+    switch (gone.match) { case (?m) await releaseBoost(caller, m.articleId); case null {} };
+    #ok(())
+  };
+
+  public shared query ({ caller }) func getMyCallLogs() : async [CallLogEntry] {
+    callsOf(caller)
+  };
+
+  /// Calls with an accepted rule that haven't been reviewed yet.
+  public shared query ({ caller }) func getMyReviewQueue() : async [CallLogEntry] {
+    callsOf(caller).filter(func c = c.status == #queued)
+  };
+
   // ─── Certification goal (issue #65) ────────────────────────────────────────
   //
   // The date of the official's certification exam, and optionally which
@@ -843,6 +979,8 @@ persistent actor User {
     // official to cancel it first.
     forgetEntitlements(caller);
     certGoals.remove(Principal.compare, caller);
+    // The question canister drops the review boosts in its forgetUser.
+    callLogs.remove(Principal.compare, caller);
     if (Map.get(erasures, Principal.compare, caller) == null) {
       Map.add(erasures, Principal.compare, caller, { pending = ERASE_TARGETS; attempts = 0; nextTry = 0; requestedAt = Time.now() });
     };

@@ -1,22 +1,17 @@
 type Result_4 = 
  variant {
    err: text;
-   ok: text;
- };
-type Result_3 = 
- variant {
-   err: text;
    ok: record {
          limitPerDay: nat;
          usedToday: nat;
        };
  };
-type Result_2 = 
+type Result_3 = 
  variant {
    err: text;
    ok: blob;
  };
-type Result_1 = 
+type Result_2 = 
  variant {
    err: text;
    ok: vec record {
@@ -24,10 +19,15 @@ type Result_1 =
              text;
            };
  };
-type Result = 
+type Result_1 = 
  variant {
    err: text;
    ok;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: text;
  };
 type HttpHeader = 
  record {
@@ -41,15 +41,15 @@ type Access =
    pro;
  };
 service : {
-  askRuleAssistant: (question: text, context: text) -> (Result_4);
+  askRuleAssistant: (question: text, context: text) -> (Result);
   /// Called by the user canister when an official deletes their account:
   /// drops their daily usage counter. Safe to repeat.
-  forgetUser: (p: principal) -> (Result);
+  forgetUser: (p: principal) -> (Result_1);
   generatePersonalizedDrills: (weakAreasContext: text, count: nat) ->
-   (Result_4);
+   (Result);
   generateScenarios: (instructions: text, articleContext: text, count:
-   nat) -> (Result_4);
-  getGlobalUsage: () -> (Result_3) query;
+   nat) -> (Result);
+  getGlobalUsage: () -> (Result_4) query;
   /// The caller's AI usage today and their cap, by tier (issue #71).
   getMyAiUsage: () ->
    (record {
@@ -68,17 +68,18 @@ service : {
       used: nat;
     }) query;
   httpPost: (url: text, headers: vec HttpHeader, bodyJson: text, maxBytes:
-   nat64) -> (Result_2);
+   nat64) -> (Result_3);
   isAdminCaller: () -> (bool) query;
   isConfigured: () -> (bool) query;
-  listPromptTemplates: () -> (Result_1) query;
+  listPromptTemplates: () -> (Result_2) query;
   metrics: () -> (record {
                     aiConfigured: bool;
                     ok: bool;
                   }) query;
-  setAdmin: (p: principal) -> (Result);
-  setAnthropicKey: (key: text) -> (Result);
-  setClaudeModel: (model: text) -> (Result);
-  setGlobalDailyLimit: (limit: nat) -> (Result);
-  setPromptTemplate: (name: text, content: text) -> (Result);
+  setAdmin: (p: principal) -> (Result_1);
+  setAnthropicKey: (key: text) -> (Result_1);
+  setClaudeModel: (model: text) -> (Result_1);
+  setGlobalDailyLimit: (limit: nat) -> (Result_1);
+  setPromptTemplate: (name: text, content: text) -> (Result_1);
+  suggestRuleForCall: (note: text, candidates: text) -> (Result);
 }

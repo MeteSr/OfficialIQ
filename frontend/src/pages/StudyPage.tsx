@@ -1,3 +1,4 @@
+import ReviewQueue from "../components/ReviewQueue";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -242,6 +243,9 @@ export default function StudyPage() {
         </div>
       ) : (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 18, padding: "18px 16px" }}>
+
+          {/* Calls from games, queued for review (issue #66) */}
+          {isAuthenticated && <ReviewQueue />}
 
           {/* Assigned modules */}
           {assignmentRows.length > 0 && (

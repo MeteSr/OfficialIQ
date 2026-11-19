@@ -47,12 +47,12 @@ type Result_2 =
  };
 type Result_1 = 
  variant {
-   err: text;
+   err: TagError;
    ok;
  };
 type Result = 
  variant {
-   err: TagError;
+   err: text;
    ok;
  };
 type ReportReason = 
@@ -138,7 +138,7 @@ service : {
   /// drops their spaced-repetition history and their question reports. The
   /// per-question answer totals stay: they are counts with no one's
   /// identity in them. Safe to repeat.
-  forgetUser: (p: principal) -> (Result_1);
+  forgetUser: (p: principal) -> (Result);
   getAdaptiveQuiz: (filter: QuizFilter) -> (vec Question) query;
   getAnswerRates: (questionIds: vec text) ->
    (vec record {
@@ -194,12 +194,14 @@ service : {
    vec record {
          text;
          bool;
-       }) -> (Result_1);
+       }) -> (Result);
   reportQuestion: (questionId: text, reason: ReportReason, note: text) ->
    (Result_2);
   resolveQuestionReport: (id: text, resolution: text) -> (Result_2);
   sampleQuiz: (filter: QuizFilter) -> (vec Question) query;
-  setAdmin: (p: principal) -> (Result_1);
+  setAdmin: (p: principal) -> (Result);
   /// Replaces a question's tags (an empty list removes them). Admin only.
-  setQuestionTags: (questionId: text, tags: vec text) -> (Result);
+  setQuestionTags: (questionId: text, tags: vec text) -> (Result_1);
+  /// User canister only: boost (or stop boosting) an article for a player.
+  setReviewBoost: (player: principal, articleId: text, on: bool) -> (Result);
 }

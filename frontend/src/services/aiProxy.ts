@@ -39,6 +39,14 @@ export const aiProxyService = {
     return res.ok;
   },
 
+  /** The AI matcher's raw reply for a post-game call (issue #66); parse with lib/callLog.parseSuggestion. */
+  async suggestRuleForCall(note: string, candidates: string): Promise<string> {
+    if (!CANISTER_ID) throw new Error("AI assistant canister not deployed");
+    const res = await actor().suggestRuleForCall(note, candidates);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
   async generatePersonalizedDrills(weakAreasContext: string, count: number): Promise<string> {
     if (!CANISTER_ID) throw new Error("AI assistant canister not deployed");
     const res = await actor().generatePersonalizedDrills(weakAreasContext, BigInt(count));
