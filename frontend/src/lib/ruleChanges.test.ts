@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentSeason, ruleChangeTag, showRuleChangesOnHome } from "./ruleChanges";
+import { currentSeason, refresherRuleChanges, ruleChangeTag, showRuleChangesOnHome } from "./ruleChanges";
 
 describe("currentSeason", () => {
   it("starts a season on August 1", () => {
@@ -21,5 +21,16 @@ describe("showRuleChangesOnHome", () => {
   });
   it("hides when the season has no changes", () => {
     expect(showRuleChangesOnHome(new Date(2026, 7, 3).getTime(), 0)).toBe(false);
+  });
+});
+
+describe("refresherRuleChanges", () => {
+  const changes = [{ articleId: "s:art4" }, { articleId: "s:art9" }, { articleId: "s:art4" }];
+  it("in the season's first eight weeks, the changed articles and the season's tag", () => {
+    expect(refresherRuleChanges(new Date(2026, 7, 10).getTime(), changes)).toEqual({ articleIds: ["s:art4", "s:art9"], tag: "rule-change:2026-27" });
+  });
+  it("nothing later in the season or without changes", () => {
+    expect(refresherRuleChanges(new Date(2026, 10, 19).getTime(), changes)).toBeNull();
+    expect(refresherRuleChanges(new Date(2026, 7, 10).getTime(), [])).toBeNull();
   });
 });

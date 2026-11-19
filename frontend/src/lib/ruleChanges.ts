@@ -24,3 +24,13 @@ export function showRuleChangesOnHome(now: number, changeCount: number): boolean
   const seasonStart = new Date(startYear, SEASON_START_MONTH, 1).getTime();
   return now - seasonStart < HOME_WEEKS * 7 * 86_400_000;
 }
+
+/**
+ * The rule changes the game-day refresher includes (#68, #63): in the
+ * season's first weeks (as on Home), the changed articles and the season's
+ * question tag; otherwise null.
+ */
+export function refresherRuleChanges(now: number, changes: { articleId: string }[]): { articleIds: string[]; tag: string } | null {
+  if (!showRuleChangesOnHome(now, changes.length)) return null;
+  return { articleIds: [...new Set(changes.map(c => c.articleId))], tag: ruleChangeTag(currentSeason(now)) };
+}

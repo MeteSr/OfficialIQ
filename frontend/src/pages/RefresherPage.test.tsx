@@ -5,6 +5,7 @@ import "../i18n";
 
 const startGradedSession = vi.fn();
 const getMyWeakArticles = vi.fn();
+const listRuleChanges = vi.fn(async (..._a: unknown[]) => [] as { articleId: string }[]);
 vi.mock("../services/exam", async (orig) => ({
   ...(await orig<typeof import("../services/exam")>()),
   examService: { gradingAvailable: () => true, startGradedSession: (...a: unknown[]) => startGradedSession(...a) },
@@ -14,6 +15,7 @@ vi.mock("../services/content", () => ({
   contentService: {
     listArticles: async () => [{ id: "s:art1", title: "Fouls" }, { id: "s:art2", title: "Timing" }, { id: "s:art3", title: "Free throws" }],
     listPointsOfEmphasis: async () => [],
+    listRuleChanges: (...a: unknown[]) => listRuleChanges(...a),
   },
 }));
 vi.mock("../services/user", () => ({
@@ -71,5 +73,23 @@ describe("RefresherPage", () => {
     expect(screen.getByRole("button", { name: /Go Pro/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start refresher/ })).toBeNull();
     expect(startGradedSession).not.toHaveBeenCalled();
+  });
+
+  it("early in the season, gives one question to this season's rule changes (#68)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 7, 10, 12) });
+    try {
+      listRuleChanges.mockResolvedValueOnce([{ articleId: "s:art2" }]);
+      getMyWeakArticles.mockResolvedValue({ proOnly: false, rows: [{ articleId: "s:art3", wrong: 4, answered: 5 }] });
+      renderPage();
+      expect(await screen.findByText(/rule changes/i)).toBeInTheDocument();
+      expect(listRuleChanges).toHaveBeenCalledWith("s", "2026-27");
+      fireEvent.click(screen.getByText("Start refresher"));
+      await waitFor(() => expect(startGradedSession).toHaveBeenCalled());
+      const [config, source] = startGradedSession.mock.calls[0];
+      expect(config.count).toBe(5n);
+      expect(source.Picks[0]).toMatchObject({ articleIds: ["s:art2"], count: 1n, tag: ["rule-change:2026-27"] });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

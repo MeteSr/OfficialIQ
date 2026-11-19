@@ -19,6 +19,17 @@ describe("refresherPicks", () => {
     const total = refresherPicks(["a1"], ["a1"], []).reduce((n, pk) => n + Number(pk.count), 0);
     expect(total).toBe(5);
   });
+
+  it("gives one rules slot to this season's rule changes when there are some (#68)", () => {
+    const picks = refresherPicks(["a3", "a1"], ["a1", "a2", "a3"], [], { articleIds: ["a2"], tag: "rule-change:2026-27" });
+    expect(picks[0]).toMatchObject({ articleIds: ["a2"], casebook: false, count: 1n, tag: ["rule-change:2026-27"] });
+    expect(picks[1]).toMatchObject({ articleIds: ["a3", "a1"], casebook: false, count: 2n, tag: [] });
+    expect(picks.reduce((n, pk) => n + Number(pk.count), 0)).toBe(5);
+  });
+
+  it("ignores a rule-change slot with no articles", () => {
+    expect(refresherPicks(["a1"], ["a1"], [], { articleIds: [], tag: "rule-change:2026-27" })).toEqual(refresherPicks(["a1"], ["a1"], []));
+  });
 });
 
 describe("playArticles", () => {
