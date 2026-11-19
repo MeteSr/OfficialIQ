@@ -199,6 +199,50 @@ persistent actor Association {
     }
   };
 
+  // ─── Training requirement (issue #67) ──────────────────────────────────────
+  //
+  // How many training hours a member must log per season. A season is the
+  // twelve months starting on the first of seasonStartMonth (1-12), so the
+  // whole season stays within the exam canister's 12-month retention.
+
+  public type TrainingRequirement = {
+    hoursPerSeason   : Nat;
+    seasonStartMonth : Nat;
+    updatedAt        : Int;
+  };
+
+  var trainingRequirements : Map.Map<Text, TrainingRequirement> = Map.empty<Text, TrainingRequirement>();
+
+  public shared ({ caller }) func setTrainingRequirement(associationId : Text, hoursPerSeason : Nat, seasonStartMonth : Nat) : async Result.Result<TrainingRequirement, Text> {
+    switch (Map.get(associations, Text.compare, associationId)) {
+      case null #err("Association not found");
+      case (?rec) {
+        if (rec.coordinator != caller) return #err("Only the coordinator can set the training requirement");
+        if (seasonStartMonth < 1 or seasonStartMonth > 12) return #err("Season start month must be 1-12");
+        if (hoursPerSeason > 2000) return #err("That's more hours than a season holds");
+        if (hoursPerSeason == 0) {
+          Map.remove(trainingRequirements, Text.compare, associationId);
+          return #ok({ hoursPerSeason = 0; seasonStartMonth; updatedAt = Time.now() });
+        };
+        let r : TrainingRequirement = { hoursPerSeason; seasonStartMonth; updatedAt = Time.now() };
+        Map.add(trainingRequirements, Text.compare, associationId, r);
+        #ok(r)
+      };
+    }
+  };
+
+  /// The association's requirement, for its coordinator and members. null
+  /// when none is set.
+  public shared query ({ caller }) func getTrainingRequirement(associationId : Text) : async Result.Result<?TrainingRequirement, Text> {
+    switch (Map.get(associations, Text.compare, associationId)) {
+      case null #err("Association not found");
+      case (?rec) {
+        if (rec.coordinator != caller and not isMember(associationId, caller)) return #err("Not authorized");
+        #ok(Map.get(trainingRequirements, Text.compare, associationId))
+      };
+    }
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyAssociations() : async [AssociationRec] {
@@ -338,6 +382,7 @@ persistent actor Association {
         case (?rec) Map.remove(joinCodeIndex, Text.compare, rec.joinCode);
         case null {};
       };
+      Map.remove(trainingRequirements, Text.compare, id);
       let ms = switch (Map.take(members, Text.compare, id)) { case (?ms) ms; case null [] };
       for (m in ms.values()) {
         switch (Map.get(myAssociations, Principal.compare, m)) {

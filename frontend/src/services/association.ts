@@ -31,6 +31,8 @@ export type Completion = {
   completedAt:  bigint;
 };
 
+export type TrainingRequirement = { hoursPerSeason: bigint; seasonStartMonth: bigint; updatedAt: bigint };
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("association");
@@ -108,6 +110,21 @@ export const associationService = {
   async getMyCompletions(): Promise<Completion[]> {
     if (!CANISTER_ID) return [];
     return actor().getMyCompletions();
+  },
+
+  /** Coordinator only. 0 hours clears the requirement. */
+  async setTrainingRequirement(associationId: string, hoursPerSeason: number, seasonStartMonth: number): Promise<TrainingRequirement> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().setTrainingRequirement(associationId, BigInt(hoursPerSeason), BigInt(seasonStartMonth));
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async getTrainingRequirement(associationId: string): Promise<TrainingRequirement | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getTrainingRequirement(associationId);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok.length ? res.ok[0] : null;
   },
 
   async getAssignmentCompletions(assignmentId: string): Promise<Completion[]> {

@@ -29,10 +29,21 @@ type UpcomingGame =
    opponent: text;
    sportId: text;
  };
+type TrainingActivity = 
+ record {
+   monthlyQuizzes: vec MonthlyQuizResult;
+   studyDays: vec StudyDay;
+   weeklyQuizzes: vec WeeklyQuizResult;
+ };
 type StudyPace = 
  record {
    articlesPerWeek: nat;
    startDate: int;
+ };
+type StudyDay = 
+ record {
+   day: nat;
+   seconds: nat;
  };
 type Role = 
  variant {
@@ -41,10 +52,15 @@ type Role =
    Coordinator;
    Official;
  };
-type Result_5 = 
+type Result_6 = 
  variant {
    err: text;
    ok: UpcomingGame;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: TrainingActivity;
  };
 type Result_4 = 
  variant {
@@ -160,17 +176,21 @@ type ArticleProgress =
    timesStudied: nat;
  };
 service : {
-  addUpcomingGame: (input: UpcomingGameInput) -> (Result_5);
+  addUpcomingGame: (input: UpcomingGameInput) -> (Result_6);
   becomeCoordinator: () -> (Result);
   createProfile: (req: ProfileUpdate) -> (Result);
   deleteAccount: () -> (Result_1);
   getDeletionStatus: () -> (DeletionStatus) query;
+  /// A member's training activity, for the coordinator of an association
+  /// they belong to.
+  getMemberTrainingActivity: (p: principal) -> (Result_5) composite_query;
   getMonthlyQuizHistory: () -> (vec MonthlyQuizResult) query;
   getMyLinkedAccounts: () -> (vec LinkedAccount) query;
   getMyProfile: () -> (opt Profile) query;
   getMyProgress: () -> (vec ArticleProgress) query;
   getMyPushSubscription: () -> (opt PushSubscription) query;
   getMyStudyPace: () -> (opt StudyPace) query;
+  getMyTrainingActivity: () -> (TrainingActivity) query;
   getMyUpcomingGames: () -> (vec UpcomingGame) query;
   getProfile: (p: principal) -> (opt Profile) query;
   getPublicProfile: (p: principal) -> (opt PublicProfile) query;
@@ -204,6 +224,7 @@ service : {
          text;
          nat;
        }) -> ();
+  recordStudyBeat: () -> ();
   recordWeeklyQuizResult: (weekNumber: nat, newScore: nat, retentionScore:
    nat) -> ();
   registerPushSubscription: (sub: PushSubscription) -> (Result_1);

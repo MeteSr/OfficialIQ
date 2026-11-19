@@ -32,54 +32,69 @@ export interface Completion {
   'score' : bigint,
   'assignmentId' : string,
 }
-export type Result = { 'ok' : Completion } |
+export type Result = { 'ok' : TrainingRequirement } |
   { 'err' : string };
-export type Result_1 = { 'ok' : null } |
+export type Result_1 = { 'ok' : Completion } |
   { 'err' : string };
-export type Result_2 = { 'ok' : AssociationRec } |
+export type Result_2 = { 'ok' : null } |
   { 'err' : string };
-export type Result_3 = { 'ok' : Array<Principal> } |
+export type Result_3 = { 'ok' : AssociationRec } |
   { 'err' : string };
-export type Result_4 = { 'ok' : Array<Assignment> } |
+export type Result_4 = { 'ok' : [] | [TrainingRequirement] } |
   { 'err' : string };
-export type Result_5 = { 'ok' : Array<Completion> } |
+export type Result_5 = { 'ok' : Array<Principal> } |
   { 'err' : string };
-export type Result_6 = { 'ok' : Assignment } |
+export type Result_6 = { 'ok' : Array<Assignment> } |
   { 'err' : string };
+export type Result_7 = { 'ok' : Array<Completion> } |
+  { 'err' : string };
+export type Result_8 = { 'ok' : Assignment } |
+  { 'err' : string };
+export interface TrainingRequirement {
+  'seasonStartMonth' : bigint,
+  'updatedAt' : bigint,
+  'hoursPerSeason' : bigint,
+}
 export interface _SERVICE {
   'createAssignment' : ActorMethod<
     [string, string, Array<string>, boolean, bigint, Array<Principal>],
-    Result_6
+    Result_8
   >,
-  'createAssociation' : ActorMethod<[string, string], Result_2>,
+  'createAssociation' : ActorMethod<[string, string], Result_3>,
   /**
    * / Called by the user canister when an official deletes their account:
    * / removes them from every association and its assignments, drops their
    * / completions, and deletes the associations they coordinate (with their
    * / assignments and everyone's completions of them). Safe to repeat.
    */
-  'forgetUser' : ActorMethod<[Principal], Result_1>,
-  'getAssignmentCompletions' : ActorMethod<[string], Result_5>,
+  'forgetUser' : ActorMethod<[Principal], Result_2>,
+  'getAssignmentCompletions' : ActorMethod<[string], Result_7>,
   'getAssociation' : ActorMethod<[string], [] | [AssociationRec]>,
-  'getAssociationAssignments' : ActorMethod<[string], Result_4>,
-  'getAssociationMembers' : ActorMethod<[string], Result_3>,
+  'getAssociationAssignments' : ActorMethod<[string], Result_6>,
+  'getAssociationMembers' : ActorMethod<[string], Result_5>,
   'getMyAssignments' : ActorMethod<[], Array<Assignment>>,
   'getMyAssociations' : ActorMethod<[], Array<AssociationRec>>,
   'getMyCompletions' : ActorMethod<[], Array<Completion>>,
   'getMyCoordinatedAssociations' : ActorMethod<[], Array<AssociationRec>>,
+  /**
+   * / The association's requirement, for its coordinator and members. null
+   * / when none is set.
+   */
+  'getTrainingRequirement' : ActorMethod<[string], Result_4>,
   'isCoordinatorOf' : ActorMethod<[Principal, Principal], boolean>,
-  'joinAssociation' : ActorMethod<[string], Result_2>,
+  'joinAssociation' : ActorMethod<[string], Result_3>,
   'metrics' : ActorMethod<
     [],
     { 'associationCount' : bigint, 'assignmentCount' : bigint }
   >,
-  'recordCompletion' : ActorMethod<[string, bigint], Result_1>,
+  'recordCompletion' : ActorMethod<[string, bigint], Result_2>,
   /**
    * / Records an assignment completion from a finished exam session graded by
    * / the exam canister, taken on the assignment's articles. Each session
    * / counts once; retaking replaces the earlier completion.
    */
-  'recordGradedCompletion' : ActorMethod<[string, string], Result>,
+  'recordGradedCompletion' : ActorMethod<[string, string], Result_1>,
+  'setTrainingRequirement' : ActorMethod<[string, bigint, bigint], Result>,
 }
 export const Assignment = IDL.Record({
   'id' : IDL.Text,
@@ -91,7 +106,7 @@ export const Assignment = IDL.Record({
   'articleIds' : IDL.Vec(IDL.Text),
   'dueAt' : IDL.Int,
 });
-export const Result_6 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
+export const Result_8 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
 export const AssociationRec = IDL.Record({
   'id' : IDL.Text,
   'joinCode' : IDL.Text,
@@ -100,30 +115,43 @@ export const AssociationRec = IDL.Record({
   'sport' : IDL.Text,
   'coordinator' : IDL.Principal,
 });
-export const Result_2 = IDL.Variant({
+export const Result_3 = IDL.Variant({
   'ok' : AssociationRec,
   'err' : IDL.Text,
 });
-export const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Completion = IDL.Record({
   'member' : IDL.Principal,
   'completedAt' : IDL.Int,
   'score' : IDL.Nat,
   'assignmentId' : IDL.Text,
 });
-export const Result_5 = IDL.Variant({
+export const Result_7 = IDL.Variant({
   'ok' : IDL.Vec(Completion),
   'err' : IDL.Text,
 });
-export const Result_4 = IDL.Variant({
+export const Result_6 = IDL.Variant({
   'ok' : IDL.Vec(Assignment),
   'err' : IDL.Text,
 });
-export const Result_3 = IDL.Variant({
+export const Result_5 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Principal),
   'err' : IDL.Text,
 });
-export const Result = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+export const TrainingRequirement = IDL.Record({
+  'seasonStartMonth' : IDL.Nat,
+  'updatedAt' : IDL.Int,
+  'hoursPerSeason' : IDL.Nat,
+});
+export const Result_4 = IDL.Variant({
+  'ok' : IDL.Opt(TrainingRequirement),
+  'err' : IDL.Text,
+});
+export const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+export const Result = IDL.Variant({
+  'ok' : TrainingRequirement,
+  'err' : IDL.Text,
+});
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'createAssignment' : IDL.Func(
@@ -135,15 +163,15 @@ export const idlService: IDL.ServiceClass = IDL.Service({
         IDL.Int,
         IDL.Vec(IDL.Principal),
       ],
-      [Result_6],
+      [Result_8],
       [],
     ),
-  'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
-  'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
-  'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_5], ['query']),
+  'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
+  'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_7], ['query']),
   'getAssociation' : IDL.Func([IDL.Text], [IDL.Opt(AssociationRec)], ['query']),
-  'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_4], ['query']),
-  'getAssociationMembers' : IDL.Func([IDL.Text], [Result_3], ['query']),
+  'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_6], ['query']),
+  'getAssociationMembers' : IDL.Func([IDL.Text], [Result_5], ['query']),
   'getMyAssignments' : IDL.Func([], [IDL.Vec(Assignment)], ['query']),
   'getMyAssociations' : IDL.Func([], [IDL.Vec(AssociationRec)], ['query']),
   'getMyCompletions' : IDL.Func([], [IDL.Vec(Completion)], ['query']),
@@ -152,12 +180,13 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(AssociationRec)],
       ['query'],
     ),
+  'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_4], ['query']),
   'isCoordinatorOf' : IDL.Func(
       [IDL.Principal, IDL.Principal],
       [IDL.Bool],
       ['query'],
     ),
-  'joinAssociation' : IDL.Func([IDL.Text], [Result_2], []),
+  'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
   'metrics' : IDL.Func(
       [],
       [
@@ -168,8 +197,13 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ],
       ['query'],
     ),
-  'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_1], []),
-  'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+  'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
+  'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+  'setTrainingRequirement' : IDL.Func(
+      [IDL.Text, IDL.Nat, IDL.Nat],
+      [Result],
+      [],
+    ),
 });
 
 export const idlInitArgs: IDL.Type[] = [];
@@ -185,7 +219,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'articleIds' : IDL.Vec(IDL.Text),
     'dueAt' : IDL.Int,
   });
-  const Result_6 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
+  const Result_8 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
   const AssociationRec = IDL.Record({
     'id' : IDL.Text,
     'joinCode' : IDL.Text,
@@ -194,27 +228,37 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'sport' : IDL.Text,
     'coordinator' : IDL.Principal,
   });
-  const Result_2 = IDL.Variant({ 'ok' : AssociationRec, 'err' : IDL.Text });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result_3 = IDL.Variant({ 'ok' : AssociationRec, 'err' : IDL.Text });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Completion = IDL.Record({
     'member' : IDL.Principal,
     'completedAt' : IDL.Int,
     'score' : IDL.Nat,
     'assignmentId' : IDL.Text,
   });
-  const Result_5 = IDL.Variant({
+  const Result_7 = IDL.Variant({
     'ok' : IDL.Vec(Completion),
     'err' : IDL.Text,
   });
-  const Result_4 = IDL.Variant({
+  const Result_6 = IDL.Variant({
     'ok' : IDL.Vec(Assignment),
     'err' : IDL.Text,
   });
-  const Result_3 = IDL.Variant({
+  const Result_5 = IDL.Variant({
     'ok' : IDL.Vec(IDL.Principal),
     'err' : IDL.Text,
   });
-  const Result = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+  const TrainingRequirement = IDL.Record({
+    'seasonStartMonth' : IDL.Nat,
+    'updatedAt' : IDL.Int,
+    'hoursPerSeason' : IDL.Nat,
+  });
+  const Result_4 = IDL.Variant({
+    'ok' : IDL.Opt(TrainingRequirement),
+    'err' : IDL.Text,
+  });
+  const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+  const Result = IDL.Variant({ 'ok' : TrainingRequirement, 'err' : IDL.Text });
   
   return IDL.Service({
     'createAssignment' : IDL.Func(
@@ -226,19 +270,19 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
           IDL.Int,
           IDL.Vec(IDL.Principal),
         ],
-        [Result_6],
+        [Result_8],
         [],
       ),
-    'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_2], []),
-    'forgetUser' : IDL.Func([IDL.Principal], [Result_1], []),
-    'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_5], ['query']),
+    'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
+    'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_7], ['query']),
     'getAssociation' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(AssociationRec)],
         ['query'],
       ),
-    'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_4], ['query']),
-    'getAssociationMembers' : IDL.Func([IDL.Text], [Result_3], ['query']),
+    'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_6], ['query']),
+    'getAssociationMembers' : IDL.Func([IDL.Text], [Result_5], ['query']),
     'getMyAssignments' : IDL.Func([], [IDL.Vec(Assignment)], ['query']),
     'getMyAssociations' : IDL.Func([], [IDL.Vec(AssociationRec)], ['query']),
     'getMyCompletions' : IDL.Func([], [IDL.Vec(Completion)], ['query']),
@@ -247,12 +291,13 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(AssociationRec)],
         ['query'],
       ),
+    'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_4], ['query']),
     'isCoordinatorOf' : IDL.Func(
         [IDL.Principal, IDL.Principal],
         [IDL.Bool],
         ['query'],
       ),
-    'joinAssociation' : IDL.Func([IDL.Text], [Result_2], []),
+    'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
     'metrics' : IDL.Func(
         [],
         [
@@ -263,8 +308,13 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
-    'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_1], []),
-    'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
+    'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
+    'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+    'setTrainingRequirement' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Nat],
+        [Result],
+        [],
+      ),
   });
 };
 

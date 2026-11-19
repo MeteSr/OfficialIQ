@@ -26,6 +26,9 @@ export type WeeklySchedule = { dueThisWeek: string[]; overdue: string[]; weekNum
 export type WeeklyQuizResult = { weekNumber: bigint; newScore: bigint; retentionScore: bigint; completedAt: bigint };
 export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [string, bigint][]; completedAt: bigint };
 
+export type StudyDay = { day: bigint; seconds: bigint };
+export type TrainingActivity = { studyDays: StudyDay[]; weeklyQuizzes: WeeklyQuizResult[]; monthlyQuizzes: MonthlyQuizResult[] };
+
 export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
 export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
 export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: string; levelId: string; notes: string };
@@ -142,6 +145,25 @@ export const userService = {
   async getMonthlyQuizHistory(): Promise<MonthlyQuizResult[]> {
     if (!CANISTER_ID) return [];
     return actor().getMonthlyQuizHistory();
+  },
+
+  /** Heartbeat while studying; the canister credits the time between beats (issue #67). */
+  async recordStudyBeat(): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().recordStudyBeat();
+  },
+
+  async getMyTrainingActivity(): Promise<TrainingActivity> {
+    if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
+    return actor().getMyTrainingActivity();
+  },
+
+  /** A member's study time and quiz history — coordinator of one of their associations only. */
+  async getMemberTrainingActivity(p: any): Promise<TrainingActivity> {
+    if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
+    const res = await actor().getMemberTrainingActivity(p);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
   },
 
   async becomeCoordinator(): Promise<UserProfile> {

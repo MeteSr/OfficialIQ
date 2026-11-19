@@ -84,13 +84,21 @@ export type Result_3 = { 'ok' : Array<ClientError> } |
   { 'err' : string };
 export type Result_4 = { 'ok' : [] | [PushSubscription] } |
   { 'err' : string };
-export type Result_5 = { 'ok' : UpcomingGame } |
+export type Result_5 = { 'ok' : TrainingActivity } |
+  { 'err' : string };
+export type Result_6 = { 'ok' : UpcomingGame } |
   { 'err' : string };
 export type Role = { 'Assessor' : null } |
   { 'Admin' : null } |
   { 'Official' : null } |
   { 'Coordinator' : null };
+export interface StudyDay { 'day' : bigint, 'seconds' : bigint }
 export interface StudyPace { 'articlesPerWeek' : bigint, 'startDate' : bigint }
+export interface TrainingActivity {
+  'weeklyQuizzes' : Array<WeeklyQuizResult>,
+  'studyDays' : Array<StudyDay>,
+  'monthlyQuizzes' : Array<MonthlyQuizResult>,
+}
 export interface UpcomingGame {
   'id' : string,
   'levelId' : string,
@@ -119,17 +127,23 @@ export interface WeeklySchedule {
   'overdue' : Array<string>,
 }
 export interface _SERVICE {
-  'addUpcomingGame' : ActorMethod<[UpcomingGameInput], Result_5>,
+  'addUpcomingGame' : ActorMethod<[UpcomingGameInput], Result_6>,
   'becomeCoordinator' : ActorMethod<[], Result>,
   'createProfile' : ActorMethod<[ProfileUpdate], Result>,
   'deleteAccount' : ActorMethod<[], Result_1>,
   'getDeletionStatus' : ActorMethod<[], DeletionStatus>,
+  /**
+   * / A member's training activity, for the coordinator of an association
+   * / they belong to.
+   */
+  'getMemberTrainingActivity' : ActorMethod<[Principal], Result_5>,
   'getMonthlyQuizHistory' : ActorMethod<[], Array<MonthlyQuizResult>>,
   'getMyLinkedAccounts' : ActorMethod<[], Array<LinkedAccount>>,
   'getMyProfile' : ActorMethod<[], [] | [Profile]>,
   'getMyProgress' : ActorMethod<[], Array<ArticleProgress>>,
   'getMyPushSubscription' : ActorMethod<[], [] | [PushSubscription]>,
   'getMyStudyPace' : ActorMethod<[], [] | [StudyPace]>,
+  'getMyTrainingActivity' : ActorMethod<[], TrainingActivity>,
   'getMyUpcomingGames' : ActorMethod<[], Array<UpcomingGame>>,
   'getProfile' : ActorMethod<[Principal], [] | [Profile]>,
   'getPublicProfile' : ActorMethod<[Principal], [] | [PublicProfile]>,
@@ -167,6 +181,7 @@ export interface _SERVICE {
     [bigint, bigint, Array<[string, bigint]>],
     undefined
   >,
+  'recordStudyBeat' : ActorMethod<[], undefined>,
   'recordWeeklyQuizResult' : ActorMethod<[bigint, bigint, bigint], undefined>,
   'registerPushSubscription' : ActorMethod<[PushSubscription], Result_1>,
   'removeUpcomingGame' : ActorMethod<[string], Result_1>,
@@ -194,7 +209,7 @@ export const UpcomingGame = IDL.Record({
   'gameDate' : IDL.Int,
   'opponent' : IDL.Text,
 });
-export const Result_5 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
+export const Result_6 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
 export const Role = IDL.Variant({
   'Assessor' : IDL.Null,
   'Admin' : IDL.Null,
@@ -224,11 +239,27 @@ export const DeletionStatus = IDL.Variant({
   'NotRequested' : IDL.Null,
   'InProgress' : IDL.Record({ 'remaining' : IDL.Nat }),
 });
+export const WeeklyQuizResult = IDL.Record({
+  'completedAt' : IDL.Int,
+  'weekNumber' : IDL.Nat,
+  'retentionScore' : IDL.Nat,
+  'newScore' : IDL.Nat,
+});
+export const StudyDay = IDL.Record({ 'day' : IDL.Nat, 'seconds' : IDL.Nat });
 export const MonthlyQuizResult = IDL.Record({
   'completedAt' : IDL.Int,
   'month' : IDL.Nat,
   'score' : IDL.Nat,
   'articleScores' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+});
+export const TrainingActivity = IDL.Record({
+  'weeklyQuizzes' : IDL.Vec(WeeklyQuizResult),
+  'studyDays' : IDL.Vec(StudyDay),
+  'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
+});
+export const Result_5 = IDL.Variant({
+  'ok' : TrainingActivity,
+  'err' : IDL.Text,
 });
 export const LinkedAccount = IDL.Record({
   'linkedAt' : IDL.Int,
@@ -264,12 +295,6 @@ export const Result_4 = IDL.Variant({
   'ok' : IDL.Opt(PushSubscription),
   'err' : IDL.Text,
 });
-export const WeeklyQuizResult = IDL.Record({
-  'completedAt' : IDL.Int,
-  'weekNumber' : IDL.Nat,
-  'retentionScore' : IDL.Nat,
-  'newScore' : IDL.Nat,
-});
 export const WeeklySchedule = IDL.Record({
   'weekNumber' : IDL.Nat,
   'dueThisWeek' : IDL.Vec(IDL.Text),
@@ -301,11 +326,16 @@ export const ClientErrorInput = IDL.Record({
 export const Result_2 = IDL.Variant({ 'ok' : StudyPace, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
-  'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_5], []),
+  'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_6], []),
   'becomeCoordinator' : IDL.Func([], [Result], []),
   'createProfile' : IDL.Func([ProfileUpdate], [Result], []),
   'deleteAccount' : IDL.Func([], [Result_1], []),
   'getDeletionStatus' : IDL.Func([], [DeletionStatus], ['query']),
+  'getMemberTrainingActivity' : IDL.Func(
+      [IDL.Principal],
+      [Result_5],
+      ['composite_query'],
+    ),
   'getMonthlyQuizHistory' : IDL.Func(
       [],
       [IDL.Vec(MonthlyQuizResult)],
@@ -320,6 +350,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'getMyStudyPace' : IDL.Func([], [IDL.Opt(StudyPace)], ['query']),
+  'getMyTrainingActivity' : IDL.Func([], [TrainingActivity], ['query']),
   'getMyUpcomingGames' : IDL.Func([], [IDL.Vec(UpcomingGame)], ['query']),
   'getProfile' : IDL.Func([IDL.Principal], [IDL.Opt(Profile)], ['query']),
   'getPublicProfile' : IDL.Func(
@@ -362,6 +393,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [],
       [],
     ),
+  'recordStudyBeat' : IDL.Func([], [], []),
   'recordWeeklyQuizResult' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
   'registerPushSubscription' : IDL.Func([PushSubscription], [Result_1], []),
   'removeUpcomingGame' : IDL.Func([IDL.Text], [Result_1], []),
@@ -393,7 +425,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'gameDate' : IDL.Int,
     'opponent' : IDL.Text,
   });
-  const Result_5 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
   const Role = IDL.Variant({
     'Assessor' : IDL.Null,
     'Admin' : IDL.Null,
@@ -423,12 +455,25 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'NotRequested' : IDL.Null,
     'InProgress' : IDL.Record({ 'remaining' : IDL.Nat }),
   });
+  const WeeklyQuizResult = IDL.Record({
+    'completedAt' : IDL.Int,
+    'weekNumber' : IDL.Nat,
+    'retentionScore' : IDL.Nat,
+    'newScore' : IDL.Nat,
+  });
+  const StudyDay = IDL.Record({ 'day' : IDL.Nat, 'seconds' : IDL.Nat });
   const MonthlyQuizResult = IDL.Record({
     'completedAt' : IDL.Int,
     'month' : IDL.Nat,
     'score' : IDL.Nat,
     'articleScores' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   });
+  const TrainingActivity = IDL.Record({
+    'weeklyQuizzes' : IDL.Vec(WeeklyQuizResult),
+    'studyDays' : IDL.Vec(StudyDay),
+    'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
+  });
+  const Result_5 = IDL.Variant({ 'ok' : TrainingActivity, 'err' : IDL.Text });
   const LinkedAccount = IDL.Record({
     'linkedAt' : IDL.Int,
     'provider' : IDL.Text,
@@ -463,12 +508,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'ok' : IDL.Opt(PushSubscription),
     'err' : IDL.Text,
   });
-  const WeeklyQuizResult = IDL.Record({
-    'completedAt' : IDL.Int,
-    'weekNumber' : IDL.Nat,
-    'retentionScore' : IDL.Nat,
-    'newScore' : IDL.Nat,
-  });
   const WeeklySchedule = IDL.Record({
     'weekNumber' : IDL.Nat,
     'dueThisWeek' : IDL.Vec(IDL.Text),
@@ -500,11 +539,16 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Result_2 = IDL.Variant({ 'ok' : StudyPace, 'err' : IDL.Text });
   
   return IDL.Service({
-    'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_5], []),
+    'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_6], []),
     'becomeCoordinator' : IDL.Func([], [Result], []),
     'createProfile' : IDL.Func([ProfileUpdate], [Result], []),
     'deleteAccount' : IDL.Func([], [Result_1], []),
     'getDeletionStatus' : IDL.Func([], [DeletionStatus], ['query']),
+    'getMemberTrainingActivity' : IDL.Func(
+        [IDL.Principal],
+        [Result_5],
+        ['composite_query'],
+      ),
     'getMonthlyQuizHistory' : IDL.Func(
         [],
         [IDL.Vec(MonthlyQuizResult)],
@@ -519,6 +563,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'getMyStudyPace' : IDL.Func([], [IDL.Opt(StudyPace)], ['query']),
+    'getMyTrainingActivity' : IDL.Func([], [TrainingActivity], ['query']),
     'getMyUpcomingGames' : IDL.Func([], [IDL.Vec(UpcomingGame)], ['query']),
     'getProfile' : IDL.Func([IDL.Principal], [IDL.Opt(Profile)], ['query']),
     'getPublicProfile' : IDL.Func(
@@ -565,6 +610,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'recordStudyBeat' : IDL.Func([], [], []),
     'recordWeeklyQuizResult' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
     'registerPushSubscription' : IDL.Func([PushSubscription], [Result_1], []),
     'removeUpcomingGame' : IDL.Func([IDL.Text], [Result_1], []),

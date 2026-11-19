@@ -221,6 +221,7 @@ persistent actor User {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
+    refreshEnv<system>();
     // Otherwise the erasure still running would delete the new account's
     // data in the other canisters.
     if (Map.get(erasures, Principal.compare, caller) != null) return #err("Your old account is still being deleted. Try again in a few minutes.");
@@ -303,6 +304,7 @@ persistent actor User {
       case null return #err("Exam canister not configured");
     };
     if (articleScores.size() > 200) return #err("Too many articles");
+    refreshEnv<system>();
     if (Set.contains(gradedStudySessions, Text.compare, sessionId)) return #ok(());
     Set.add(gradedStudySessions, Text.compare, sessionId);
     for ((articleId, score) in articleScores.values()) {
@@ -327,6 +329,100 @@ persistent actor User {
       articleId; lastStudied = now; timesStudied = 1; masteryScore = score;
     }]);
     Map.add(progress, Principal.compare, caller, final);
+  };
+
+  // ─── Study time (issue #67) ────────────────────────────────────────────────
+  //
+  // Reading time an association can count toward its training requirement,
+  // measured here rather than reported by the app: while an official has a
+  // rule article open, the app calls recordStudyBeat about once a minute,
+  // and each beat credits the time since the previous one if that was at
+  // most STUDY_GAP_NS ago. So credited time is never more than the real time
+  // between beats, an idle or closed app stops earning it, and a day is
+  // capped at MAX_STUDY_SEC_PER_DAY. Kept per UTC day for STUDY_KEEP_DAYS,
+  // the same span as exam sessions plus a margin.
+
+  public type StudyDay = { day : Nat; seconds : Nat }; // day = whole days since 1970-01-01 UTC
+
+  let STUDY_GAP_NS : Int = 120_000_000_000;
+  let MAX_STUDY_SEC_PER_DAY : Nat = 4 * 3600;
+  let DAY_NS : Int = 86_400_000_000_000;
+  let STUDY_KEEP_DAYS : Nat = 400;
+
+  var studyDays : Map.Map<Principal, [StudyDay]> = Map.empty<Principal, [StudyDay]>();
+  var lastStudyBeat : Map.Map<Principal, Int> = Map.empty<Principal, Int>();
+
+  public shared ({ caller }) func recordStudyBeat() : async () {
+    if (Principal.isAnonymous(caller)) return;
+    refreshEnv<system>();
+    let now = Time.now();
+    switch (Map.get(lastStudyBeat, Principal.compare, caller)) {
+      case (?last) {
+        let gap = now - last;
+        if (gap > 0 and gap <= STUDY_GAP_NS) creditStudy(caller, now, Int.abs(gap) / 1_000_000_000);
+      };
+      case null {};
+    };
+    Map.add(lastStudyBeat, Principal.compare, caller, now);
+  };
+
+  func creditStudy(p : Principal, now : Int, sec : Nat) {
+    if (sec == 0) return;
+    let today = Int.abs(now / DAY_NS);
+    let oldest : Nat = if (today > STUDY_KEEP_DAYS) today - STUDY_KEEP_DAYS else 0;
+    let kept = Array.filter<StudyDay>(
+      switch (Map.get(studyDays, Principal.compare, p)) { case (?d) d; case null [] },
+      func(d) { d.day >= oldest },
+    );
+    let n = kept.size();
+    let updated = if (n > 0 and kept[n - 1].day == today) {
+      Array.tabulate<StudyDay>(n, func(i) {
+        if (i + 1 < n) kept[i] else ({ day = today; seconds = Nat.min(MAX_STUDY_SEC_PER_DAY, kept[i].seconds + sec) } : StudyDay)
+      })
+    } else Array.concat<StudyDay>(kept, [{ day = today; seconds = Nat.min(MAX_STUDY_SEC_PER_DAY, sec) }]);
+    Map.add(studyDays, Principal.compare, p, updated);
+  };
+
+  /// Everything the training transcript needs from this canister.
+  public type TrainingActivity = {
+    studyDays      : [StudyDay];
+    weeklyQuizzes  : [WeeklyQuizResult];
+    monthlyQuizzes : [MonthlyQuizResult];
+  };
+
+  func activityOf(p : Principal) : TrainingActivity {
+    {
+      studyDays      = switch (Map.get(studyDays, Principal.compare, p)) { case (?d) d; case null [] };
+      weeklyQuizzes  = switch (Map.get(weeklyQuizHistory, Principal.compare, p)) { case (?h) h; case null [] };
+      monthlyQuizzes = switch (Map.get(monthlyQuizHistory, Principal.compare, p)) { case (?h) h; case null [] };
+    }
+  };
+
+  public shared query ({ caller }) func getMyTrainingActivity() : async TrainingActivity {
+    activityOf(caller)
+  };
+
+  // A query can't read canister environment variables, so update calls copy
+  // the association canister's id here (as the exam canister does).
+  var ASSOCIATION_ID : ?Principal = null;
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
+  };
+
+  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+
+  /// A member's training activity, for the coordinator of an association
+  /// they belong to.
+  public shared composite query ({ caller }) func getMemberTrainingActivity(p : Principal) : async Result.Result<TrainingActivity, Text> {
+    if (caller != p and not isAdmin(caller)) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (Principal.toText(id)) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return #err("Not authorized");
+    };
+    #ok(activityOf(p))
   };
 
   public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
@@ -422,6 +518,8 @@ persistent actor User {
     Map.remove(progress, Principal.compare, caller);
     Map.remove(weeklyQuizHistory, Principal.compare, caller);
     Map.remove(monthlyQuizHistory, Principal.compare, caller);
+    Map.remove(studyDays, Principal.compare, caller);
+    Map.remove(lastStudyBeat, Principal.compare, caller);
     Map.remove(linkedAccounts, Principal.compare, caller);
     Map.remove(upcomingGames, Principal.compare, caller);
     Map.remove(pushSubscriptions, Principal.compare, caller);

@@ -91,7 +91,8 @@
     "privacyPolicy": "Privacy Policy",
     "terms": "Terms of Use",
     "deleteAccount": "Delete account",
-    "moderationQueue": "Moderation Queue"
+    "moderationQueue": "Moderation Queue",
+    "trainingTranscript": "Training Transcript"
   },
   "common": {
     "loading": "Loading…",
@@ -627,7 +628,8 @@
     "csvScore": "Score",
     "csvCompletedAt": "Completed At",
     "csvCompleted": "Completed",
-    "csvPending": "Pending"
+    "csvPending": "Pending",
+    "viewTrainingHours": "View Training Hours"
   },
   "home": {
     "anOfficial": "an official",
@@ -1088,5 +1090,65 @@
   "legal": {
     "draft": "Draft: this document hasn't been finalized yet.",
     "englishOnly": "This document is available in English only."
+  },
+  "transcript": {
+    "title": "Training transcript",
+    "signIn": "Sign in to see your training transcript.",
+    "exportCsv": "Export CSV",
+    "exportPdf": "Export PDF",
+    "printedHeader": "{{name}} · generated {{date}}",
+    "last7Days": "Last 7 days",
+    "thisMonth": "This month",
+    "thisSeason": "This season",
+    "last12Months": "Last 12 months",
+    "totalsTitle": "Totals",
+    "byMonthTitle": "By month",
+    "activityTitle": "Activity",
+    "noActivity": "No training recorded yet. Quizzes, exams and audio or mechanics study count here.",
+    "moreInCsv_one": "{{count}} more entry in the CSV export.",
+    "moreInCsv_other": "{{count}} more entries in the CSV export.",
+    "quizCount_one": "{{count}} quiz",
+    "quizCount_other": "{{count}} quizzes",
+    "examCount_one": "{{count}} exam",
+    "examCount_other": "{{count}} exams",
+    "kindStudy": "Study",
+    "kindQuiz": "Quiz",
+    "kindCertExam": "Certification exam",
+    "kindWeeklyQuiz": "Weekly quiz",
+    "kindMonthlyQuiz": "Monthly quiz",
+    "requirementTitle": "{{name}} requirement",
+    "requirementMet": "Meets requirement",
+    "requirementNotMet": "Below requirement",
+    "seasonRange": "season {{from}} – {{to}}",
+    "howMeasured": "Time is measured by OfficialIQ, not entered by hand: quizzes and exams count the time spent answering (never more than the time between starting and finishing), and study counts the minutes an article, audio or mechanics drill was open and active, up to 4 hours a day. Weekly and monthly quizzes are listed without extra time because their time is already in the quiz they were taken in. Records are kept for 12 months.",
+    "csvDate": "Date",
+    "csvActivity": "Activity",
+    "csvMinutes": "Minutes",
+    "csvScore": "Score",
+    "csvQuestions": "Questions",
+    "csvPeriod": "Period",
+    "csvHours": "Hours",
+    "csvQuizzes": "Quizzes",
+    "csvExams": "Exams"
+  },
+  "assocTraining": {
+    "title": "Training hours",
+    "coordinatorsOnly": "Training hours are visible to the association's coordinator only.",
+    "requirementTitle": "Hour requirement",
+    "hoursLabel": "Hours per season",
+    "seasonStartLabel": "Season starts in",
+    "zeroClears": "Set 0 hours to remove the requirement.",
+    "save": "Save requirement",
+    "saving": "Saving…",
+    "saveFailed": "Couldn't save the requirement.",
+    "invalidHours": "Enter a whole number of hours.",
+    "metSummary_one": "{{met}} of {{count}} member meets the requirement",
+    "metSummary_other": "{{met}} of {{count}} members meet the requirement",
+    "unavailable": "Unavailable",
+    "csvSeasonHours": "Season hours",
+    "csvRequired": "Required hours",
+    "csvMeets": "Meets requirement",
+    "yes": "Yes",
+    "no": "No"
   }
 }
