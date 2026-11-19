@@ -161,6 +161,7 @@ export interface _SERVICE {
     [],
     {
       'droppedPushes' : bigint,
+      'prunedSessions' : bigint,
       'pendingPushes' : bigint,
       'answerKeys' : bigint,
       'sessionCount' : bigint,
@@ -335,6 +336,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [
         IDL.Record({
           'droppedPushes' : IDL.Nat,
+          'prunedSessions' : IDL.Nat,
           'pendingPushes' : IDL.Nat,
           'answerKeys' : IDL.Nat,
           'sessionCount' : IDL.Nat,
@@ -517,6 +519,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [
           IDL.Record({
             'droppedPushes' : IDL.Nat,
+            'prunedSessions' : IDL.Nat,
             'pendingPushes' : IDL.Nat,
             'answerKeys' : IDL.Nat,
             'sessionCount' : IDL.Nat,

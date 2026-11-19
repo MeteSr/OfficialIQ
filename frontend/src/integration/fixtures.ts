@@ -17,7 +17,7 @@ const CHOICES = ["a", "b", "c", "d"];
  * Seeds a question bank under a sport id unique to this run, so tests never
  * pick up questions (or history) from an earlier run on the same network.
  */
-export async function seedBank(rules = 12, casebook = 4): Promise<Bank> {
+export async function seedBank(rules = 12, casebook = 4, difficulty: "Beginner" | "Intermediate" | "Advanced" | "Expert" = "Beginner"): Promise<Bank> {
   const sportId = `itest_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const art1 = `${sportId}:art1`;
   const q = await canister("question", adminIdentity());
@@ -29,7 +29,7 @@ export async function seedBank(rules = 12, casebook = 4): Promise<Bank> {
       sportId, articleId: art1, citation: `Art. 1, Sec. ${i}`, stem: `Question ${i}`,
       choices: CHOICES.map(id => ({ id, text: id.toUpperCase() })),
       correctId, explanation: `Because ${correctId}`,
-      difficulty: { Beginner: null }, isCasebook, isPointOfEmphasis: false,
+      difficulty: { [difficulty]: null }, isCasebook, isPointOfEmphasis: false,
     })) as { id: string };
     (isCasebook ? bank.casebookIds : bank.ruleIds).push(added.id);
     bank.answer.set(added.id, correctId);

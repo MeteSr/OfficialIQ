@@ -11,6 +11,7 @@ import Runtime "mo:core/Runtime";
 import Set "mo:core/Set";
 import List "mo:core/List";
 import Env "../lib/Env";
+import Stored "Stored";
 
 persistent actor User {
 
@@ -121,7 +122,15 @@ persistent actor User {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var profiles           : Map.Map<Principal, Profile> = Map.empty<Principal, Profile>();
+  // Stored profiles (Stored.mo); the API returns them through view().
+  type StoredProfile = Stored.Profile;
+  var profiles           : Map.Map<Principal, StoredProfile> = Map.empty<Principal, StoredProfile>();
+
+  /// A stored profile as the API returns it. The identity while the two
+  /// types have the same fields; when one changes, the compiler asks here.
+  func view(p : StoredProfile) : Profile = p;
+  func viewOpt(p : ?StoredProfile) : ?Profile = switch p { case (?x) ?view(x); case null null };
+  func fromRole(r : Role) : Stored.Role = r;
   var studyPaces          : Map.Map<Principal, StudyPace> = Map.empty<Principal, StudyPace>();
   var progress            : Map.Map<Principal, [ArticleProgress]> = Map.empty<Principal, [ArticleProgress]>();
   var weeklyQuizHistory   : Map.Map<Principal, [WeeklyQuizResult]> = Map.empty<Principal, [WeeklyQuizResult]>();
@@ -184,9 +193,9 @@ persistent actor User {
     switch (Map.get(profiles, Principal.compare, p)) {
       case null #err("Profile not found");
       case (?existing) {
-        let updated : Profile = { existing with role };
+        let updated : StoredProfile = { existing with role = fromRole(role) };
         Map.add(profiles, Principal.compare, p, updated);
-        #ok(updated)
+        #ok(view(updated))
       };
     }
   };
@@ -216,7 +225,7 @@ persistent actor User {
     if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
 
-    let p : Profile = {
+    let p : StoredProfile = {
       principal         = caller;
       displayName       = req.displayName;
       role              = #Official;
@@ -227,7 +236,7 @@ persistent actor User {
       createdAt         = Time.now();
     };
     Map.add(profiles, Principal.compare, caller, p);
-    #ok(p)
+    #ok(view(p))
   };
 
   public shared ({ caller }) func updateProfile(req : ProfileUpdate) : async Result.Result<Profile, Text> {
@@ -235,7 +244,7 @@ persistent actor User {
     switch (Map.get(profiles, Principal.compare, caller)) {
       case null { #err("Profile not found") };
       case (?existing) {
-        let updated : Profile = { existing with
+        let updated : StoredProfile = { existing with
           displayName       = req.displayName;
           sport             = req.sport;
           level             = req.level;
@@ -254,7 +263,7 @@ persistent actor User {
             case null {};
           };
         };
-        #ok(updated)
+        #ok(view(updated))
       };
     }
   };
@@ -393,7 +402,7 @@ persistent actor User {
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyProfile() : async ?Profile {
-    Map.get(profiles, Principal.compare, caller)
+    viewOpt(Map.get(profiles, Principal.compare, caller))
   };
 
   // Full profiles (role, state, language, sign-up date) are private to their
@@ -401,7 +410,7 @@ persistent actor User {
   // the app shows about someone else (challenger names, rosters, friends).
   public shared query ({ caller }) func getProfile(p : Principal) : async ?Profile {
     if (caller != p and not isAdmin(caller)) return null;
-    Map.get(profiles, Principal.compare, p)
+    viewOpt(Map.get(profiles, Principal.compare, p))
   };
 
   public type PublicProfile = {
