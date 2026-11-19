@@ -59,4 +59,41 @@ describe("associations", () => {
     const official = newIdentity();
     expect(err(await (await canister("association", official)).createAssociation("Nope", bank.sportId))).toMatch(/coordinator access/);
   });
+
+  it("shows a member's training transcript and the hour requirement to the coordinator only", async () => {
+    const coord = await makeCoordinator();
+    const member = newIdentity();
+    const stranger = newIdentity();
+    const assocC = await canister("association", coord);
+    const assoc = ok(await assocC.createAssociation("Hours Assoc", bank.sportId)) as { id: string; joinCode: string };
+    ok(await (await canister("association", member)).joinAssociation(assoc.joinCode));
+
+    expect(err(await (await canister("association", member)).setTrainingRequirement(assoc.id, 10n, 8n))).toMatch(/coordinator/);
+    expect(err(await assocC.setTrainingRequirement(assoc.id, 10n, 13n))).toMatch(/1-12/);
+    ok(await assocC.setTrainingRequirement(assoc.id, 10n, 8n));
+    const req = ok(await (await canister("association", member)).getTrainingRequirement(assoc.id)) as { hoursPerSeason: bigint }[];
+    expect(req[0].hoursPerSeason).toBe(10n);
+    expect(err(await (await canister("association", stranger)).getTrainingRequirement(assoc.id))).toMatch(/Not authorized/);
+
+    const s = await start(member, bank, 3);
+    await play(member, bank, s, 3);
+    const mine = (await (await canister("exam", member)).getMyTraining()) as { id: string; creditedSec: bigint; finishedAt: bigint; startedAt: bigint }[];
+    const row = mine.find(x => x.id === s.session.id)!;
+    expect(row).toBeDefined();
+    // Never more than the wall-clock time the session was open.
+    expect(row.creditedSec * 1_000_000_000n).toBeLessThanOrEqual(row.finishedAt - row.startedAt + 1_000_000_000n);
+
+    const viaCoord = ok(await (await canister("exam", coord)).getMemberTraining(member.getPrincipal())) as { id: string }[];
+    expect(viaCoord.map(x => x.id)).toContain(s.session.id);
+    expect(err(await (await canister("exam", stranger)).getMemberTraining(member.getPrincipal()))).toMatch(/Not authorized/);
+
+    // Study heartbeats: the first only starts the clock.
+    const userM = await canister("user", member);
+    await userM.recordStudyBeat();
+    await userM.recordStudyBeat();
+    const act = (await userM.getMyTrainingActivity()) as { studyDays: { seconds: bigint }[] };
+    expect(act.studyDays.reduce((n, d) => n + d.seconds, 0n)).toBeLessThanOrEqual(120n);
+    ok(await (await canister("user", coord)).getMemberTrainingActivity(member.getPrincipal()));
+    expect(err(await (await canister("user", stranger)).getMemberTrainingActivity(member.getPrincipal()))).toMatch(/Not authorized/);
+  });
 });
