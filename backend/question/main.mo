@@ -381,6 +381,39 @@ persistent actor Question {
     };
   };
 
+  // Question tags (issue #68): free-form labels an admin puts on questions
+  // so a quiz can draw from just those, e.g. "rule-change:2026-27" for the
+  // season's rule-changes quiz. Kept beside the questions rather than in
+  // the stored Question type, so adding them needs no migration.
+  public type TagError = { #notAdmin; #notFound; #tooMany };
+
+  let questionTags : Map.Map<Text, [Text]> = Map.empty<Text, [Text]>();
+  transient let MAX_TAGS : Nat = 10;
+  transient let MAX_TAG_CHARS : Nat = 100;
+
+  func hasTag(questionId : Text, tag : ?Text) : Bool {
+    switch tag {
+      case null true;
+      case (?t) switch (questionTags.get(Text.compare, questionId)) {
+        case (?tags) tags.find(func x = x == t) != null;
+        case null false;
+      };
+    }
+  };
+
+  /// Replaces a question's tags (an empty list removes them). Admin only.
+  public shared ({ caller }) func setQuestionTags(questionId : Text, tags : [Text]) : async Result.Result<(), TagError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    if (questions.get(Text.compare, questionId) == null) return #err(#notFound);
+    if (tags.size() > MAX_TAGS or tags.find(func t = t.size() > MAX_TAG_CHARS) != null) return #err(#tooMany);
+    if (tags.size() == 0) questionTags.remove(Text.compare, questionId) else questionTags.add(Text.compare, questionId, tags);
+    #ok(())
+  };
+
+  public query func getQuestionTags(questionId : Text) : async [Text] {
+    switch (questionTags.get(Text.compare, questionId)) { case (?t) t; case null [] }
+  };
+
   public shared ({ caller }) func pickForExam(sportId : Text, picks : [ExamPick], player : Principal) : async Result.Result<[Question], Text> {
     if (not isExamCanister<system>(caller)) return #err("Exam canister only");
     // Without shuffling, every official got the same first-N questions (in
@@ -394,7 +427,7 @@ persistent actor Question {
       let matches = List.empty<Question>();
       for ((_, q) in Map.entries(questions)) {
         // A question already taken by an earlier pick isn't repeated.
-        if (matchesFilter(q, filter) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
+        if (matchesFilter(q, filter) and hasTag(q.id, pick.tag) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
       };
       // Shuffled first in both modes: for adaptive picks the sort below is
       // stable, so ties (e.g. never-answered questions) stay in random order.

@@ -1,6 +1,7 @@
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/user";
+import type { ClaimError, MyEntitlement } from "../lib/plan";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
@@ -28,6 +29,15 @@ export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [
 
 export type StudyDay = { day: bigint; seconds: bigint };
 export type TrainingActivity = { studyDays: StudyDay[]; weeklyQuizzes: WeeklyQuizResult[]; monthlyQuizzes: MonthlyQuizResult[] };
+
+export type { MyEntitlement } from "../lib/plan";
+
+/** A rejected claimWebSubscription; show it with claimErrorKey(reason). */
+export class ClaimFailed extends Error {
+  constructor(public readonly reason: ClaimError) {
+    super(Object.keys(reason)[0]);
+  }
+}
 
 export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
 export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
@@ -163,6 +173,20 @@ export const userService = {
     if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
     const res = await actor().getMemberTrainingActivity(p);
     if ("err" in res) throw new Error("Not authorized");
+    return res.ok;
+  },
+
+  /** The official's Pro entitlements and whether billing is switched on (issue #71). */
+  async getMyEntitlement(): Promise<MyEntitlement | null> {
+    if (!CANISTER_ID) return null;
+    return actor().getMyEntitlement();
+  },
+
+  /** Grants Pro from a finished Stripe Checkout. Throws ClaimFailed. */
+  async claimWebSubscription(sessionId: string): Promise<MyEntitlement> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().claimWebSubscription(sessionId);
+    if ("err" in res) throw new ClaimFailed(res.err);
     return res.ok;
   },
 

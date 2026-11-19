@@ -16,6 +16,7 @@ import Env "../lib/Env";
 import Index "../lib/Index";
 import Types "../lib/Types";
 import Training "../lib/Training";
+import Billing "../lib/Billing";
 import Stored "Stored";
 
 persistent actor Exam {
@@ -211,8 +212,32 @@ persistent actor Exam {
     Map.get(examTemplates, Text.compare, id)
   };
 
+  /// The caller's exam history (issue #71): the last 30 days for a free
+  /// official, everything kept (12 months) for Pro or while the paywall is
+  /// off. Older sessions stay stored, so upgrading shows them at once.
+  public shared composite query ({ caller }) func getMyExamHistory() : async [ExamSession] {
+    let access : Billing.Access = switch (userAccess()) {
+      case (?u) { try { switch (await u.accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff } } catch (_) { #paywallOff } };
+      case null #paywallOff;
+    };
+    visibleExams(caller, access)
+  };
+
+  /// Older clients' history call. A plain query can't ask the user canister
+  /// who is Pro, so while the paywall is on it returns the free window to
+  /// everyone; the app uses getMyExamHistory instead.
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
-    examsOf(caller)
+    visibleExams(caller, if paywallOn #free else #paywallOff)
+  };
+
+  // Copied from the user canister whenever an admin switches the paywall
+  // (setPaywallFlag), for the plain queries above and below.
+  var paywallOn : Bool = false;
+
+  public shared ({ caller }) func setPaywallFlag(on : Bool) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    paywallOn := on;
+    #ok(())
   };
 
   // An official's exam history is private: getExamsFor answers only for the
@@ -229,12 +254,30 @@ persistent actor Exam {
   var ASSOCIATION_ID : ?Principal = null;
   var RANKING_ID : ?Principal = null;
   var CHALLENGE_ID : ?Principal = null;
+  var USER_ID : ?Principal = null;
+
+  type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
+
+  // The user canister to ask about a caller's tier. Composite queries
+  // can't call a local async* helper (M0187), so each one awaits accessFor
+  // itself; if the user canister can't say, history isn't hidden.
+  func userAccess() : ?UserAccess = switch USER_ID { case (?id) ?(actor (id.toText()) : UserAccess); case null null };
+
+  func visibleExams(p : Principal, access : Billing.Access) : [ExamSession] {
+    let now = Time.now();
+    examsOf(p).filter(func s = Billing.examVisible(access, s.startedAt, now))
+  };
 
   func refreshEnv<system>() {
+    switch (Env.canisterId<system>("user")) { case (?id) USER_ID := ?id; case null {} };
     switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
     switch (Env.canisterId<system>("ranking")) { case (?id) RANKING_ID := ?id; case null {} };
     switch (Env.canisterId<system>("challenge")) { case (?id) CHALLENGE_ID := ?id; case null {} };
   };
+
+  // Environment variables can't be read during install, so a timer reads
+  // the ids right after install and each upgrade.
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
 
   func isSiblingCanister(p : Principal) : Bool {
     ASSOCIATION_ID == ?p or RANKING_ID == ?p or CHALLENGE_ID == ?p
@@ -243,8 +286,9 @@ persistent actor Exam {
   type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
 
   public shared query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
-    if (caller != p and not isAdmin(caller)) return [];
-    examsOf(p)
+    if (isAdmin(caller)) return examsOf(p);
+    if (caller != p) return [];
+    visibleExams(p, if paywallOn #free else #paywallOff)
   };
 
   public shared composite query ({ caller }) func getMemberExams(p : Principal) : async [ExamSession] {
@@ -254,8 +298,14 @@ persistent actor Exam {
         case null false;
       };
       if (not allowed) return [];
+      // Coordinators see their members' full history.
+      return examsOf(p);
     };
-    examsOf(p)
+    let access : Billing.Access = switch (userAccess()) {
+      case (?u) { try { switch (await u.accessFor(p)) { case (#ok(a)) a; case (#err(_)) #paywallOff } } catch (_) { #paywallOff } };
+      case null #paywallOff;
+    };
+    visibleExams(p, access)
   };
 
   func examsOf(p : Principal) : [ExamSession] {

@@ -38,6 +38,10 @@ module {
     count      : Nat;
     difficulty : ?Difficulty;
     adaptive   : Bool; // most-overdue first for the player (as getAdaptiveQuiz)
+    /// Only questions carrying this tag (question.setQuestionTags), e.g.
+    /// "rule-change:2026-27" for the season's rule-changes quiz (#68).
+    /// Optional, so older clients' picks still decode.
+    tag        : ?Text;
   };
 
   /// The server-computed result of a finished, graded exam session, as the

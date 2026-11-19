@@ -7,6 +7,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { userService } from "../services/user";
 import { disablePush } from "../lib/pushNotifications";
 import { getPendingActions, removePendingAction } from "../lib/offlineDb";
+import { usePlanStore } from "../store/planStore";
+import { hasActiveSubscription } from "../lib/plan";
+import { features } from "../lib/features";
 
 // In-app account deletion: App Store guideline 5.1.1(v) and Google Play's
 // account deletion policy. It works on the website too, which is the web
@@ -28,6 +31,7 @@ async function clearThisDevice() {
 }
 
 export default function DeleteAccountPage() {
+  const mine = usePlanStore(s => s.mine);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
@@ -87,6 +91,16 @@ export default function DeleteAccountPage() {
       </button>
       <div style={heading}>{t("deleteAccount.title")}</div>
       <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>{t("deleteAccount.intro")}</p>
+      {/* Deleting the account drops the entitlement but can't cancel a
+          Stripe or store subscription (issue #71). */}
+      {mine && hasActiveSubscription(mine.entitlements, Date.now()) && (
+        <p role="note" style={{ fontSize: 14, color: T.wrong, lineHeight: 1.5, fontWeight: 600 }}>
+          {t("plan.deleteSubscriptionNote")}
+          {features.checkout.portal && (
+            <> <a href={features.checkout.portal} style={{ color: fill.accent }}>{t("plan.manage")}</a></>
+          )}
+        </p>
+      )}
       <ul style={{ fontSize: 14, lineHeight: 1.6, paddingLeft: 20, margin: "8px 0 16px" }}>
         <li>{t("deleteAccount.itemProfile")}</li>
         <li>{t("deleteAccount.itemResults")}</li>

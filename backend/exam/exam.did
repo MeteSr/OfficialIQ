@@ -77,6 +77,7 @@ type Pick =
    casebook: bool;
    count: nat;
    difficulty: opt Difficulty;
+   tag: opt text;
  };
 type GradedStart = 
  record {
@@ -209,6 +210,13 @@ service : {
   /// A member's training sessions, for the coordinator of an association
   /// they belong to (same check as getMemberExams).
   getMemberTraining: (p: principal) -> (Result_5) composite_query;
+  /// The caller's exam history (issue #71): the last 30 days for a free
+  /// official, everything kept (12 months) for Pro or while the paywall is
+  /// off. Older sessions stay stored, so upgrading shows them at once.
+  getMyExamHistory: () -> (vec ExamSession) composite_query;
+  /// Older clients' history call. A plain query can't ask the user canister
+  /// who is Pro, so while the paywall is on it returns the free window to
+  /// everyone; the app uses getMyExamHistory instead.
   getMyExams: () -> (vec ExamSession) query;
   /// The caller's finished graded sessions with the training time each is
   /// credited, for their transcript.
@@ -226,6 +234,7 @@ service : {
       sessionCount: nat;
     }) query;
   setAdmin: (p: principal) -> (Result_4);
+  setPaywallFlag: (on: bool) -> (Result_4);
   startGradedSession: (config: ExamConfig, source: QuestionSource) ->
    (Result_3);
   submitExam: (_id: text, _answers: vec AnswerRecord) -> (Result_2);

@@ -141,6 +141,58 @@ change one and redeploy (or re-run Mobile release) to apply it.
 | `FEATURE_AI` | on | Rule assistant and AI drills (needs the key from step 7) |
 | `FEATURE_WEB_PUSH` | on when the `VAPID_PUBLIC_KEY` secret exists | Streak notifications on the website |
 | `FEATURE_NATIVE_PUSH` | off | Streak notifications in the apps (docs/MOBILE.md, "Push notifications") |
+| `FEATURE_PAYWALL` | off | The Pro tier on the website: upgrade prompts, plan row, checkout ("Billing" below). Stays off without a Stripe link. Never passed to the app builds |
+| `STRIPE_LINK_MONTHLY`, `STRIPE_LINK_YEARLY` | none | Stripe Payment Links for Pro monthly and yearly |
+| `STRIPE_PORTAL_URL` | none | Stripe customer portal login link ("Manage subscription") |
+
+### Billing (Pro tier, issue #71)
+
+Free officials get 3 rule-assistant questions a day and their last 30 days
+of exams; Pro gets 50 a day and everything kept (12 months). While the
+paywall is off, everyone keeps today's limits (8 a day, full history).
+The canisters enforce this; the website switch only shows the prompts.
+
+1. In Stripe, create the Pro product with two prices ($7.99 / month,
+   $49.99 / year), each with a 14-day trial.
+2. Create a Payment Link for each price. Set its confirmation page to
+   redirect to `https://<app domain>/upgrade/return?session_id={CHECKOUT_SESSION_ID}`.
+   The app adds `client_reference_id` (the official's principal) to the
+   link itself; the user canister refuses a checkout that names anyone else.
+3. Turn on the customer portal and copy its login link.
+4. Create a **restricted key** with read access to Checkout Sessions and
+   Subscriptions and nothing else (outcall headers are visible to node
+   providers, so the key must not be able to move money), and give it to
+   the user canister as its admin:
+
+   ```bash
+   icp canister call user setStripeKey '(opt "rk_live_...")' -e ic
+   ```
+
+5. Switch billing on in the canisters, then on the website:
+
+   ```bash
+   icp canister call user setPaywallEnabled '(true)' -e ic
+   ```
+
+   Then set the repository variables `STRIPE_LINK_MONTHLY`,
+   `STRIPE_LINK_YEARLY`, `STRIPE_PORTAL_URL` and `FEATURE_PAYWALL=true`,
+   and redeploy. `setPaywallEnabled` also tells the exam canister; if it
+   returns `examNotUpdated`, run it again.
+
+Support and App Store review accounts get Pro with
+`icp canister call user grantComp '(principal "<id>", <until ns>)' -e ic`
+(`revokeComp` removes it). `metrics()` on the user canister counts active
+Pro by source. Renewals are checked hourly against Stripe for
+subscriptions within a day of their period end.
+
+### Rule changes (issue #68)
+
+"What changed this season" lists `content.upsertRuleChange` entries for
+the official's sport and the current season (August to July), with a quiz
+on the questions an admin tags `rule-change:<season>` with
+`question.setQuestionTags`. Only enter wording from the licensed rulebook
+edition (#50), and name that edition in `source`. With no changes for a
+season the page says so and Home shows nothing.
 
 ### 9. Moderation queue
 

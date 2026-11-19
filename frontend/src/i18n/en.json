@@ -92,7 +92,8 @@
     "terms": "Terms of Use",
     "deleteAccount": "Delete account",
     "moderationQueue": "Moderation Queue",
-    "trainingTranscript": "Training Transcript"
+    "trainingTranscript": "Training Transcript",
+    "ruleChanges": "What changed this season"
   },
   "common": {
     "loading": "Loading…",
@@ -903,13 +904,13 @@
       "rookie": {
         "tag": "ROOKIE",
         "price": "Free",
-        "desc": "The weekly quiz, your streak and progress by article. Everything you need to keep up with your association's calendar.",
+        "desc": "Daily, weekly and monthly quizzes, streaks, leaderboards and challenges, study by article and casebook, 3 rule-assistant questions a day and your last 30 days of exams.",
         "cta": "Create an account"
       },
       "varsity": {
         "tag": "VARSITY",
-        "price": "$8",
-        "desc": "Adds the exam simulator, spaced repetition drills, video clip review, pregame briefs and audio mode for the commute.",
+        "price": "$7.99",
+        "desc": "Everything in Rookie, plus the rule assistant at 50 questions a day and your full 12-month exam history. The certification readiness score and game-day refresher are coming soon. Or $49.99 a year.",
         "cta": "Start free for 14 days"
       },
       "association": {
@@ -1152,5 +1153,55 @@
     "no": "No",
     "errNotCoordinator": "Only the association's coordinator can change the requirement.",
     "errInvalidMonth": "Choose a month for the season to start."
+  },
+  "plan": {
+    "upgradeTitle": "Go Pro",
+    "whyAi": "You've used today's free rule-assistant questions.",
+    "whyHistory": "Free shows exams from the last {{days}} days. Pro shows everything from the past 12 months.",
+    "whyFeature": "This is part of OfficialIQ Pro.",
+    "perkAi": "Rule assistant: 50 questions a day",
+    "perkHistory": "Full exam history (12 months)",
+    "perkReadiness": "Certification readiness score (coming soon)",
+    "perkRefresher": "Game-day refresher (coming soon)",
+    "trial": "{{days}}-day free trial, cancel any time",
+    "yearly": "{{price}} / year",
+    "monthly": "{{price}} / month",
+    "notNow": "Not now",
+    "rowTitle": "Plan",
+    "rowFree": "Free",
+    "rowPro": "Pro",
+    "rowProUntil": "Pro · renews or ends {{date}}",
+    "upgrade": "Upgrade",
+    "manage": "Manage subscription",
+    "historyNote": "Showing the last {{days}} days.",
+    "seeAll": "See all with Pro",
+    "returnTitle": "Finishing your upgrade",
+    "returnWorking": "Confirming your subscription with Stripe…",
+    "returnDone": "You're on Pro. Thanks for supporting OfficialIQ.",
+    "returnContinue": "Continue",
+    "returnMissing": "This page needs the link Stripe sends you back with.",
+    "errNotYours": "That checkout belongs to a different account. Sign in with the account you upgraded.",
+    "errNotComplete": "The payment isn't finished yet. If you completed it, try again in a minute.",
+    "errAlreadyClaimed": "That subscription is already linked to another account.",
+    "errInvalid": "That checkout link isn't valid.",
+    "errSignIn": "Sign in to finish your upgrade.",
+    "errTryAgain": "Couldn't reach Stripe. Try again in a minute.",
+    "retry": "Try again",
+    "deleteSubscriptionNote": "You have an active Pro subscription. Deleting your account does not cancel it: cancel it first in Manage subscription (or in your App Store / Google Play settings), or you'll keep being charged."
+  },
+  "ruleChanges": {
+    "title": "What changed this season",
+    "subtitle_one": "{{count}} rule change for {{season}}",
+    "subtitle_other": "{{count}} rule changes for {{season}}",
+    "old": "Before",
+    "new": "Now",
+    "newRule": "New rule",
+    "source": "Source: {{source}}",
+    "quiz": "Quiz me on the changes",
+    "none": "No rule changes have been published for {{season}} yet.",
+    "homeTitle": "New this season",
+    "homeBody_one": "{{count}} rule change for {{season}}. Read what's different and take the quiz.",
+    "homeBody_other": "{{count}} rule changes for {{season}}. Read what's different and take the quiz.",
+    "homeCta": "See the changes"
   }
 }

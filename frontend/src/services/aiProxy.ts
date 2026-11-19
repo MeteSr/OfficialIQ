@@ -4,7 +4,7 @@ import { idlFactory, type _SERVICE } from "../declarations/ai_proxy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type RateLimitStatus = { used: number; limitPerDay: number; resetAt: number };
+export type RateLimitStatus = { used: number; limitPerDay: number; resetAt: number; free: boolean };
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -26,9 +26,10 @@ export const aiProxyService = {
   },
 
   async getRateLimitStatus(): Promise<RateLimitStatus> {
-    if (!CANISTER_ID) return { used: 0, limitPerDay: 0, resetAt: 0 };
-    const r = await actor().getMyRateLimitStatus();
-    return { used: Number(r.used), limitPerDay: Number(r.limitPerDay), resetAt: Number(r.resetAt) };
+    if (!CANISTER_ID) return { used: 0, limitPerDay: 0, resetAt: 0, free: false };
+    // The tier-aware status (issue #71); getMyRateLimitStatus is for older builds.
+    const r = await actor().getMyAiUsage();
+    return { used: Number(r.used), limitPerDay: Number(r.limitPerDay), resetAt: Number(r.resetAt), free: "free" in r.access };
   },
 
   async askRuleAssistant(question: string, context: string): Promise<string> {

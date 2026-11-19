@@ -42,40 +42,83 @@ type ScenarioInput =
    title: text;
    zones: vec MechanicsZone;
  };
-type Result_7 = 
+type RuleChangeInput = 
+ record {
+   articleId: text;
+   citation: text;
+   newText: text;
+   oldText: text;
+   season: text;
+   source: text;
+   sportId: text;
+   summary: text;
+   title: text;
+ };
+type RuleChangeError = 
+ variant {
+   invalid: text;
+   notAdmin;
+   notFound;
+ };
+type RuleChange = 
+ record {
+   articleId: text;
+   citation: text;
+   createdAt: int;
+   id: text;
+   newText: text;
+   oldText: text;
+   season: text;
+   source: text;
+   sportId: text;
+   summary: text;
+   title: text;
+   updatedAt: int;
+ };
+type Result_9 = 
+ variant {
+   err: RuleChangeError;
+   ok;
+ };
+type Result_8 = 
  variant {
    err: text;
    ok: vec VideoSubmission;
  };
-type Result_6 = 
+type Result_7 = 
  variant {
    err: text;
    ok;
  };
-type Result_5 = 
+type Result_6 = 
  variant {
    err: text;
    ok: VideoSubmission;
  };
-type Result_4 = 
+type Result_5 = 
  variant {
    err: text;
    ok: Article;
  };
-type Result_3 = 
+type Result_4 = 
  variant {
    err: text;
    ok: MechanicsScenario;
  };
-type Result_2 = 
+type Result_3 = 
  variant {
    err: text;
    ok: CasebookPlay;
  };
-type Result_1 = 
+type Result_2 = 
  variant {
    err: text;
    ok: PointOfEmphasis;
+ };
+type Result_1 = 
+ variant {
+   err: RuleChangeError;
+   ok: RuleChange;
  };
 type Result = 
  variant {
@@ -181,12 +224,13 @@ type Article =
    updatedAt: int;
  };
 service : {
-  approveSubmission: (id: text, playId: text) -> (Result_5);
+  approveSubmission: (id: text, playId: text) -> (Result_6);
+  deleteRuleChange: (id: text) -> (Result_9);
   /// Called by the user canister when an official deletes their account:
   /// deletes their clip submissions that weren't used. An approved clip is
   /// already part of a casebook play, so it stays, with the submitter
   /// replaced by the anonymous principal. Safe to repeat.
-  forgetUser: (p: principal) -> (Result_6);
+  forgetUser: (p: principal) -> (Result_7);
   getArticle: (id: ArticleId) -> (opt Article) query;
   getArticleAudio: (id: ArticleId) -> (opt blob) query;
   getMechanicsScenario: (id: text) -> (opt MechanicsScenario) query;
@@ -195,26 +239,30 @@ service : {
   listArticles: (sportId: text, levelId: text, language: text) ->
    (vec Article) query;
   listMechanicsScenarios: () -> (vec MechanicsScenario) query;
-  listPendingSubmissions: () -> (Result_7) query;
+  listPendingSubmissions: () -> (Result_8) query;
   listPlays: (articleId: ArticleId) -> (vec CasebookPlay) query;
   /// The plays of several articles in one call (offline sync used to make
   /// one listPlays call per article).
   listPlaysFor: (articleIds: vec ArticleId) -> (vec CasebookPlay) query;
   listPointsOfEmphasis: (season: text) -> (vec PointOfEmphasis) query;
+  /// A sport's rule changes for a season (e.g. "2026-27"), oldest first.
+  listRuleChanges: (sportId: text, season: text) -> (vec RuleChange) query;
   listSports: () -> (vec Sport) query;
   metrics: () -> (record {
                     articleCount: nat;
                     playCount: nat;
                   }) query;
-  rejectSubmission: (id: text) -> (Result_5);
-  setAdmin: (p: principal) -> (Result_6);
-  setArticleAudio: (id: ArticleId, audio: blob) -> (Result_6);
-  setPlayVideo: (id: text, url: text) -> (Result_2);
-  setPoeAudio: (id: PoeId, audio: blob) -> (Result_6);
-  submitVideoClip: (citation: text, clipUrl: text) -> (Result_5);
-  upsertArticle: (input: ArticleInput) -> (Result_4);
-  upsertMechanicsScenario: (input: ScenarioInput) -> (Result_3);
-  upsertPlay: (input: PlayInput) -> (Result_2);
-  upsertPointOfEmphasis: (input: PoeInput) -> (Result_1);
+  rejectSubmission: (id: text) -> (Result_6);
+  setAdmin: (p: principal) -> (Result_7);
+  setArticleAudio: (id: ArticleId, audio: blob) -> (Result_7);
+  setPlayVideo: (id: text, url: text) -> (Result_3);
+  setPoeAudio: (id: PoeId, audio: blob) -> (Result_7);
+  submitVideoClip: (citation: text, clipUrl: text) -> (Result_6);
+  upsertArticle: (input: ArticleInput) -> (Result_5);
+  upsertMechanicsScenario: (input: ScenarioInput) -> (Result_4);
+  upsertPlay: (input: PlayInput) -> (Result_3);
+  upsertPointOfEmphasis: (input: PoeInput) -> (Result_2);
+  /// Adds a change (id null) or replaces the one with `id`. Admin only.
+  upsertRuleChange: (id: opt text, input: RuleChangeInput) -> (Result_1);
   upsertSport: (input: SportInput) -> (Result);
 }

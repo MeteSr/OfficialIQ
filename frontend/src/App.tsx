@@ -48,6 +48,8 @@ const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
 const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
+const UpgradeReturnPage = lazy(() => import("./pages/UpgradeReturnPage"));
+const RuleChangesPage = lazy(() => import("./pages/RuleChangesPage"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage"));
 const AssociationTrainingPage = lazy(() => import("./pages/AssociationTrainingPage"));
 
@@ -118,6 +120,8 @@ function AppShell() {
           <Route path="/quiz/share/:token" element={<QuizPage />} />
           <Route path="/quiz/:articleId" element={<QuizPage />} />
           <Route path="/account/delete" element={<DeleteAccountPage />} />
+          <Route path="/upgrade/return" element={<UpgradeReturnPage />} />
+          <Route path="/rule-changes" element={<RuleChangesPage />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>

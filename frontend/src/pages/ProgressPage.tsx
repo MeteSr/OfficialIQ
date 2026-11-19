@@ -1,3 +1,4 @@
+import HistoryWindowNote from "../components/HistoryWindowNote";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -180,6 +181,8 @@ export default function ProgressPage() {
           </button>
         )}
       </div>
+
+      <HistoryWindowNote />
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Stat cards */}

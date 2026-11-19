@@ -59,6 +59,8 @@ export type QuestionView = {
 export type Pick = {
   articleIds: string[]; casebook: boolean; count: bigint;
   difficulty: [] | [import("./question").Difficulty]; adaptive: boolean;
+  /** Only questions with this tag, e.g. a season's rule changes (#68). */
+  tag: [] | [string];
 };
 export type QuestionSource = { Picks: Pick[] } | { Ids: string[] } | { ShareToken: string };
 export type AnswerFeedback = { questionId: string; isCorrect: boolean; correctId: string; explanation: string; citation: string };
@@ -117,7 +119,9 @@ export const examService = {
 
   async getMyExams(): Promise<ExamSession[]> {
     if (!CANISTER_ID) return [];
-    return actor().getMyExams();
+    // Tier-aware (issue #71): the last 30 days for a free official once the
+    // paywall is on, everything kept otherwise.
+    return actor().getMyExamHistory();
   },
 
   async getExamsFor(p: any): Promise<ExamSession[]> {

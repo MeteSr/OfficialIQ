@@ -8,6 +8,9 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
 
+export type Access = { 'pro' : null } |
+  { 'free' : null } |
+  { 'paywallOff' : null };
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type Result = { 'ok' : null } |
   { 'err' : string };
@@ -31,6 +34,23 @@ export interface _SERVICE {
   'generatePersonalizedDrills' : ActorMethod<[string, bigint], Result_4>,
   'generateScenarios' : ActorMethod<[string, string, bigint], Result_4>,
   'getGlobalUsage' : ActorMethod<[], Result_3>,
+  /**
+   * / The caller's AI usage today and their cap, by tier (issue #71).
+   */
+  'getMyAiUsage' : ActorMethod<
+    [],
+    {
+      'access' : Access,
+      'used' : bigint,
+      'resetAt' : bigint,
+      'limitPerDay' : bigint,
+    }
+  >,
+  /**
+   * / Older clients' status call. A plain query can't ask the user canister,
+   * / so the cap is the one from the caller's last request; the app uses
+   * / getMyAiUsage instead.
+   */
   'getMyRateLimitStatus' : ActorMethod<
     [],
     { 'used' : bigint, 'resetAt' : bigint, 'limitPerDay' : bigint }
@@ -55,6 +75,11 @@ export const Result_3 = IDL.Variant({
   'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
   'err' : IDL.Text,
 });
+export const Access = IDL.Variant({
+  'pro' : IDL.Null,
+  'free' : IDL.Null,
+  'paywallOff' : IDL.Null,
+});
 export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
 export const Result_2 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Nat8),
@@ -71,6 +96,18 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result_4], []),
   'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result_4], []),
   'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+  'getMyAiUsage' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'access' : Access,
+          'used' : IDL.Nat,
+          'resetAt' : IDL.Int,
+          'limitPerDay' : IDL.Nat,
+        }),
+      ],
+      ['composite_query'],
+    ),
   'getMyRateLimitStatus' : IDL.Func(
       [],
       [
@@ -111,6 +148,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
     'err' : IDL.Text,
   });
+  const Access = IDL.Variant({
+    'pro' : IDL.Null,
+    'free' : IDL.Null,
+    'paywallOff' : IDL.Null,
+  });
   const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
   const Result_2 = IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat8), 'err' : IDL.Text });
   const Result_1 = IDL.Variant({
@@ -132,6 +174,18 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [],
       ),
     'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+    'getMyAiUsage' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'access' : Access,
+            'used' : IDL.Nat,
+            'resetAt' : IDL.Int,
+            'limitPerDay' : IDL.Nat,
+          }),
+        ],
+        ['composite_query'],
+      ),
     'getMyRateLimitStatus' : IDL.Func(
         [],
         [

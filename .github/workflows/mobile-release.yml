@@ -48,6 +48,9 @@ env:
   # FEATURE_NATIVE_PUSH stays off until Firebase (GOOGLE_SERVICES_JSON) and
   # the APNs key exist: without google-services.json, turning push on
   # crashes the Android app.
+  # FEATURE_PAYWALL is deliberately not passed: the apps can't send officials
+  # to Stripe checkout (App Store guideline 3.1.1, Play billing policy), so
+  # the paywall stays off in them until in-app purchase exists.
   LAUNCH_SPORTS: ${{ vars.LAUNCH_SPORTS }}
   FEATURE_AUDIO: ${{ vars.FEATURE_AUDIO }}
   FEATURE_CLIP_SUBMISSIONS: ${{ vars.FEATURE_CLIP_SUBMISSIONS }}
