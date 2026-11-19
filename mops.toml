@@ -51,3 +51,6 @@ candid = "backend/association/association.did"
 [canisters.report]
 main = "backend/report/main.mo"
 candid = "backend/report/report.did"
+
+[dev-dependencies]
+test = "2.1.2"

@@ -42,13 +42,13 @@ export async function adminCall(name: "question" | "user", identity: Identity = 
 }
 
 /** The `ok` of a Result, or a thrown error carrying its `err`. */
-export function ok<T>(r: { ok: T } | { err: string }): T {
-  if ("err" in r) throw new Error(`expected ok, got err: ${r.err}`);
+export function ok<T>(r: { ok: T } | { err: unknown }): T {
+  if ("err" in r) throw new Error(`expected ok, got err: ${JSON.stringify(r.err)}`);
   return r.ok;
 }
 
-/** The `err` text of a Result that should have failed. */
-export function err(r: { ok: unknown } | { err: string }): string {
+/** The `err` of a Result that should have failed (text, or a variant). */
+export function err<E = string>(r: { ok: unknown } | { err: E }): E {
   if (!("err" in r)) throw new Error("expected err, got ok");
   return r.err;
 }

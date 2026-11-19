@@ -62,6 +62,10 @@ export type Pick = {
 };
 export type QuestionSource = { Picks: Pick[] } | { Ids: string[] } | { ShareToken: string };
 export type AnswerFeedback = { questionId: string; isCorrect: boolean; correctId: string; explanation: string; citation: string };
+export type TrainingSession = {
+  id: string; mode: ExamMode; sportId: string; questionCount: bigint; answered: bigint; correct: bigint;
+  score: bigint; creditedSec: bigint; startedAt: bigint; finishedAt: bigint;
+};
 export type GradedStart = { session: ExamSession; questions: QuestionView[] };
 export type GradedFinish = { session: ExamSession; feedback: AnswerFeedback[] };
 
@@ -125,6 +129,20 @@ export const examService = {
   async getMemberExams(p: any): Promise<ExamSession[]> {
     if (!CANISTER_ID) return [];
     return actor().getMemberExams(p);
+  },
+
+  /** The caller's finished graded sessions with the training time each is credited. */
+  async getMyTraining(): Promise<TrainingSession[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyTraining();
+  },
+
+  /** A member's training sessions — coordinator of one of their associations only. */
+  async getMemberTraining(p: any): Promise<TrainingSession[]> {
+    if (!CANISTER_ID) return [];
+    const res = await actor().getMemberTraining(p);
+    if ("err" in res) throw new Error("Not authorized");
+    return res.ok;
   },
 
   /** True when graded (ranked) sessions are available — needs the deployed canister. */

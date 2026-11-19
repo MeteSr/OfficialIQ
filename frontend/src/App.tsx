@@ -48,6 +48,8 @@ const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
 const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
+const TranscriptPage = lazy(() => import("./pages/TranscriptPage"));
+const AssociationTrainingPage = lazy(() => import("./pages/AssociationTrainingPage"));
 
 // A feature this build has switched off (src/lib/features.ts) sends its
 // route home, so an old link or bookmark can't open an empty screen.
@@ -110,6 +112,9 @@ function AppShell() {
           <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
+          <Route path="/association/:id/training" element={<AssociationTrainingPage />} />
+          <Route path="/association/:id/training/:member" element={<TranscriptPage />} />
+          <Route path="/transcript" element={<TranscriptPage />} />
           <Route path="/quiz/share/:token" element={<QuizPage />} />
           <Route path="/quiz/:articleId" element={<QuizPage />} />
           <Route path="/account/delete" element={<DeleteAccountPage />} />

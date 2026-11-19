@@ -15,6 +15,7 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
 import Types "../lib/Types";
+import Training "../lib/Training";
 import Stored "Stored";
 
 persistent actor Exam {
@@ -259,6 +260,63 @@ persistent actor Exam {
 
   func examsOf(p : Principal) : [ExamSession] {
     views(Index.rows(sessionsByOwner, Principal.compare, p, sessions))
+  };
+
+  // ─── Training transcript (issue #67) ──────────────────────────────────────
+  //
+  // Training time an association can check against its hour requirement.
+  // Only sessions graded here count, credited by Training.creditedSec
+  // (answer time, never more than start-to-finish wall-clock time), so a
+  // session's time can't be inflated from the browser.
+
+  public type TrainingSession = {
+    id            : Text;
+    mode          : ExamMode;
+    sportId       : Text;
+    questionCount : Nat;
+    answered      : Nat;
+    correct       : Nat;
+    score         : Nat;
+    creditedSec   : Nat;
+    startedAt     : Int;
+    finishedAt    : Int;
+  };
+
+  public type TrainingAccessError = { #notAuthorized };
+
+  func trainingOf(p : Principal) : [TrainingSession] {
+    let out = List.empty<TrainingSession>();
+    for (s in Index.rows(sessionsByOwner, Principal.compare, p, sessions).values()) {
+      switch (resultOf(s)) {
+        case (?r) out.add({
+          id = r.id; mode = r.mode; sportId = r.sportId; questionCount = r.questionCount;
+          answered = r.answered; correct = r.correct; score = r.score;
+          creditedSec = Training.creditedSec(s.answers.map(func a = a.elapsedSec), s.startedAt, r.finishedAt);
+          startedAt = s.startedAt; finishedAt = r.finishedAt;
+        });
+        case null {};
+      };
+    };
+    out.toArray()
+  };
+
+  /// The caller's finished graded sessions with the training time each is
+  /// credited, for their transcript.
+  public shared query ({ caller }) func getMyTraining() : async [TrainingSession] {
+    trainingOf(caller)
+  };
+
+  /// A member's training sessions, for the coordinator of an association
+  /// they belong to (same check as getMemberExams).
+  public shared composite query ({ caller }) func getMemberTraining(p : Principal) : async Result.Result<[TrainingSession], TrainingAccessError> {
+    if (caller != p) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return #err(#notAuthorized);
+    };
+    #ok(trainingOf(p))
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {

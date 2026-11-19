@@ -7,6 +7,7 @@ import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import CoverageZoneQuiz from "../components/CoverageZoneQuiz";
 import { useSport } from "../lib/sport";
+import { useStudyTimer } from "../hooks/useStudyTimer";
 
 export default function MechanicsScenarioPage() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
@@ -21,6 +22,7 @@ export default function MechanicsScenarioPage() {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState<number | null>(null);
+  useStudyTimer(!!scenario && finalScore === null);
 
   useEffect(() => {
     if (!scenarioId) return;

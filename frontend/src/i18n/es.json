@@ -91,7 +91,8 @@
     "privacyPolicy": "Política de privacidad",
     "terms": "Términos de uso",
     "deleteAccount": "Eliminar cuenta",
-    "moderationQueue": "Cola de moderación"
+    "moderationQueue": "Cola de moderación",
+    "trainingTranscript": "Historial de Capacitación"
   },
   "common": {
     "loading": "Cargando…",
@@ -627,7 +628,8 @@
     "csvScore": "Puntuación",
     "csvCompletedAt": "Completado el",
     "csvCompleted": "Completado",
-    "csvPending": "Pendiente"
+    "csvPending": "Pendiente",
+    "viewTrainingHours": "Ver Horas de Capacitación"
   },
   "home": {
     "anOfficial": "un oficial",
@@ -1088,5 +1090,67 @@
   "legal": {
     "draft": "Borrador: este documento aún no es definitivo.",
     "englishOnly": "Este documento solo está disponible en inglés."
+  },
+  "transcript": {
+    "title": "Historial de capacitación",
+    "signIn": "Inicia sesión para ver tu historial de capacitación.",
+    "exportCsv": "Exportar CSV",
+    "exportPdf": "Exportar PDF",
+    "printedHeader": "{{name}} · generado el {{date}}",
+    "last7Days": "Últimos 7 días",
+    "thisMonth": "Este mes",
+    "thisSeason": "Esta temporada",
+    "last12Months": "Últimos 12 meses",
+    "totalsTitle": "Totales",
+    "byMonthTitle": "Por mes",
+    "activityTitle": "Actividad",
+    "noActivity": "Aún no hay capacitación registrada. Aquí cuentan los cuestionarios, exámenes y el estudio con audio o mecánicas.",
+    "moreInCsv_one": "{{count}} entrada más en la exportación CSV.",
+    "moreInCsv_other": "{{count}} entradas más en la exportación CSV.",
+    "quizCount_one": "{{count}} cuestionario",
+    "quizCount_other": "{{count}} cuestionarios",
+    "examCount_one": "{{count}} examen",
+    "examCount_other": "{{count}} exámenes",
+    "kindStudy": "Estudio",
+    "kindQuiz": "Cuestionario",
+    "kindCertExam": "Examen de certificación",
+    "kindWeeklyQuiz": "Cuestionario semanal",
+    "kindMonthlyQuiz": "Cuestionario mensual",
+    "requirementTitle": "Requisito de {{name}}",
+    "requirementMet": "Cumple el requisito",
+    "requirementNotMet": "Por debajo del requisito",
+    "seasonRange": "temporada {{from}} – {{to}}",
+    "howMeasured": "OfficialIQ mide el tiempo; no se ingresa a mano: los cuestionarios y exámenes cuentan el tiempo dedicado a responder (nunca más que el tiempo entre empezar y terminar), y el estudio cuenta los minutos en que un artículo, audio o ejercicio de mecánicas estuvo abierto y activo, hasta 4 horas al día. Los cuestionarios semanales y mensuales se muestran sin tiempo adicional porque su tiempo ya está en el cuestionario en que se hicieron. Los registros se guardan 12 meses.",
+    "csvDate": "Fecha",
+    "csvActivity": "Actividad",
+    "csvMinutes": "Minutos",
+    "csvScore": "Puntuación",
+    "csvQuestions": "Preguntas",
+    "csvPeriod": "Período",
+    "csvHours": "Horas",
+    "csvQuizzes": "Cuestionarios",
+    "csvExams": "Exámenes"
+  },
+  "assocTraining": {
+    "title": "Horas de capacitación",
+    "coordinatorsOnly": "Las horas de capacitación solo las ve el coordinador de la asociación.",
+    "requirementTitle": "Requisito de horas",
+    "hoursLabel": "Horas por temporada",
+    "seasonStartLabel": "La temporada empieza en",
+    "zeroClears": "Pon 0 horas para quitar el requisito.",
+    "save": "Guardar requisito",
+    "saving": "Guardando…",
+    "saveFailed": "No se pudo guardar el requisito.",
+    "invalidHours": "Ingresa un número entero de horas, hasta 2000.",
+    "metSummary_one": "{{met}} de {{count}} miembro cumple el requisito",
+    "metSummary_other": "{{met}} de {{count}} miembros cumplen el requisito",
+    "unavailable": "No disponible",
+    "csvSeasonHours": "Horas de la temporada",
+    "csvRequired": "Horas requeridas",
+    "csvMeets": "Cumple el requisito",
+    "yes": "Sí",
+    "no": "No",
+    "errNotCoordinator": "Solo el coordinador de la asociación puede cambiar el requisito.",
+    "errInvalidMonth": "Elige el mes en que empieza la temporada."
   }
 }

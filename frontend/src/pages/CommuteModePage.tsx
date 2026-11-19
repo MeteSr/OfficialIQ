@@ -8,6 +8,7 @@ import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import { speak, cancelSpeech, isSpeechRecognitionSupported, isSpeechSynthesisSupported, listenForLetter } from "../lib/speech";
 import { useSport } from "../lib/sport";
+import { useStudyTimer } from "../hooks/useStudyTimer";
 
 const QUESTION_COUNT = 25;
 const LISTEN_TIMEOUT_MS = 12000;
@@ -27,6 +28,9 @@ export default function CommuteModePage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [lastResult, setLastResult] = useState<{ isCorrect: boolean; letter: string | null } | null>(null);
+
+  // Hands-free audio drills, often with the screen off.
+  useStudyTimer(phase === "speaking" || phase === "listening" || phase === "confirming", { inBackground: true });
 
   const cancelledRef = useRef(false);
   const answersRef = useRef<AnsweredRecord[]>([]);

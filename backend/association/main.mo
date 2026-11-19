@@ -10,6 +10,7 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Types "../lib/Types";
 import Index "../lib/Index";
+import Training "../lib/Training";
 import Set "mo:core/Set";
 
 persistent actor Association {
@@ -199,6 +200,68 @@ persistent actor Association {
     }
   };
 
+  // ─── Training requirement (issue #67) ──────────────────────────────────────
+  //
+  // How many training hours a member must log per season. A season is the
+  // twelve months from the 1st of seasonStartMonth, so it stays within the
+  // exam canister's 12-month retention. Rules in lib/Training.mo.
+
+  public type TrainingRequirement = {
+    hoursPerSeason   : Nat;
+    seasonStartMonth : Nat;
+    updatedAt        : Int;
+  };
+
+  public type SetRequirementError = {
+    #associationNotFound;
+    #notCoordinator;
+    #invalidHours;
+    #invalidSeasonStartMonth;
+  };
+
+  public type GetRequirementError = { #associationNotFound; #notAuthorized };
+
+  let trainingRequirements : Map.Map<Text, TrainingRequirement> = Map.empty<Text, TrainingRequirement>();
+
+  /// Sets the association's requirement, or clears it with null.
+  /// Coordinator only.
+  public shared ({ caller }) func setTrainingRequirement(
+    associationId : Text, input : ?Training.RequirementInput,
+  ) : async Result.Result<?TrainingRequirement, SetRequirementError> {
+    let rec = switch (associations.get(Text.compare, associationId)) {
+      case (?r) r;
+      case null return #err(#associationNotFound);
+    };
+    if (rec.coordinator != caller) return #err(#notCoordinator);
+    switch input {
+      case null {
+        trainingRequirements.remove(Text.compare, associationId);
+        #ok(null)
+      };
+      case (?i) {
+        switch (Training.validateRequirement(i)) {
+          case (?#invalidHours) return #err(#invalidHours);
+          case (?#invalidSeasonStartMonth) return #err(#invalidSeasonStartMonth);
+          case null {};
+        };
+        let r : TrainingRequirement = { hoursPerSeason = i.hoursPerSeason; seasonStartMonth = i.seasonStartMonth; updatedAt = Time.now() };
+        trainingRequirements.add(Text.compare, associationId, r);
+        #ok(?r)
+      };
+    }
+  };
+
+  /// The association's requirement, for its coordinator and members. null
+  /// when none is set.
+  public shared query ({ caller }) func getTrainingRequirement(associationId : Text) : async Result.Result<?TrainingRequirement, GetRequirementError> {
+    let rec = switch (associations.get(Text.compare, associationId)) {
+      case (?r) r;
+      case null return #err(#associationNotFound);
+    };
+    if (rec.coordinator != caller and not isMember(associationId, caller)) return #err(#notAuthorized);
+    #ok(trainingRequirements.get(Text.compare, associationId))
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyAssociations() : async [AssociationRec] {
@@ -338,6 +401,7 @@ persistent actor Association {
         case (?rec) Map.remove(joinCodeIndex, Text.compare, rec.joinCode);
         case null {};
       };
+      trainingRequirements.remove(Text.compare, id);
       let ms = switch (Map.take(members, Text.compare, id)) { case (?ms) ms; case null [] };
       for (m in ms.values()) {
         switch (Map.get(myAssociations, Principal.compare, m)) {

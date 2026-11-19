@@ -13,6 +13,7 @@ import Timer "mo:core/Timer";
 import Error "mo:core/Error";
 import List "mo:core/List";
 import Stored "Stored";
+import Training "../lib/Training";
 
 persistent actor User {
 
@@ -221,6 +222,7 @@ persistent actor User {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
+    refreshEnv<system>();
     // Otherwise the erasure still running would delete the new account's
     // data in the other canisters.
     if (Map.get(erasures, Principal.compare, caller) != null) return #err("Your old account is still being deleted. Try again in a few minutes.");
@@ -303,6 +305,7 @@ persistent actor User {
       case null return #err("Exam canister not configured");
     };
     if (articleScores.size() > 200) return #err("Too many articles");
+    refreshEnv<system>();
     if (Set.contains(gradedStudySessions, Text.compare, sessionId)) return #ok(());
     Set.add(gradedStudySessions, Text.compare, sessionId);
     for ((articleId, score) in articleScores.values()) {
@@ -327,6 +330,80 @@ persistent actor User {
       articleId; lastStudied = now; timesStudied = 1; masteryScore = score;
     }]);
     Map.add(progress, Principal.compare, caller, final);
+  };
+
+  // ─── Study time (issue #67) ────────────────────────────────────────────────
+  //
+  // Reading time an association can count toward its training requirement,
+  // measured here rather than reported by the app: while an official has
+  // study material open, the app calls recordStudyBeat about once a minute,
+  // and each beat credits the time since the previous one under the rules in
+  // lib/Training.mo (gap limit, daily cap, retention).
+
+  public type StudyDay = Training.StudyDay;
+
+  let studyDays : Map.Map<Principal, [StudyDay]> = Map.empty<Principal, [StudyDay]>();
+
+  // When each official's last beat arrived. Transient: losing it on an
+  // upgrade costs at most the minute in progress, and it never has to be
+  // migrated.
+  transient let lastStudyBeat : Map.Map<Principal, Int> = Map.empty<Principal, Int>();
+
+  public shared ({ caller }) func recordStudyBeat() : async () {
+    if (caller.isAnonymous()) return;
+    refreshEnv<system>();
+    let now = Time.now();
+    let sec = Training.beatCredit(lastStudyBeat.get(Principal.compare, caller), now);
+    if (sec > 0) {
+      let days = switch (studyDays.get(Principal.compare, caller)) { case (?d) d; case null [] };
+      studyDays.add(Principal.compare, caller, Training.addStudy(days, now, sec));
+    };
+    lastStudyBeat.add(Principal.compare, caller, now);
+  };
+
+  /// Everything the training transcript needs from this canister.
+  public type TrainingActivity = {
+    studyDays      : [StudyDay];
+    weeklyQuizzes  : [WeeklyQuizResult];
+    monthlyQuizzes : [MonthlyQuizResult];
+  };
+
+  public type TrainingAccessError = { #notAuthorized };
+
+  func activityOf(p : Principal) : TrainingActivity {
+    {
+      studyDays      = switch (studyDays.get(Principal.compare, p)) { case (?d) d; case null [] };
+      weeklyQuizzes  = switch (weeklyQuizHistory.get(Principal.compare, p)) { case (?h) h; case null [] };
+      monthlyQuizzes = switch (monthlyQuizHistory.get(Principal.compare, p)) { case (?h) h; case null [] };
+    }
+  };
+
+  public shared query ({ caller }) func getMyTrainingActivity() : async TrainingActivity {
+    activityOf(caller)
+  };
+
+  // A query can't read canister environment variables, so update calls copy
+  // the association canister's id here (as the exam canister does). Stable,
+  // so the coordinator check keeps working right after an upgrade.
+  var ASSOCIATION_ID : ?Principal = null;
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
+  };
+
+  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+
+  /// A member's training activity, for the coordinator of an association
+  /// they belong to.
+  public shared composite query ({ caller }) func getMemberTrainingActivity(p : Principal) : async Result.Result<TrainingActivity, TrainingAccessError> {
+    if (caller != p and not isAdmin(caller)) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return #err(#notAuthorized);
+    };
+    #ok(activityOf(p))
   };
 
   public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
@@ -422,6 +499,8 @@ persistent actor User {
     Map.remove(progress, Principal.compare, caller);
     Map.remove(weeklyQuizHistory, Principal.compare, caller);
     Map.remove(monthlyQuizHistory, Principal.compare, caller);
+    studyDays.remove(Principal.compare, caller);
+    lastStudyBeat.remove(Principal.compare, caller);
     Map.remove(linkedAccounts, Principal.compare, caller);
     Map.remove(upcomingGames, Principal.compare, caller);
     Map.remove(pushSubscriptions, Principal.compare, caller);

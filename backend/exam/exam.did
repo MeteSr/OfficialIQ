@@ -1,12 +1,31 @@
-type Result_6 = 
+type TrainingSession = 
+ record {
+   answered: nat;
+   correct: nat;
+   creditedSec: nat;
+   finishedAt: int;
+   id: text;
+   mode: ExamMode;
+   questionCount: nat;
+   score: nat;
+   sportId: text;
+   startedAt: int;
+ };
+type TrainingAccessError = variant {notAuthorized;};
+type Result_7 = 
  variant {
    err: text;
    ok: AnswerFeedback;
  };
-type Result_5 = 
+type Result_6 = 
  variant {
    err: text;
    ok: text;
+ };
+type Result_5 = 
+ variant {
+   err: TrainingAccessError;
+   ok: vec TrainingSession;
  };
 type Result_4 = 
  variant {
@@ -172,9 +191,9 @@ service : {
   /// Answers one question and reveals it. One answer per question; a
   /// timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
   answerQuestion: (sessionId: text, questionId: text, chosenId: text,
-   elapsedSec: nat) -> (Result_6);
+   elapsedSec: nat) -> (Result_7);
   createSession: (config: ExamConfig, questionIds: vec text) -> (Result_2);
-  createShareLink: (config: ExamConfig, picks: vec Pick) -> (Result_5);
+  createShareLink: (config: ExamConfig, picks: vec Pick) -> (Result_6);
   /// Finishes a session (unanswered questions count as wrong) and returns
   /// the full answer key. Safe to call again.
   finishSession: (sessionId: text) -> (Result_1);
@@ -187,7 +206,13 @@ service : {
   getExamTemplate: (id: text) -> (opt ExamTemplate) query;
   getExamsFor: (p: principal) -> (vec ExamSession) query;
   getMemberExams: (p: principal) -> (vec ExamSession) composite_query;
+  /// A member's training sessions, for the coordinator of an association
+  /// they belong to (same check as getMemberExams).
+  getMemberTraining: (p: principal) -> (Result_5) composite_query;
   getMyExams: () -> (vec ExamSession) query;
+  /// The caller's finished graded sessions with the training time each is
+  /// credited, for their transcript.
+  getMyTraining: () -> (vec TrainingSession) query;
   /// The server-computed result of a finished graded session, for the
   /// session's owner and the ranking/challenge/association canisters.
   gradedResult: (sessionId: text) -> (opt GradedResult) query;
