@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/challenge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,39 +28,12 @@ export type Challenge = {
   expiresAt:   bigint;
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Status  = I.Variant({ Pending: I.Null, Accepted: I.Null, Completed: I.Null, Declined: I.Null, Expired: I.Null });
-  const CRes    = I.Record({ principal: I.Principal, score: I.Nat, finishedAt: I.Int });
-  const Ch      = I.Record({
-    id: I.Text, challenger: I.Principal, challenged: I.Principal, sport: I.Text,
-    articleIds: I.Vec(I.Text), questionIds: I.Vec(I.Text), count: I.Nat,
-    status: Status, results: I.Vec(CRes), createdAt: I.Int, expiresAt: I.Int,
-  });
-  const ResultC = I.Variant({ ok: Ch, err: I.Text });
-  return I.Service({
-    sendChallenge:   I.Func([I.Principal, I.Text, I.Vec(I.Text), I.Vec(I.Text), I.Nat], [ResultC], []),
-    acceptChallenge: I.Func([I.Text], [ResultC], []),
-    submitGradedResult: I.Func([I.Text, I.Text], [ResultC], []),
-    getMyChallenges: I.Func([], [I.Vec(Ch)], ["query"]),
-    getChallenge:    I.Func([I.Text], [I.Opt(Ch)], ["query"]),
-    metrics:         I.Func([], [I.Record({ challengeCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("challenge");
 
 function actor() {
-  return createActor<{
-    sendChallenge:   (opponent: any, sport: string, articleIds: string[], questionIds: string[], count: bigint) => Promise<{ ok: Challenge } | { err: string }>;
-    acceptChallenge: (id: string) => Promise<{ ok: Challenge } | { err: string }>;
-    submitGradedResult: (id: string, sessionId: string) => Promise<{ ok: Challenge } | { err: string }>;
-    getMyChallenges: () => Promise<Challenge[]>;
-    getChallenge:    (id: string) => Promise<[] | [Challenge]>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 // Mock: one pending challenge from "Marcus R."

@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/report";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,56 +44,12 @@ export type ReportShare = {
   seen:        boolean;
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Stat = I.Record({ articleId: I.Text, title: I.Text, masteryScore: I.Nat });
-  const StatInput = I.Record({ articleId: I.Text, title: I.Text, masteryScore: I.Nat });
-  const Snapshot = I.Record({
-    id: I.Text, owner: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text,
-    generatedAt: I.Int, monthsActive: I.Nat, examsCompleted: I.Nat, avgScore: I.Nat,
-    accuracyTrend: I.Text, topStrongest: I.Vec(Stat), topWeakest: I.Vec(Stat),
-    studyHoursEstimated: I.Nat, isPublic: I.Bool,
-  });
-  const Input = I.Record({
-    displayName: I.Text, sport: I.Text, state: I.Text,
-    monthsActive: I.Nat, examsCompleted: I.Nat, avgScore: I.Nat, accuracyTrend: I.Text,
-    topStrongest: I.Vec(StatInput), topWeakest: I.Vec(StatInput), studyHoursEstimated: I.Nat,
-  });
-  const Share = I.Record({
-    id: I.Text, reportId: I.Text, coordinator: I.Principal, sharedAt: I.Int, seen: I.Bool,
-  });
-  const ResultSnapshot = I.Variant({ ok: Snapshot, err: I.Text });
-  const ResultShare = I.Variant({ ok: Share, err: I.Text });
-  const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
-  return I.Service({
-    generateReport:       I.Func([Input], [ResultSnapshot], []),
-    setPublic:            I.Func([I.Text, I.Bool], [ResultSnapshot], []),
-    shareWithCoordinator: I.Func([I.Text, I.Principal], [ResultShare], []),
-    markShareSeen:        I.Func([I.Text], [ResultUnit], []),
-    getReport:            I.Func([I.Text], [I.Opt(Snapshot)], ["query"]),
-    getMyReports:         I.Func([], [I.Vec(Snapshot)], ["query"]),
-    getSharedWithMe:      I.Func([], [I.Vec(Share)], ["query"]),
-    getMyUnseenShareCount: I.Func([], [I.Nat], ["query"]),
-    metrics:              I.Func([], [I.Record({ reportCount: I.Nat, shareCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("report");
 
 function actor() {
-  return createActor<{
-    generateReport:       (input: any) => Promise<{ ok: ReportSnapshot } | { err: string }>;
-    setPublic:            (id: string, isPublic: boolean) => Promise<{ ok: ReportSnapshot } | { err: string }>;
-    shareWithCoordinator: (reportId: string, coordinator: any) => Promise<{ ok: ReportShare } | { err: string }>;
-    markShareSeen:        (id: string) => Promise<{ ok: null } | { err: string }>;
-    getReport:            (id: string) => Promise<[] | [ReportSnapshot]>;
-    getMyReports:         () => Promise<ReportSnapshot[]>;
-    getSharedWithMe:      () => Promise<ReportShare[]>;
-    getMyUnseenShareCount: () => Promise<bigint>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const reportService = {

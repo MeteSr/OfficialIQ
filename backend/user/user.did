@@ -1,0 +1,175 @@
+type WeeklySchedule = 
+ record {
+   dueThisWeek: vec text;
+   overdue: vec text;
+   weekNumber: nat;
+ };
+type WeeklyQuizResult = 
+ record {
+   completedAt: int;
+   newScore: nat;
+   retentionScore: nat;
+   weekNumber: nat;
+ };
+type UpcomingGameInput = 
+ record {
+   gameDate: int;
+   levelId: text;
+   notes: text;
+   opponent: text;
+   sportId: text;
+ };
+type UpcomingGame = 
+ record {
+   createdAt: int;
+   gameDate: int;
+   id: text;
+   levelId: text;
+   notes: text;
+   opponent: text;
+   sportId: text;
+ };
+type StudyPace = 
+ record {
+   articlesPerWeek: nat;
+   startDate: int;
+ };
+type Role = 
+ variant {
+   Admin;
+   Assessor;
+   Coordinator;
+   Official;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: UpcomingGame;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: opt PushSubscription;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: StudyPace;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: Profile;
+ };
+type PushSubscription = 
+ variant {
+   Native: record {
+             platform: text;
+             token: text;
+           };
+   WebPush: record {
+              auth: text;
+              endpoint: text;
+              p256dh: text;
+            };
+ };
+type PublicProfile = 
+ record {
+   displayName: text;
+   level: text;
+   "principal": principal;
+   sport: text;
+   state: text;
+ };
+type ProfileUpdate = 
+ record {
+   displayName: text;
+   level: text;
+   preferredLanguage: text;
+   sport: text;
+   state: text;
+ };
+type Profile = 
+ record {
+   createdAt: int;
+   displayName: text;
+   level: text;
+   preferredLanguage: text;
+   "principal": principal;
+   role: Role;
+   sport: text;
+   state: text;
+ };
+type MonthlyQuizResult = 
+ record {
+   articleScores: vec record {
+                        text;
+                        nat;
+                      };
+   completedAt: int;
+   month: nat;
+   score: nat;
+ };
+type LinkedAccount = 
+ record {
+   externalId: text;
+   linkedAt: int;
+   provider: text;
+ };
+type ArticleProgress = 
+ record {
+   articleId: text;
+   lastStudied: int;
+   masteryScore: nat;
+   timesStudied: nat;
+ };
+service : {
+  addUpcomingGame: (input: UpcomingGameInput) -> (Result_4);
+  becomeCoordinator: () -> (Result);
+  createProfile: (req: ProfileUpdate) -> (Result);
+  getMonthlyQuizHistory: () -> (vec MonthlyQuizResult) query;
+  getMyLinkedAccounts: () -> (vec LinkedAccount) query;
+  getMyProfile: () -> (opt Profile) query;
+  getMyProgress: () -> (vec ArticleProgress) query;
+  getMyPushSubscription: () -> (opt PushSubscription) query;
+  getMyStudyPace: () -> (opt StudyPace) query;
+  getMyUpcomingGames: () -> (vec UpcomingGame) query;
+  getProfile: (p: principal) -> (opt Profile) query;
+  getPublicProfile: (p: principal) -> (opt PublicProfile) query;
+  getSubscriptionFor: (p: principal) -> (Result_3) query;
+  getWeeklyQuizHistory: () -> (vec WeeklyQuizResult) query;
+  getWeeklySchedule: (allArticleIds: vec text) -> (WeeklySchedule) query;
+  isCoordinator: (p: principal) -> (bool) query;
+  linkExternalAccount: (provider: text, externalId: text) -> (Result_1);
+  metrics: () -> (record {userCount: nat;}) query;
+  recordArticleStudied: (articleId: text, score: nat) -> ();
+  /// Called by the exam canister when a quiz or exam finishes: each article
+  /// in it counts as studied, scored by its accuracy in that session. Safe
+  /// to repeat.
+  recordGradedStudy: (player: principal, sessionId: text, articleScores:
+   vec record {
+         text;
+         nat;
+       }) -> (Result_1);
+  recordMonthlyQuizResult: (month: nat, score: nat, articleScores:
+   vec record {
+         text;
+         nat;
+       }) -> ();
+  recordWeeklyQuizResult: (weekNumber: nat, newScore: nat, retentionScore:
+   nat) -> ();
+  registerPushSubscription: (sub: PushSubscription) -> (Result_1);
+  removeUpcomingGame: (id: text) -> (Result_1);
+  setAdmin: (p: principal) -> (Result_1);
+  setPushRelay: (p: opt principal) -> (Result_1);
+  setRole: (p: principal, role: Role) -> (Result);
+  setStudyPace: (articlesPerWeek: nat) -> (Result_2);
+  unlinkExternalAccount: (provider: text) -> (Result_1);
+  unregisterPushSubscription: () -> (Result_1);
+  updateProfile: (req: ProfileUpdate) -> (Result);
+}

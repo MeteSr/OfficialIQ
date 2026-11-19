@@ -68,6 +68,12 @@ jobs:
       - name: Type-check canisters
         run: mops check --no-lint
 
+      # backend/*/*.did and frontend/src/declarations are generated from the
+      # canisters; fail when someone changed an interface without
+      # regenerating them (the diff in the log is the fix).
+      - name: Generated Candid and bindings are current
+        run: bash scripts/ci/check-declarations.sh
+
       - name: Build canisters
         run: |
           source scripts/lib/canisters.sh

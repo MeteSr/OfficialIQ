@@ -4,9 +4,6 @@ import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
 import { type Question } from "../services/question";
 import { examService, unrevealed, DEFAULT_CERT_TEMPLATE, type ExamTemplate, type AnswerRecord, type Pick } from "../services/exam";
-import { rankingService } from "../services/ranking";
-import { claimRankedResult } from "../lib/offlineSync";
-import { userService } from "../services/user";
 import { useAuthStore } from "../store/authStore";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
 import { useSport } from "../lib/sport";
@@ -41,7 +38,7 @@ function masteryColor(pct: number) {
 export default function CertExamPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { isAuthenticated, profile } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { sportId: SPORT_ID } = useSport();
 
   const [phase, setPhase] = useState<Phase>("intro");
@@ -97,30 +94,14 @@ export default function CertExamPage() {
         answers,
       });
 
-      if (profile) {
-        // No state on the profile means national boards only, not Texas.
-        claimRankedResult(sessionId, profile.displayName, profile.state);
-        rankingService.recordQuestionsAnswered(answers.length).catch(() => {});
-
-        const byArticle = new Map<string, { correct: number; total: number }>();
-        questions.forEach((q) => {
-          const f = keyById.get(q.id);
-          if (!chosen[q.id] || !f) return;
-          const bucket = byArticle.get(q.articleId) ?? { correct: 0, total: 0 };
-          bucket.total += 1;
-          if (f.isCorrect) bucket.correct += 1;
-          byArticle.set(q.articleId, bucket);
-        });
-        await Promise.all([...byArticle.entries()].map(([articleId, b]) =>
-          userService.recordArticleStudied(articleId, Math.round((b.correct / b.total) * 100)).catch(() => {})
-        ));
-      }
+      // The exam canister passes the result on to ranking, question and
+      // user itself (ELO, streak, article progress).
       setPhase("results");
     } catch {
       setError(t("certExam.submitFailed"));
       setPhase("review");
     }
-  }, [questions, chosen, sessionId, template, timeLeft, profile, t]);
+  }, [questions, chosen, sessionId, template, timeLeft, t]);
 
   useEffect(() => {
     if (phase !== "exam" && phase !== "review") return;

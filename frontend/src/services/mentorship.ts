@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/mentorship";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,57 +37,12 @@ export type Annotation = {
   createdAt:  bigint;
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Answer = I.Record({
-    questionId: I.Text, chosenId: I.Text, correctId: I.Text, isCorrect: I.Bool, elapsedSec: I.Nat,
-  });
-  const Link = I.Record({
-    id: I.Text, token: I.Text, owner: I.Principal, mentorPrincipal: I.Opt(I.Principal),
-    examId: I.Text, sportId: I.Text, score: I.Nat, avgElapsedSec: I.Opt(I.Nat),
-    answers: I.Vec(Answer), revoked: I.Bool, createdAt: I.Int, expiresAt: I.Int,
-  });
-  const Note = I.Record({
-    id: I.Text, linkId: I.Text, questionId: I.Text, mentor: I.Principal,
-    note: I.Text, seen: I.Bool, createdAt: I.Int,
-  });
-  const ResultLink = I.Variant({ ok: Link, err: I.Text });
-  const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
-  const ResultNote = I.Variant({ ok: Note, err: I.Text });
-  const ResultNotes = I.Variant({ ok: I.Vec(Note), err: I.Text });
-  return I.Service({
-    createMentorLink:        I.Func([I.Text, I.Text, I.Nat, I.Opt(I.Nat), I.Vec(Answer)], [ResultLink], []),
-    revokeMentorLink:        I.Func([I.Text], [ResultUnit], []),
-    openMentorLink:          I.Func([I.Text], [ResultLink], []),
-    addAnnotation:           I.Func([I.Text, I.Text, I.Text], [ResultNote], []),
-    markAnnotationSeen:      I.Func([I.Text], [ResultUnit], []),
-    getMyMentorLinks:        I.Func([], [I.Vec(Link)], ["query"]),
-    getMentorDashboard:      I.Func([], [I.Vec(Link)], ["query"]),
-    getAnnotationsForLink:   I.Func([I.Text], [ResultNotes], ["query"]),
-    getMyAnnotations:        I.Func([], [I.Vec(Note)], ["query"]),
-    getMyUnseenAnnotationCount: I.Func([], [I.Nat], ["query"]),
-    metrics:                 I.Func([], [I.Record({ linkCount: I.Nat, annotationCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("mentorship");
 
 function actor() {
-  return createActor<{
-    createMentorLink:   (examId: string, sportId: string, score: bigint, avgElapsedSec: [] | [bigint], answers: AnswerSnapshot[]) => Promise<{ ok: MentorLink } | { err: string }>;
-    revokeMentorLink:   (id: string) => Promise<{ ok: null } | { err: string }>;
-    openMentorLink:     (token: string) => Promise<{ ok: MentorLink } | { err: string }>;
-    addAnnotation:      (linkId: string, questionId: string, note: string) => Promise<{ ok: Annotation } | { err: string }>;
-    markAnnotationSeen: (id: string) => Promise<{ ok: null } | { err: string }>;
-    getMyMentorLinks:   () => Promise<MentorLink[]>;
-    getMentorDashboard: () => Promise<MentorLink[]>;
-    getAnnotationsForLink: (linkId: string) => Promise<{ ok: Annotation[] } | { err: string }>;
-    getMyAnnotations:   () => Promise<Annotation[]>;
-    getMyUnseenAnnotationCount: () => Promise<bigint>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const mentorshipService = {

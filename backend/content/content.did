@@ -1,0 +1,215 @@
+type VideoSubmission = 
+ record {
+   citation: text;
+   clipUrl: text;
+   createdAt: int;
+   id: text;
+   linkedPlayId: opt text;
+   reviewedAt: opt int;
+   status: SubmissionStatus;
+   submitter: principal;
+ };
+type SubmissionStatus = 
+ variant {
+   Approved;
+   Pending;
+   Rejected;
+ };
+type SportLevel = 
+ record {
+   displayName: text;
+   id: text;
+ };
+type SportInput = 
+ record {
+   displayName: text;
+   id: text;
+   levels: vec SportLevel;
+   rulebookYear: text;
+ };
+type Sport = 
+ record {
+   displayName: text;
+   id: text;
+   levels: vec SportLevel;
+   rulebookYear: text;
+ };
+type ScenarioInput = 
+ record {
+   crewSize: nat;
+   description: text;
+   players: vec DiagramPlayer;
+   title: text;
+   zones: vec MechanicsZone;
+ };
+type Result_7 = 
+ variant {
+   err: text;
+   ok: vec VideoSubmission;
+ };
+type Result_6 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: VideoSubmission;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: Article;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: MechanicsScenario;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: CasebookPlay;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: PointOfEmphasis;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: Sport;
+ };
+type PointOfEmphasis = 
+ record {
+   audioUrl: opt text;
+   body: text;
+   createdAt: int;
+   id: PoeId;
+   linkedArticleIds: vec text;
+   season: text;
+   title: text;
+ };
+type PoeInput = 
+ record {
+   body: text;
+   linkedArticleIds: vec text;
+   season: text;
+   title: text;
+ };
+type PoeId = text;
+type PlayInput = 
+ record {
+   articleId: ArticleId;
+   citation: text;
+   diagram: opt CourtDiagram;
+   ruling: text;
+   scenario: text;
+ };
+type MechanicsZone = 
+ record {
+   correctOfficial: text;
+   height: nat;
+   id: text;
+   width: nat;
+   x: nat;
+   y: nat;
+ };
+type MechanicsScenario = 
+ record {
+   createdAt: int;
+   crewSize: nat;
+   description: text;
+   id: text;
+   players: vec DiagramPlayer;
+   title: text;
+   zones: vec MechanicsZone;
+ };
+type DiagramPlayer = 
+ record {
+   id: text;
+   role: text;
+   shortLabel: text;
+   x: nat;
+   y: nat;
+ };
+type DiagramArrow = 
+ record {
+   fromId: text;
+   style: text;
+   toId: text;
+ };
+type CourtDiagram = 
+ record {
+   arrows: vec DiagramArrow;
+   players: vec DiagramPlayer;
+ };
+type CasebookPlay = 
+ record {
+   articleId: ArticleId;
+   audioUrl: opt text;
+   citation: text;
+   diagram: opt CourtDiagram;
+   id: text;
+   ruling: text;
+   scenario: text;
+   videoUrl: opt text;
+ };
+type ArticleInput = 
+ record {
+   body: text;
+   language: text;
+   levelId: text;
+   number: nat;
+   sportId: text;
+   title: text;
+ };
+type ArticleId = text;
+type Article = 
+ record {
+   audioUrl: opt text;
+   body: text;
+   createdAt: int;
+   id: ArticleId;
+   language: text;
+   levelId: text;
+   number: nat;
+   sportId: text;
+   title: text;
+   updatedAt: int;
+ };
+service : {
+  approveSubmission: (id: text, playId: text) -> (Result_5);
+  getArticle: (id: ArticleId) -> (opt Article) query;
+  getArticleAudio: (id: ArticleId) -> (opt blob) query;
+  getMechanicsScenario: (id: text) -> (opt MechanicsScenario) query;
+  getMySubmissions: () -> (vec VideoSubmission) query;
+  isAdminCaller: () -> (bool) query;
+  listArticles: (sportId: text, levelId: text, language: text) ->
+   (vec Article) query;
+  listMechanicsScenarios: () -> (vec MechanicsScenario) query;
+  listPendingSubmissions: () -> (Result_7) query;
+  listPlays: (articleId: ArticleId) -> (vec CasebookPlay) query;
+  /// The plays of several articles in one call (offline sync used to make
+  /// one listPlays call per article).
+  listPlaysFor: (articleIds: vec ArticleId) -> (vec CasebookPlay) query;
+  listPointsOfEmphasis: (season: text) -> (vec PointOfEmphasis) query;
+  listSports: () -> (vec Sport) query;
+  metrics: () -> (record {
+                    articleCount: nat;
+                    playCount: nat;
+                  }) query;
+  rejectSubmission: (id: text) -> (Result_5);
+  setAdmin: (p: principal) -> (Result_6);
+  setArticleAudio: (id: ArticleId, audio: blob) -> (Result_6);
+  setPlayVideo: (id: text, url: text) -> (Result_2);
+  setPoeAudio: (id: PoeId, audio: blob) -> (Result_6);
+  submitVideoClip: (citation: text, clipUrl: text) -> (Result_5);
+  upsertArticle: (input: ArticleInput) -> (Result_4);
+  upsertMechanicsScenario: (input: ScenarioInput) -> (Result_3);
+  upsertPlay: (input: PlayInput) -> (Result_2);
+  upsertPointOfEmphasis: (input: PoeInput) -> (Result_1);
+  upsertSport: (input: SportInput) -> (Result);
+}

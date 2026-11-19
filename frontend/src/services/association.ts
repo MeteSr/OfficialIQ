@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/association";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,58 +31,12 @@ export type Completion = {
   completedAt:  bigint;
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Assoc = I.Record({
-    id: I.Text, name: I.Text, sport: I.Text, coordinator: I.Principal, joinCode: I.Text, createdAt: I.Int,
-  });
-  const Assign = I.Record({
-    id: I.Text, associationId: I.Text, title: I.Text, articleIds: I.Vec(I.Text), casebook: I.Bool,
-    dueAt: I.Int, targetMembers: I.Vec(I.Principal), createdAt: I.Int,
-  });
-  const Comp = I.Record({ assignmentId: I.Text, member: I.Principal, score: I.Nat, completedAt: I.Int });
-  const ResultAssoc  = I.Variant({ ok: Assoc, err: I.Text });
-  const ResultAssign = I.Variant({ ok: Assign, err: I.Text });
-  const ResultMembers = I.Variant({ ok: I.Vec(I.Principal), err: I.Text });
-  const ResultAssigns  = I.Variant({ ok: I.Vec(Assign), err: I.Text });
-  const ResultComps    = I.Variant({ ok: I.Vec(Comp), err: I.Text });
-  return I.Service({
-    createAssociation:          I.Func([I.Text, I.Text], [ResultAssoc], []),
-    joinAssociation:            I.Func([I.Text], [ResultAssoc], []),
-    createAssignment:           I.Func([I.Text, I.Text, I.Vec(I.Text), I.Bool, I.Int, I.Vec(I.Principal)], [ResultAssign], []),
-    recordGradedCompletion:     I.Func([I.Text, I.Text], [I.Variant({ ok: Comp, err: I.Text })], []),
-    getMyAssociations:          I.Func([], [I.Vec(Assoc)], ["query"]),
-    getMyCoordinatedAssociations: I.Func([], [I.Vec(Assoc)], ["query"]),
-    getAssociation:              I.Func([I.Text], [I.Opt(Assoc)], ["query"]),
-    getAssociationMembers:       I.Func([I.Text], [ResultMembers], ["query"]),
-    getAssociationAssignments:   I.Func([I.Text], [ResultAssigns], ["query"]),
-    getMyAssignments:            I.Func([], [I.Vec(Assign)], ["query"]),
-    getMyCompletions:            I.Func([], [I.Vec(Comp)], ["query"]),
-    getAssignmentCompletions:    I.Func([I.Text], [ResultComps], ["query"]),
-    metrics: I.Func([], [I.Record({ associationCount: I.Nat, assignmentCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("association");
 
 function actor() {
-  return createActor<{
-    createAssociation:            (name: string, sport: string) => Promise<{ ok: AssociationRec } | { err: string }>;
-    joinAssociation:              (joinCode: string) => Promise<{ ok: AssociationRec } | { err: string }>;
-    createAssignment:             (associationId: string, title: string, articleIds: string[], casebook: boolean, dueAt: bigint, targetMembers: any[]) => Promise<{ ok: Assignment } | { err: string }>;
-    recordGradedCompletion:       (assignmentId: string, sessionId: string) => Promise<{ ok: Completion } | { err: string }>;
-    getMyAssociations:            () => Promise<AssociationRec[]>;
-    getMyCoordinatedAssociations: () => Promise<AssociationRec[]>;
-    getAssociation:                (id: string) => Promise<[] | [AssociationRec]>;
-    getAssociationMembers:         (id: string) => Promise<{ ok: any[] } | { err: string }>;
-    getAssociationAssignments:     (id: string) => Promise<{ ok: Assignment[] } | { err: string }>;
-    getMyAssignments:              () => Promise<Assignment[]>;
-    getMyCompletions:              () => Promise<Completion[]>;
-    getAssignmentCompletions:      (assignmentId: string) => Promise<{ ok: Completion[] } | { err: string }>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const associationService = {

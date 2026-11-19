@@ -12,6 +12,7 @@ import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
 import Env "../lib/Env";
+import Types "../lib/Types";
 import Set "mo:core/Set";
 
 persistent actor Ranking {
@@ -212,11 +213,6 @@ persistent actor Ranking {
 
   // ─── Graded results (from the exam canister) ───────────────────────────────
 
-  type GradedResult = {
-    id : Text; owner : Principal; mode : { #Solo; #ShareLink; #Timed; #Certification };
-    sportId : Text; articleIds : [Text]; questionIds : [Text];
-    questionCount : Nat; answered : Nat; correct : Nat; score : Nat; avgElapsedSec : Nat; finishedAt : Int;
-  };
 
   // Exam sessions already counted, so one good session can't be claimed twice.
   var claimedSessions : Set.Set<Text> = Set.empty<Text>();
@@ -225,22 +221,93 @@ persistent actor Ranking {
 
   /// Counts a finished, canister-graded exam session toward the caller's
   /// ELO, accuracy and streak. The score comes from the exam canister, never
-  /// from the browser; each session counts once.
+  /// from the browser; each session counts once. The exam canister now
+  /// pushes results itself (recordGradedSession), so the app no longer calls
+  /// this; kept for older apps. displayName and state are taken from the
+  /// user canister, and the arguments only stand in when it has no profile.
   public shared ({ caller }) func claimExamResult(sessionId : Text, displayName : Text, state : Text) : async Result.Result<UserStats, Text> {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return #err("Field too long");
     let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err("Exam canister not configured") };
-    let exam = actor (Principal.toText(examId)) : actor { gradedResult : shared query Text -> async ?GradedResult };
+    let exam = actor (Principal.toText(examId)) : Types.ExamResults;
     let r = switch (await exam.gradedResult(sessionId)) {
       case (?r) r;
       case null return #err("No finished graded exam with that id");
     };
-    // Re-checked after the await: another call may have claimed it meanwhile.
+    let (name, st) = await* nameAndState<system>(caller, displayName, state);
+    // Re-checked after the awaits: another call may have claimed it meanwhile.
     if (r.owner != caller) return #err("Not your exam");
     if (Set.contains(claimedSessions, Text.compare, sessionId)) return #err("Already counted");
     if (r.questionCount < MIN_RANKED_QUESTIONS) return #err("Ranked exams need at least " # Nat.toText(MIN_RANKED_QUESTIONS) # " questions");
     Set.add(claimedSessions, Text.compare, sessionId);
-    #ok(applyExamResult(caller, r.score, displayName, r.sportId, state, r.avgElapsedSec))
+    #ok(applyExamResult(caller, r.score, name, r.sportId, st, r.avgElapsedSec))
+  };
+
+  // Sessions the exam canister has pushed (recordGradedSession), so a retry
+  // doesn't count a session's answers toward the streak twice.
+  var pushedSessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Called by the exam canister when a quiz or exam finishes: counts it
+  /// toward ELO (as claimExamResult, once per session and only with enough
+  /// questions), the daily streak and the skill counters. Safe to repeat.
+  public shared ({ caller }) func recordGradedSession(r : Types.GradedResult, answers : [Types.AnswerSignal]) : async Result.Result<(), Text> {
+    switch (Env.canisterId<system>("exam")) {
+      case (?id) { if (caller != id) return #err("Exam canister only") };
+      case null return #err("Exam canister not configured");
+    };
+    if (answers.size() > MAX_QUESTIONS_PER_CALL) return #err("Too many answers");
+    if (Set.contains(pushedSessions, Text.compare, r.id)) return #ok(());
+    let (name, st) = await* nameAndState<system>(r.owner, "Official", "");
+    // Re-checked after the await.
+    if (Set.contains(pushedSessions, Text.compare, r.id)) return #ok(());
+    Set.add(pushedSessions, Text.compare, r.id);
+    if (r.questionCount >= MIN_RANKED_QUESTIONS and not Set.contains(claimedSessions, Text.compare, r.id)) {
+      Set.add(claimedSessions, Text.compare, r.id);
+      ignore applyExamResult(r.owner, r.score, name, r.sportId, st, r.avgElapsedSec);
+    };
+    ignore countAnswered(r.owner, r.answered);
+    for (a in answers.values()) countSignal(r.owner, a.isCorrect, a.elapsedSec, a.isCasebook);
+    #ok(())
+  };
+
+  type UserProfiles = actor {
+    getPublicProfile : shared query Principal -> async ?{ displayName : Text; state : Text };
+  };
+
+  // An official's name and state as the user canister has them (finding 7
+  // of the Nov 2026 review: these used to come from the browser). Falls
+  // back to what the leaderboard already shows, then to the given values.
+  func nameAndState<system>(p : Principal, fallbackName : Text, fallbackState : Text) : async* (Text, Text) {
+    let fromStats = switch (Map.get(stats, Principal.compare, p)) {
+      case (?s) (s.displayName, s.state);
+      case null (fallbackName, fallbackState);
+    };
+    switch (Env.canisterId<system>("user")) {
+      case null fromStats;
+      case (?uid) {
+        try {
+          switch (await (actor (Principal.toText(uid)) : UserProfiles).getPublicProfile(p)) {
+            case (?pr) (pr.displayName, pr.state);
+            case null fromStats;
+          }
+        } catch (_) fromStats;
+      };
+    }
+  };
+
+  /// Called by the user canister when an official renames themself or
+  /// changes state, so the leaderboards don't keep showing the old values
+  /// until their next exam.
+  public shared ({ caller }) func profileChanged(p : Principal, displayName : Text, state : Text) : async () {
+    switch (Env.canisterId<system>("user")) {
+      case (?id) { if (caller != id) return };
+      case null return;
+    };
+    if (Text.size(displayName) > MAX_NAME_CHARS or Text.size(state) > MAX_NAME_CHARS) return;
+    switch (Map.get(stats, Principal.compare, p)) {
+      case (?s) Map.add(stats, Principal.compare, p, { s with displayName; state });
+      case null {};
+    };
   };
 
   func applyExamResult(caller : Principal, score : Nat, displayName : Text, sport : Text, state : Text, avgElapsedSec : Nat) : UserStats {
@@ -328,6 +395,10 @@ persistent actor Ranking {
   public shared ({ caller }) func recordQuestionsAnswered(count : Nat) : async DailyActivity {
     if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     if (count > MAX_QUESTIONS_PER_CALL) Runtime.trap("Count out of range");
+    countAnswered(caller, count)
+  };
+
+  func countAnswered(caller : Principal, count : Nat) : DailyActivity {
     let today = Time.now() / DAY_NS;
     let prev = switch (Map.get(dailyActivity, Principal.compare, caller)) { case (?a) a; case null defaultActivity() };
     let answeredToday = if (prev.activityDay == today) prev.answeredToday + count else count;
@@ -351,6 +422,10 @@ persistent actor Ranking {
   // Per-answer signal used for the "Speed Demon" and "Casebook King" badges.
   public shared ({ caller }) func recordAnswerSignal(isCorrect : Bool, elapsedSec : Nat, isCasebook : Bool) : async () {
     if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
+    countSignal(caller, isCorrect, elapsedSec, isCasebook);
+  };
+
+  func countSignal(caller : Principal, isCorrect : Bool, elapsedSec : Nat, isCasebook : Bool) {
     let prev = switch (Map.get(skillCounters, Principal.compare, caller)) {
       case (?c) c;
       case null { { casebookCorrect = 0; casebookTotal = 0; speedStreak = 0; bestSpeedStreak = 0 } };

@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/content";
 import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays, getCachedAudioBlob } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -99,63 +99,6 @@ export type VideoSubmission = {
   reviewedAt:   [] | [bigint];
 };
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Art = I.Record({
-    id: I.Text, sportId: I.Text, levelId: I.Text, number: I.Nat,
-    title: I.Text, body: I.Text, language: I.Text, audioUrl: I.Opt(I.Text),
-    createdAt: I.Int, updatedAt: I.Int,
-  });
-  const DiagramPlayer = I.Record({
-    id: I.Text, x: I.Nat, y: I.Nat, shortLabel: I.Text, role: I.Text,
-  });
-  const DiagramArrow = I.Record({ fromId: I.Text, toId: I.Text, style: I.Text });
-  const Diagram = I.Record({ players: I.Vec(DiagramPlayer), arrows: I.Vec(DiagramArrow) });
-  const Play = I.Record({
-    id: I.Text, articleId: I.Text, citation: I.Text,
-    scenario: I.Text, ruling: I.Text, audioUrl: I.Opt(I.Text), diagram: I.Opt(Diagram),
-    videoUrl: I.Opt(I.Text),
-  });
-  const Poe = I.Record({
-    id: I.Text, season: I.Text, title: I.Text, body: I.Text,
-    linkedArticleIds: I.Vec(I.Text), audioUrl: I.Opt(I.Text), createdAt: I.Int,
-  });
-  const MechanicsZone = I.Record({
-    id: I.Text, x: I.Nat, y: I.Nat, width: I.Nat, height: I.Nat, correctOfficial: I.Text,
-  });
-  const Scenario = I.Record({
-    id: I.Text, crewSize: I.Nat, title: I.Text, description: I.Text,
-    players: I.Vec(DiagramPlayer), zones: I.Vec(MechanicsZone), createdAt: I.Int,
-  });
-  const Status = I.Variant({ Pending: I.Null, Approved: I.Null, Rejected: I.Null });
-  const Submission = I.Record({
-    id: I.Text, submitter: I.Principal, citation: I.Text, clipUrl: I.Text,
-    status: Status, linkedPlayId: I.Opt(I.Text), createdAt: I.Int, reviewedAt: I.Opt(I.Int),
-  });
-  const ResultSubmission = I.Variant({ ok: Submission, err: I.Text });
-  const ResultSubmissions = I.Variant({ ok: I.Vec(Submission), err: I.Text });
-  const SportLevel = I.Record({ id: I.Text, displayName: I.Text });
-  const SportRec = I.Record({ id: I.Text, displayName: I.Text, levels: I.Vec(SportLevel), rulebookYear: I.Text });
-  return I.Service({
-    listSports:          I.Func([],               [I.Vec(SportRec)],      ["query"]),
-    getArticle:          I.Func([I.Text],         [I.Opt(Art)],           ["query"]),
-    getArticleAudio:     I.Func([I.Text],         [I.Opt(I.Vec(I.Nat8))], ["query"]),
-    listArticles:        I.Func([I.Text, I.Text, I.Text], [I.Vec(Art)],   ["query"]),
-    listPlays:           I.Func([I.Text],         [I.Vec(Play)],          ["query"]),
-    listPointsOfEmphasis: I.Func([I.Text],        [I.Vec(Poe)],           ["query"]),
-    listMechanicsScenarios: I.Func([],            [I.Vec(Scenario)],      ["query"]),
-    getMechanicsScenario: I.Func([I.Text],        [I.Opt(Scenario)],      ["query"]),
-    isAdminCaller:        I.Func([],              [I.Bool],               ["query"]),
-    submitVideoClip:      I.Func([I.Text, I.Text], [ResultSubmission],    []),
-    getMySubmissions:     I.Func([],              [I.Vec(Submission)],    ["query"]),
-    listPendingSubmissions: I.Func([],            [ResultSubmissions],    ["query"]),
-    approveSubmission:    I.Func([I.Text, I.Text], [ResultSubmission],    []),
-    rejectSubmission:     I.Func([I.Text],        [ResultSubmission],     []),
-    metrics:             I.Func([],               [I.Record({ articleCount: I.Nat, playCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const MOCK_ARTICLES: Article[] = [
@@ -178,22 +121,7 @@ const MOCK_SPORTS: Sport[] = [
 const CANISTER_ID = canisterId("content");
 
 function actor() {
-  return createActor<{
-    listSports:           () => Promise<Sport[]>;
-    getArticle:           (id: string) => Promise<[] | [Article]>;
-    getArticleAudio:      (id: string) => Promise<[] | [Uint8Array | number[]]>;
-    listArticles:         (sportId: string, levelId: string, language: string) => Promise<Article[]>;
-    listPlays:            (articleId: string) => Promise<CasebookPlay[]>;
-    listPointsOfEmphasis: (season: string) => Promise<PointOfEmphasis[]>;
-    listMechanicsScenarios: () => Promise<MechanicsScenario[]>;
-    getMechanicsScenario: (id: string) => Promise<[] | [MechanicsScenario]>;
-    isAdminCaller:        () => Promise<boolean>;
-    submitVideoClip:      (citation: string, clipUrl: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
-    getMySubmissions:     () => Promise<VideoSubmission[]>;
-    listPendingSubmissions: () => Promise<{ ok: VideoSubmission[] } | { err: string }>;
-    approveSubmission:    (id: string, playId: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
-    rejectSubmission:     (id: string) => Promise<{ ok: VideoSubmission } | { err: string }>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 export const contentService = {
@@ -246,6 +174,12 @@ export const contentService = {
       if (cached.length > 0) return cached;
       throw e;
     }
+  },
+
+  /** The plays of several articles in one call (for the offline cache). */
+  async listPlaysFor(articleIds: string[]): Promise<CasebookPlay[]> {
+    if (!CANISTER_ID || articleIds.length === 0) return [];
+    return actor().listPlaysFor(articleIds);
   },
 
   async getArticleAudio(id: string): Promise<Uint8Array | null> {

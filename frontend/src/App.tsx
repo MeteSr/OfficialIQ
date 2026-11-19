@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useAuthStore } from "./store/authStore";
@@ -13,33 +13,37 @@ import StudyPage from "./pages/StudyPage";
 import ExamPage from "./pages/ExamPage";
 import RanksPage from "./pages/RanksPage";
 import MePage from "./pages/MePage";
-import QuizPage from "./pages/QuizPage";
-import AddFriendPage from "./pages/AddFriendPage";
-import ChallengePage from "./pages/ChallengePage";
-import WeeklyQuizPage from "./pages/WeeklyQuizPage";
-import MonthlyQuizPage from "./pages/MonthlyQuizPage";
-import ProgressPage from "./pages/ProgressPage";
-import AudioModePage from "./pages/AudioModePage";
-import GroupsPage from "./pages/GroupsPage";
-import GroupDetailPage from "./pages/GroupDetailPage";
-import CertExamPage from "./pages/CertExamPage";
-import CommuteModePage from "./pages/CommuteModePage";
-import MentorPage from "./pages/MentorPage";
-import MentorReportPage from "./pages/MentorReportPage";
-import AssociationPage from "./pages/AssociationPage";
-import AssociationDetailPage from "./pages/AssociationDetailPage";
-import MechanicsScenarioPage from "./pages/MechanicsScenarioPage";
-import VideoSubmissionPage from "./pages/VideoSubmissionPage";
-import ModerationQueuePage from "./pages/ModerationQueuePage";
-import ReportCardPage from "./pages/ReportCardPage";
-import PublicReportPage from "./pages/PublicReportPage";
-import SharedReportsPage from "./pages/SharedReportsPage";
-import RuleAssistantPage from "./pages/RuleAssistantPage";
-import AiDrillsPage from "./pages/AiDrillsPage";
-import ScenarioGeneratorPage from "./pages/ScenarioGeneratorPage";
-import SchedulePage from "./pages/SchedulePage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import AssociationAnalyticsPage from "./pages/AssociationAnalyticsPage";
+
+// The bottom-nav tabs ship in the main bundle; every other page is its own
+// chunk, loaded when first opened. The service worker precaches all chunks
+// (vite.config.ts globPatterns), so they still open offline.
+const QuizPage = lazy(() => import("./pages/QuizPage"));
+const AddFriendPage = lazy(() => import("./pages/AddFriendPage"));
+const ChallengePage = lazy(() => import("./pages/ChallengePage"));
+const WeeklyQuizPage = lazy(() => import("./pages/WeeklyQuizPage"));
+const MonthlyQuizPage = lazy(() => import("./pages/MonthlyQuizPage"));
+const ProgressPage = lazy(() => import("./pages/ProgressPage"));
+const AudioModePage = lazy(() => import("./pages/AudioModePage"));
+const GroupsPage = lazy(() => import("./pages/GroupsPage"));
+const GroupDetailPage = lazy(() => import("./pages/GroupDetailPage"));
+const CertExamPage = lazy(() => import("./pages/CertExamPage"));
+const CommuteModePage = lazy(() => import("./pages/CommuteModePage"));
+const MentorPage = lazy(() => import("./pages/MentorPage"));
+const MentorReportPage = lazy(() => import("./pages/MentorReportPage"));
+const AssociationPage = lazy(() => import("./pages/AssociationPage"));
+const AssociationDetailPage = lazy(() => import("./pages/AssociationDetailPage"));
+const MechanicsScenarioPage = lazy(() => import("./pages/MechanicsScenarioPage"));
+const VideoSubmissionPage = lazy(() => import("./pages/VideoSubmissionPage"));
+const ModerationQueuePage = lazy(() => import("./pages/ModerationQueuePage"));
+const ReportCardPage = lazy(() => import("./pages/ReportCardPage"));
+const PublicReportPage = lazy(() => import("./pages/PublicReportPage"));
+const SharedReportsPage = lazy(() => import("./pages/SharedReportsPage"));
+const RuleAssistantPage = lazy(() => import("./pages/RuleAssistantPage"));
+const AiDrillsPage = lazy(() => import("./pages/AiDrillsPage"));
+const ScenarioGeneratorPage = lazy(() => import("./pages/ScenarioGeneratorPage"));
+const SchedulePage = lazy(() => import("./pages/SchedulePage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
 
 // The landing page is the one route that isn't part of the mobile app
 // shell below — a signed-out visitor at "/" should see a real, full-width
@@ -52,6 +56,10 @@ function LandingRoute() {
   return <LandingPage />;
 }
 
+function PageLoading() {
+  return <div role="status" aria-label="Loading" style={{ padding: 24 }} />;
+}
+
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,6 +67,7 @@ function AppShell() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", maxWidth: 430, margin: "0 auto" }}>
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 64 }}>
         <ErrorBoundary key={location.pathname} onGoHome={() => navigate("/home")}>
+        <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/home"  element={<HomePage />} />
           <Route path="/study" element={<StudyPage />} />
@@ -94,6 +103,7 @@ function AppShell() {
           <Route path="/quiz/share/:token" element={<QuizPage />} />
           <Route path="/quiz/:articleId" element={<QuizPage />} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </div>
       <BottomNav />

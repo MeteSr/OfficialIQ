@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useCanisterQuery } from "../hooks/useCanisterQuery";
+import LoadError from "../components/LoadError";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
@@ -25,22 +27,21 @@ export default function RanksPage() {
   const { t } = useTranslation();
   const [tab,     setTab]     = useState<Tab>("Friends");
   const [sortBy,  setSortBy]  = useState<SortKey>("Elo");
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const { principal, profile } = useAuthStore();
   const { sportId } = useSport();
   const myState = profile?.state || "TX";
   const navigate = useNavigate();
   const [challenging, setChallenging] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    const fetch =
-      tab === "Friends"  ? rankingService.getFriends(sportId, 25, sortBy) :
-      tab === "State"    ? rankingService.getState(sportId, myState, 25, sortBy) :
-                           rankingService.getNational(sportId, 25, sortBy);
-    fetch.then(setEntries).catch(() => {}).finally(() => setLoading(false));
-  }, [tab, sortBy, myState, sportId]);
+  const board = useCanisterQuery<LeaderboardEntry[]>(
+    () =>
+      tab === "Friends" ? rankingService.getFriends(sportId, 25, sortBy) :
+      tab === "State"   ? rankingService.getState(sportId, myState, 25, sortBy) :
+                          rankingService.getNational(sportId, 25, sortBy),
+    [tab, sortBy, myState, sportId],
+  );
+  const entries = board.data ?? [];
+  const loading = board.loading;
 
   const top = entries[0];
 
@@ -125,7 +126,9 @@ export default function RanksPage() {
 
       {/* Leaderboard rows */}
       <div style={{ flex: 1, padding: "10px 16px 0" }}>
-        {loading ? (
+        {board.error ? (
+          <LoadError onRetry={board.reload} />
+        ) : loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{ height: 56, marginBottom: 1, background: T.border, borderRadius: 4, opacity: 0.4 + i * 0.1 }} />
           ))

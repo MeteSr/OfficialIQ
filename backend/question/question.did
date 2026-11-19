@@ -1,0 +1,127 @@
+type UserQuestionHistory = 
+ record {
+   easiness: float64;
+   intervalDays: nat;
+   lastAnswered: int;
+   nextDue: int;
+   questionId: text;
+   repetitions: nat;
+   timesAnswered: nat;
+   timesCorrect: nat;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: Question;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: vec Question;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+type QuizFilter = 
+ record {
+   articleIds: vec text;
+   casebook: bool;
+   count: nat;
+   difficulty: opt Difficulty;
+   sportId: text;
+ };
+type QuestionInput = 
+ record {
+   articleId: text;
+   choices: vec Choice;
+   citation: text;
+   correctId: text;
+   difficulty: Difficulty;
+   explanation: text;
+   isCasebook: bool;
+   isPointOfEmphasis: bool;
+   sportId: text;
+   stem: text;
+ };
+type Question = 
+ record {
+   articleId: text;
+   choices: vec Choice;
+   citation: text;
+   correctId: text;
+   createdAt: int;
+   difficulty: Difficulty;
+   explanation: text;
+   id: text;
+   isCasebook: bool;
+   isPointOfEmphasis: bool;
+   sportId: text;
+   stem: text;
+ };
+type ExamPick = 
+ record {
+   adaptive: bool;
+   articleIds: vec text;
+   casebook: bool;
+   count: nat;
+   difficulty: opt Difficulty;
+ };
+type Difficulty = 
+ variant {
+   Advanced;
+   Beginner;
+   Expert;
+   Intermediate;
+ };
+type Choice = 
+ record {
+   id: text;
+   "text": text;
+ };
+service : {
+  addQuestion: (input: QuestionInput) -> (Result_2);
+  getAdaptiveQuiz: (filter: QuizFilter) -> (vec Question) query;
+  getAnswerRates: (questionIds: vec text) ->
+   (vec record {
+          text;
+          nat;
+          nat;
+        }) query;
+  getDueCount: (sportId: text, articleIds: vec text, casebook: bool) ->
+   (nat) query;
+  getMostMissedQuestions: (sportId: text, limit: nat) ->
+   (vec record {
+          text;
+          nat;
+          nat;
+        }) query;
+  getMyHistoryBatch: (questionIds: vec text) ->
+   (vec opt UserQuestionHistory) query;
+  getQuestion: (id: text) -> (opt Question) query;
+  /// A sport's whole question bank, a page at a time in id order, for the
+  /// app's offline cache (sampleQuiz capped it at 500 per type with no way
+  /// to get the rest). Pass the previous page's `next` as `after`.
+  listForSync: (sportId: text, after: opt text, limit: nat) ->
+   (record {
+      next: opt text;
+      questions: vec Question;
+    }) query;
+  metrics: () -> (record {questionCount: nat;}) query;
+  pickForExam: (sportId: text, picks: vec ExamPick, player: principal) ->
+   (Result_1);
+  questionsForExam: (ids: vec text) -> (Result_1);
+  recordAnswer: (questionId: text, isCorrect: bool) -> ();
+  /// Called by the exam canister when a quiz or exam finishes, with the
+  /// player's graded answers: updates their spaced-repetition history and
+  /// the per-question totals, as recordAnswer did from the browser. Safe to
+  /// repeat.
+  recordGradedAnswers: (player: principal, sessionId: text, answers:
+   vec record {
+         text;
+         bool;
+       }) -> (Result);
+  sampleQuiz: (filter: QuizFilter) -> (vec Question) query;
+  setAdmin: (p: principal) -> (Result);
+}

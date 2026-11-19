@@ -62,6 +62,11 @@ No border-radius above 12px.
 
 Routes: `/home`, `/study`, `/exam`, `/ranks`, `/me`, `/quiz/:articleId`
 
+Pages other than the bottom-nav tabs are lazy-loaded in `App.tsx`. Load page
+data with `useCanisterQuery` (`src/hooks`) and show `<LoadError>` on failure
+rather than `useEffect` + `.catch(() => {})`, which turns an outage into an
+empty screen; convert older pages as you touch them.
+
 ### Canister IDs
 
 `icp deploy` injects `PUBLIC_CANISTER_ID:<name>` into every canister; the
@@ -76,4 +81,16 @@ Pages use local stub constants (e.g. `STUB_QUESTIONS`, `STUB_ENTRIES`) while can
 
 ## IDL maintenance
 
-Whenever you add or rename a Motoko type, update the matching IDL in `frontend/src/declarations/<canister>/index.ts` (create the file if it doesn't exist yet). `mops generate candid <canister>` prints the canister's current Candid interface to compare against.
+Canister interfaces are generated, never hand-written. After adding or
+changing a public method or type, run `bash scripts/generate-declarations.sh`
+and commit what it writes:
+
+- `backend/<canister>/<canister>.did` — `mops generate candid` (mops.toml
+  declares each as the canister's interface, so `icp build` refuses an
+  incompatible change)
+- `frontend/src/declarations/<canister>/index.ts` — `icp-bindgen` from that
+  `.did`; services import `idlFactory` and `_SERVICE` from here
+
+CI fails when either is stale. Types that cross canisters (GradedResult,
+ExamMode, Difficulty, Question, ExamPick) live in `backend/lib/Types.mo`;
+import them rather than copying them.

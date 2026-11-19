@@ -31,3 +31,20 @@ describe("answer rates", () => {
     expect(rates).toEqual([[third, 1n, 4n]]);
   });
 });
+
+describe("offline sync", () => {
+  it("pages through a sport's whole bank", async () => {
+    const q = await canister("question", newIdentity());
+    const seen: string[] = [];
+    let after: [] | [string] = [];
+    for (let pages = 0; ; pages++) {
+      const page = (await q.listForSync(bank.sportId, after, 5n)) as { questions: { id: string; sportId: string }[]; next: [] | [string] };
+      expect(page.questions.every(x => x.sportId === bank.sportId)).toBe(true);
+      seen.push(...page.questions.map(x => x.id));
+      if (page.next.length === 0) break;
+      expect(pages).toBeLessThan(10);
+      after = page.next;
+    }
+    expect(seen.sort()).toEqual([...bank.ruleIds, ...bank.casebookIds].sort());
+  });
+});

@@ -1,0 +1,46 @@
+type Result = 
+ variant {
+   err: text;
+   ok: Challenge;
+ };
+type ChallengeStatus = 
+ variant {
+   Accepted;
+   Completed;
+   Declined;
+   Expired;
+   Pending;
+ };
+type ChallengeResult = 
+ record {
+   finishedAt: int;
+   "principal": principal;
+   score: nat;
+ };
+type Challenge = 
+ record {
+   articleIds: vec text;
+   challenged: principal;
+   challenger: principal;
+   count: nat;
+   createdAt: int;
+   expiresAt: int;
+   id: text;
+   questionIds: vec text;
+   results: vec ChallengeResult;
+   sport: text;
+   status: ChallengeStatus;
+ };
+service : {
+  acceptChallenge: (id: text) -> (Result);
+  getChallenge: (id: text) -> (opt Challenge) query;
+  getMyChallenges: () -> (vec Challenge) query;
+  metrics: () -> (record {challengeCount: nat;}) query;
+  sendChallenge: (opponent: principal, sport: text, articleIds: vec text,
+   questionIds: vec text, count: nat) -> (Result);
+  /// Records the caller's result from a finished exam session graded by the
+  /// exam canister. The session must cover exactly this challenge's
+  /// questions and can be used once.
+  submitGradedResult: (id: text, sessionId: text) -> (Result);
+  submitResult: (_id: text, _score: nat) -> (Result);
+}

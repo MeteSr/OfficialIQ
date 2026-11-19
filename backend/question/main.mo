@@ -10,30 +10,19 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
+import Set "mo:core/Set";
 import Env "../lib/Env";
+import Types "../lib/Types";
 
 persistent actor Question {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type Difficulty = { #Beginner; #Intermediate; #Advanced; #Expert };
+  public type Difficulty = Types.Difficulty;
 
-  public type Choice = { id : Text; text : Text };
+  public type Choice = Types.Choice;
 
-  public type Question = {
-    id                : Text;
-    sportId           : Text;
-    articleId         : Text;
-    citation          : Text;
-    stem              : Text;
-    choices           : [Choice];
-    correctId         : Text;
-    explanation       : Text;
-    difficulty        : Difficulty;
-    isCasebook        : Bool;
-    isPointOfEmphasis : Bool;
-    createdAt         : Int;
-  };
+  public type Question = Types.Question;
 
   public type QuestionInput = {
     sportId           : Text;
@@ -150,6 +139,26 @@ persistent actor Question {
   // consecutive correct answers grow the interval by the easiness factor,
   // per the classic SM-2 schedule (1 day, 6 days, then interval * EF).
   public shared ({ caller }) func recordAnswer(questionId : Text, isCorrect : Bool) : async () {
+    recordFor(caller, questionId, isCorrect);
+  };
+
+  // Graded sessions the exam canister has pushed, so a retry counts once.
+  var gradedAnswerSessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Called by the exam canister when a quiz or exam finishes, with the
+  /// player's graded answers: updates their spaced-repetition history and
+  /// the per-question totals, as recordAnswer did from the browser. Safe to
+  /// repeat.
+  public shared ({ caller }) func recordGradedAnswers(player : Principal, sessionId : Text, answers : [(Text, Bool)]) : async Result.Result<(), Text> {
+    if (not isExamCanister<system>(caller)) return #err("Exam canister only");
+    if (answers.size() > 200) return #err("Too many answers");
+    if (Set.contains(gradedAnswerSessions, Text.compare, sessionId)) return #ok(());
+    Set.add(gradedAnswerSessions, Text.compare, sessionId);
+    for ((questionId, isCorrect) in answers.values()) recordFor(player, questionId, isCorrect);
+    #ok(())
+  };
+
+  func recordFor(caller : Principal, questionId : Text, isCorrect : Bool) {
     let key = Principal.toText(caller) # "::" # questionId;
     let now = Time.now();
     let prev = Map.get(history, Text.compare, key);
@@ -256,6 +265,25 @@ persistent actor Question {
     })
   };
 
+  /// A sport's whole question bank, a page at a time in id order, for the
+  /// app's offline cache (sampleQuiz capped it at 500 per type with no way
+  /// to get the rest). Pass the previous page's `next` as `after`.
+  public query func listForSync(sportId : Text, after : ?Text, limit : Nat) : async { questions : [Question]; next : ?Text } {
+    let cap = Nat.min(limit, 500);
+    if (cap == 0) return { questions = []; next = null };
+    let out = List.empty<Question>();
+    let from = switch after { case (?a) Map.entriesFrom(questions, Text.compare, a); case null Map.entries(questions) };
+    var next : ?Text = null;
+    label scan for ((id, q) in from) {
+      if (after == ?id) continue scan;
+      if (q.sportId == sportId) {
+        if (List.size(out) == cap) { next := ?List.at(out, cap - 1).id; break scan };
+        List.add(out, q);
+      };
+    };
+    { questions = List.toArray(out); next }
+  };
+
   public query func sampleQuiz(filter : QuizFilter) : async [Question] {
     let buf = VarArray.repeat<Question>({
       id = ""; sportId = ""; articleId = ""; citation = ""; stem = "";
@@ -335,13 +363,7 @@ persistent actor Question {
   // player. These two calls hand it full questions; only the exam canister
   // may make them (its ID comes from icp deploy's PUBLIC_CANISTER_ID:exam).
 
-  public type ExamPick = {
-    articleIds : [Text];
-    casebook   : Bool;
-    count      : Nat;
-    difficulty : ?Difficulty;
-    adaptive   : Bool; // most-overdue first for `player` (as getAdaptiveQuiz)
-  };
+  public type ExamPick = Types.ExamPick;
 
   func isExamCanister<system>(caller : Principal) : Bool {
     switch (Env.canisterId<system>("exam")) { case (?id) id == caller; case null false }

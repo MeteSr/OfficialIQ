@@ -1,6 +1,6 @@
-import { IDL } from "@icp-sdk/core/candid";
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
+import { idlFactory, type _SERVICE } from "../declarations/ranking";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,51 +76,6 @@ export type SortKey = "Elo" | "Accuracy" | "Speed";
 type SortKeyVariant = { Elo: null } | { Accuracy: null } | { Speed: null };
 const sortKeyToVariant = (key: SortKey): SortKeyVariant => ({ [key]: null } as SortKeyVariant);
 
-// ─── IDL ──────────────────────────────────────────────────────────────────────
-
-export const idlFactory: IDL.InterfaceFactory = ({ IDL: I }) => {
-  const Entry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
-  const Stats = I.Record({ principal: I.Principal, displayName: I.Text, sport: I.Text, state: I.Text, elo: I.Float64, streak: I.Nat, bestStreak: I.Nat, accuracy: I.Float64, avgElapsedSec: I.Float64, examCount: I.Nat, updatedAt: I.Int });
-  const PublicStats = I.Record({ principal: I.Principal, displayName: I.Text, elo: I.Float64, accuracy: I.Float64, avgElapsedSec: I.Float64, streak: I.Nat });
-  const EloSnapshotRec = I.Record({ elo: I.Float64, accuracy: I.Float64, timestamp: I.Int });
-  const Activity = I.Record({ currentStreak: I.Nat, longestStreak: I.Nat, activityDay: I.Int, answeredToday: I.Nat, lastQualifyingDay: I.Int });
-  const Skills = I.Record({ casebookCorrect: I.Nat, casebookTotal: I.Nat, speedStreak: I.Nat, bestSpeedStreak: I.Nat });
-  const GroupRec = I.Record({ id: I.Text, name: I.Text, sport: I.Text, state: I.Text, isPrivate: I.Bool, owner: I.Principal, memberCount: I.Nat, createdAt: I.Int });
-  const GroupChallengeRec = I.Record({ id: I.Text, groupId: I.Text, title: I.Text, deadline: I.Int, createdAt: I.Int });
-  const GroupEntry = I.Record({ rank: I.Nat, principal: I.Principal, displayName: I.Text, weeklyAccuracy: I.Float64 });
-  const SortKeyVariant = I.Variant({ Elo: I.Null, Accuracy: I.Null, Speed: I.Null });
-  const ResultU = I.Variant({ ok: I.Null, err: I.Text });
-  const ResultGroup = I.Variant({ ok: GroupRec, err: I.Text });
-  const ResultGroupChallenge = I.Variant({ ok: GroupChallengeRec, err: I.Text });
-  return I.Service({
-    claimExamResult:       I.Func([I.Text, I.Text, I.Text], [I.Variant({ ok: Stats, err: I.Text })], []),
-    addFriend:             I.Func([I.Principal], [ResultU], []),
-    removeFriend:          I.Func([I.Principal], [ResultU], []),
-    getFriendPrincipals:   I.Func([], [I.Vec(I.Principal)], ["query"]),
-    getStats:              I.Func([I.Principal], [I.Opt(Stats)], ["query"]),
-    getPublicStats:        I.Func([I.Principal], [I.Opt(PublicStats)], ["query"]),
-    getNational:           I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getState:              I.Func([I.Text, I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getFriends:            I.Func([I.Text, I.Nat, SortKeyVariant], [I.Vec(Entry)], ["query"]),
-    getMyStats:            I.Func([], [I.Opt(Stats)], ["query"]),
-    getMyEloHistory:       I.Func([], [I.Vec(EloSnapshotRec)], ["query"]),
-    recordQuestionsAnswered: I.Func([I.Nat], [Activity], []),
-    getDailyStreak:        I.Func([], [Activity], ["query"]),
-    recordAnswerSignal:    I.Func([I.Bool, I.Nat, I.Bool], [], []),
-    getSkillCounters:      I.Func([], [Skills], ["query"]),
-    createGroup:           I.Func([I.Text, I.Text, I.Text, I.Bool], [ResultGroup], []),
-    joinGroup:              I.Func([I.Text], [ResultGroup], []),
-    leaveGroup:            I.Func([I.Text], [ResultU], []),
-    postGroupChallenge:    I.Func([I.Text, I.Text, I.Int], [ResultGroupChallenge], []),
-    listPublicGroups:      I.Func([I.Text], [I.Vec(GroupRec)], ["query"]),
-    getMyGroups:           I.Func([], [I.Vec(GroupRec)], ["query"]),
-    getGroup:              I.Func([I.Text], [I.Opt(GroupRec)], ["query"]),
-    getGroupChallenges:    I.Func([I.Text], [I.Vec(GroupChallengeRec)], ["query"]),
-    getGroupLeaderboard:   I.Func([I.Text], [I.Vec(GroupEntry)], ["query"]),
-    metrics:               I.Func([], [I.Record({ userCount: I.Nat })], ["query"]),
-  });
-};
-
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
 const makePrincipal = (s: string) => ({ toString: () => s } as any);
@@ -146,32 +101,7 @@ function sortMock(sortBy: SortKey): LeaderboardEntry[] {
 const CANISTER_ID = canisterId("ranking");
 
 function actor() {
-  return createActor<{
-    claimExamResult:     (sessionId: string, name: string, state: string) => Promise<{ ok: UserStats } | { err: string }>;
-    addFriend:           (p: any) => Promise<{ ok: null } | { err: string }>;
-    removeFriend:        (p: any) => Promise<{ ok: null } | { err: string }>;
-    getFriendPrincipals: () => Promise<any[]>;
-    getStats:            (p: any) => Promise<[] | [UserStats]>;
-    getPublicStats:      (p: any) => Promise<[] | [PublicStats]>;
-    getNational:         (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getState:            (sport: string, state: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getFriends:          (sport: string, limit: bigint, sortBy: SortKeyVariant) => Promise<LeaderboardEntry[]>;
-    getMyStats:          () => Promise<[] | [UserStats]>;
-    getMyEloHistory:     () => Promise<EloSnapshot[]>;
-    recordQuestionsAnswered: (count: bigint) => Promise<DailyActivity>;
-    getDailyStreak:      () => Promise<DailyActivity>;
-    recordAnswerSignal:  (isCorrect: boolean, elapsedSec: bigint, isCasebook: boolean) => Promise<void>;
-    getSkillCounters:    () => Promise<SkillCounters>;
-    createGroup:         (name: string, sport: string, state: string, isPrivate: boolean) => Promise<{ ok: Group } | { err: string }>;
-    joinGroup:           (groupId: string) => Promise<{ ok: Group } | { err: string }>;
-    leaveGroup:          (groupId: string) => Promise<{ ok: null } | { err: string }>;
-    postGroupChallenge:  (groupId: string, title: string, deadline: bigint) => Promise<{ ok: GroupChallenge } | { err: string }>;
-    listPublicGroups:    (sport: string) => Promise<Group[]>;
-    getMyGroups:         () => Promise<Group[]>;
-    getGroup:            (groupId: string) => Promise<[] | [Group]>;
-    getGroupChallenges:  (groupId: string) => Promise<GroupChallenge[]>;
-    getGroupLeaderboard: (groupId: string) => Promise<GroupLeaderboardEntry[]>;
-  }>(CANISTER_ID, idlFactory);
+  return createActor<_SERVICE>(CANISTER_ID, idlFactory);
 }
 
 /** The ranking canister refused a claim; retrying the same claim won't succeed. */

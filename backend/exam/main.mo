@@ -7,15 +7,20 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
+import Set "mo:core/Set";
+import List "mo:core/List";
+import Timer "mo:core/Timer";
+import Error "mo:core/Error";
 import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
+import Types "../lib/Types";
 
 persistent actor Exam {
 
   // ─── Types ────────────────────────────────────────────────────────────────
 
-  public type ExamMode = { #Solo; #ShareLink; #Timed; #Certification };
+  public type ExamMode = Types.ExamMode;
 
   public type ExamConfig = {
     sportId    : Text;
@@ -261,28 +266,17 @@ persistent actor Exam {
   // read the result from this canister (gradedResult) instead of trusting a
   // score from the browser.
 
-  public type Difficulty = { #Beginner; #Intermediate; #Advanced; #Expert };
-  public type Choice = { id : Text; text : Text };
+  public type Difficulty = Types.Difficulty;
+  public type Choice = Types.Choice;
 
-  // Mirrors question.Question (the subset this canister needs).
-  type FullQuestion = {
-    id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
-    choices : [Choice]; correctId : Text; explanation : Text; difficulty : Difficulty;
-    isCasebook : Bool; isPointOfEmphasis : Bool; createdAt : Int;
-  };
+  type FullQuestion = Types.Question;
 
   public type QuestionView = {
     id : Text; sportId : Text; articleId : Text; citation : Text; stem : Text;
     choices : [Choice]; difficulty : Difficulty; isCasebook : Bool; isPointOfEmphasis : Bool;
   };
 
-  public type Pick = {
-    articleIds : [Text];
-    casebook   : Bool;
-    count      : Nat;
-    difficulty : ?Difficulty;
-    adaptive   : Bool;
-  };
+  public type Pick = Types.ExamPick;
 
   public type QuestionSource = {
     #Picks      : [Pick];  // the canister picks questions (quizzes, cert exams)
@@ -302,27 +296,22 @@ persistent actor Exam {
 
   public type GradedFinish = { session : ExamSession; feedback : [AnswerFeedback] };
 
-  // What other canisters read: the server-computed result of a finished,
-  // graded session. score counts unanswered questions as wrong.
-  public type GradedResult = {
-    id            : Text;
-    owner         : Principal;
-    mode          : ExamMode;
-    sportId       : Text;
-    articleIds    : [Text];
-    questionIds   : [Text];
-    questionCount : Nat;
-    answered      : Nat;
-    correct       : Nat;
-    score         : Nat;
-    avgElapsedSec : Nat;
-    finishedAt    : Int;
-  };
+  // What other canisters read (lib/Types.mo).
+  public type GradedResult = Types.GradedResult;
 
   type KeyEntry = { questionId : Text; correctId : Text; explanation : Text; citation : Text };
 
   // Session id -> answer key. Only graded sessions have one.
   var answerKeys : Map.Map<Text, [KeyEntry]> = Map.empty<Text, [KeyEntry]>();
+
+  // Sessions graded here. Was "has an answer key"; a finished session's key
+  // is now dropped after KEY_TTL_NS (pruneKeys), so this marks them instead.
+  // Built from answerKeys on the upgrade that adds it.
+  var gradedIds : Set.Set<Text> = do {
+    let ids = Set.empty<Text>();
+    for (id in Map.keys(answerKeys)) Set.add(ids, Text.compare, id);
+    ids
+  };
 
   // "<player>|<question ids>" -> session id, for fixed question sets
   // (challenges): a player gets one graded session per set, resumed rather
@@ -457,6 +446,17 @@ persistent actor Exam {
     Map.add(answerKeys, Text.compare, id, Array.map<FullQuestion, KeyEntry>(qs, func(q) {
       { questionId = q.id; correctId = q.correctId; explanation = q.explanation; citation = q.citation }
     }));
+    Set.add(gradedIds, Text.compare, id);
+    // Quizzes and exams (not challenges, which have a fixed set of their own)
+    // are counted by the other canisters when they finish (see Outbox).
+    switch source {
+      case (#Ids(_)) {};
+      case _ {
+        Map.add(questionMeta, Text.compare, id, Array.map<FullQuestion, QuestionMeta>(qs, func(q) {
+          { questionId = q.id; articleId = q.articleId; isCasebook = q.isCasebook }
+        }));
+      };
+    };
     #ok({ session; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) })
   };
 
@@ -472,6 +472,8 @@ persistent actor Exam {
             // The link's own session is never played; drop its key so it
             // can't be graded or counted.
             Map.remove(answerKeys, Text.compare, start.session.id);
+            Set.remove(gradedIds, Text.compare, start.session.id);
+            Map.remove(questionMeta, Text.compare, start.session.id);
             #ok(t)
           };
           case null #err("No share token");
@@ -502,7 +504,7 @@ persistent actor Exam {
       case null #err("Session not found");
       case (?s) {
         if (s.owner != caller) return #err("Not your session");
-        if (Map.get(answerKeys, Text.compare, sessionId) == null) return #err("Not a graded session");
+        if (not Set.contains(gradedIds, Text.compare, sessionId)) return #err("Not a graded session");
         #ok(s)
       };
     }
@@ -531,6 +533,7 @@ persistent actor Exam {
         finishedAt = ?Time.now();
       };
       Map.add(sessions, Text.compare, s.id, done);
+      enqueue(done);
       done
     };
     let key = switch (Map.get(answerKeys, Text.compare, s.id)) { case (?k) k; case null [] };
@@ -550,7 +553,7 @@ persistent actor Exam {
     refreshEnv<system>();
     switch (gradedSession(caller, sessionId)) {
       case (#err(e)) #err(e);
-      case (#ok(s)) #ok(finish(s));
+      case (#ok(s)) { let f = finish(s); kick<system>(); #ok(f) };
     }
   };
 
@@ -567,7 +570,9 @@ persistent actor Exam {
             case null {};
           };
         };
-        #ok(finish(s))
+        let f = finish(s);
+        kick<system>();
+        #ok(f)
       };
     }
   };
@@ -577,7 +582,11 @@ persistent actor Exam {
   public shared query ({ caller }) func gradedResult(sessionId : Text) : async ?GradedResult {
     let s = switch (Map.get(sessions, Text.compare, sessionId)) { case (?s) s; case null return null };
     if (caller != s.owner and not isSiblingCanister(caller)) return null;
-    if (Map.get(answerKeys, Text.compare, sessionId) == null) return null;
+    resultOf(s)
+  };
+
+  func resultOf(s : ExamSession) : ?GradedResult {
+    if (not Set.contains(gradedIds, Text.compare, s.id)) return null;
     let finishedAt = switch (s.finishedAt) { case (?t) t; case null return null };
     var correct = 0;
     for (a in s.answers.values()) { if (a.isCorrect) correct += 1 };
@@ -591,7 +600,223 @@ persistent actor Exam {
     }
   };
 
-  public query func metrics() : async { sessionCount : Nat } {
-    { sessionCount = Map.size(sessions) }
+  // ─── Outbox: finished results are pushed, not left to the browser ─────────
+  //
+  // A finished quiz or exam used to count only if the browser went on to
+  // make four more calls (ranking claim, daily streak, spaced-repetition
+  // history, article progress), with failures swallowed. Now the exam
+  // canister delivers the result itself: finishing a session queues it here,
+  // a timer sends it to ranking, question and user, and anything that fails
+  // is retried with backoff. Each target counts a session once, so a retry
+  // (or an older app still claiming from the browser) can't double-count.
+  // Challenges are left out: their result goes to the challenge canister.
+
+  type QuestionMeta = { questionId : Text; articleId : Text; isCasebook : Bool };
+
+  // Session id -> what the pushes need to know about each question. Only
+  // sessions that are pushed when they finish have an entry.
+  var questionMeta : Map.Map<Text, [QuestionMeta]> = Map.empty<Text, [QuestionMeta]>();
+
+  // true = still to deliver to that canister.
+  type Outbox = { ranking : Bool; question : Bool; user : Bool; attempts : Nat; nextTry : Int };
+  var outbox : Map.Map<Text, Outbox> = Map.empty<Text, Outbox>();
+  var droppedPushes : Nat = 0;
+
+  // Finished sessions in the order they finished, for pruneKeys.
+  var keyExpiry : List.List<(Text, Int)> = List.empty<(Text, Int)>();
+  var keyExpiryHead : Nat = 0;
+
+  // A finished session's answer key is kept this long (so finishSession
+  // can be called again and still return it), then dropped.
+  let KEY_TTL_NS : Int = 7 * 86_400_000_000_000;
+  let MAX_PUSH_ATTEMPTS : Nat = 30;
+  let MINUTE_NS : Int = 60_000_000_000;
+
+  type RankingPush = actor {
+    recordGradedSession : shared (Types.GradedResult, [Types.AnswerSignal]) -> async Result.Result<(), Text>;
+  };
+  type QuestionPush = actor {
+    recordGradedAnswers : shared (Principal, Text, [(Text, Bool)]) -> async Result.Result<(), Text>;
+  };
+  type UserPush = actor {
+    recordGradedStudy : shared (Principal, Text, [(Text, Nat)]) -> async Result.Result<(), Text>;
+  };
+
+  func enqueue(s : ExamSession) {
+    switch (s.finishedAt) {
+      case (?t) List.add(keyExpiry, (s.id, t + KEY_TTL_NS));
+      case null {};
+    };
+    if (Map.get(questionMeta, Text.compare, s.id) != null) {
+      Map.add(outbox, Text.compare, s.id, { ranking = true; question = true; user = true; attempts = 0; nextTry = 0 });
+    };
+  };
+
+  // The one pending flush timer: its id and when it fires.
+  transient var timer : ?(Timer.TimerId, Int) = null;
+
+  /// Makes sure a flush runs no later than `at`. A timer that fires later
+  /// (e.g. one waiting a week for the next answer key to expire) is
+  /// replaced, so a newly finished session isn't held behind it.
+  func arm<system>(at : Int) {
+    let now = Time.now();
+    switch timer {
+      case (?(_, fires)) { if (fires <= at) return };
+      case null {};
+    };
+    switch timer { case (?(id, _)) Timer.cancelTimer(id); case null {} };
+    let delayNs = Int.abs(Int.max(at - now, 0));
+    let id = Timer.setTimer<system>(#nanoseconds delayNs, func() : async () { await flush() });
+    timer := ?(id, now + delayNs);
+  };
+
+  /// Called after a session finishes: deliver anything due now.
+  func kick<system>() {
+    if (not Map.isEmpty(outbox)) arm<system>(Time.now())
+    else scheduleNext<system>();
+  };
+
+  // Timers don't survive an upgrade; pick the queue up again.
+  system func postupgrade() { kick<system>() };
+
+  func flush() : async () {
+    // This timer has fired. Cleared first, so if anything below traps the
+    // next finish (or upgrade) starts a new one.
+    timer := null;
+    pruneKeys();
+    let now = Time.now();
+    // Ids first: the map changes across the awaits below.
+    let due = List.empty<Text>();
+    for ((id, o) in Map.entries(outbox)) { if (o.nextTry <= now) List.add(due, id) };
+    for (id in List.values(due)) { await* deliver(id) };
+    scheduleNext<system>();
+  };
+
+  // Arms the timer for the next retry or key expiry, at least a minute out.
+  func scheduleNext<system>() {
+    var next : ?Int = null;
+    for ((_, o) in Map.entries(outbox)) {
+      next := ?(switch next { case (?n) Int.min(n, o.nextTry); case null o.nextTry });
+    };
+    if (keyExpiryHead < List.size(keyExpiry)) {
+      let (_, at) = List.at(keyExpiry, keyExpiryHead);
+      next := ?(switch next { case (?n) Int.min(n, at); case null at });
+    };
+    switch next {
+      case null {};
+      case (?at) arm<system>(Int.max(at, Time.now() + MINUTE_NS));
+    };
+  };
+
+  func pruneKeys() {
+    let now = Time.now();
+    label prune while (keyExpiryHead < List.size(keyExpiry)) {
+      let (id, at) = List.at(keyExpiry, keyExpiryHead);
+      if (at > now) break prune;
+      Map.remove(answerKeys, Text.compare, id);
+      keyExpiryHead += 1;
+    };
+    // Compact once the consumed prefix dominates.
+    if (keyExpiryHead > 1000 and keyExpiryHead * 2 > List.size(keyExpiry)) {
+      keyExpiry := List.fromArray(List.sliceToArray(keyExpiry, keyExpiryHead, List.size(keyExpiry)));
+      keyExpiryHead := 0;
+    };
+  };
+
+  // Sends one session's result to every canister that hasn't taken it yet.
+  // All three calls are made before the outbox entry is updated, which is
+  // re-read afterwards.
+  func deliver<system>(id : Text) : async* () {
+    let o = switch (Map.get(outbox, Text.compare, id)) { case (?o) o; case null return };
+    let (s, meta) = switch (Map.get(sessions, Text.compare, id), Map.get(questionMeta, Text.compare, id)) {
+      case (?s, ?m) (s, m);
+      case _ { Map.remove(outbox, Text.compare, id); return };
+    };
+    let result = switch (resultOf(s)) { case (?r) r; case null { Map.remove(outbox, Text.compare, id); return } };
+
+    let metaOf = func(qid : Text) : ?QuestionMeta { Array.find<QuestionMeta>(meta, func(m) { m.questionId == qid }) };
+
+    var ranking = o.ranking;
+    if (ranking) {
+      switch (Env.canisterId<system>("ranking")) {
+        case null {};
+        case (?cid) {
+          let signals = Array.map<AnswerRecord, Types.AnswerSignal>(s.answers, func(a) {
+            { isCorrect = a.isCorrect; elapsedSec = a.elapsedSec;
+              isCasebook = switch (metaOf(a.questionId)) { case (?m) m.isCasebook; case null false } }
+          });
+          try {
+            switch (await (actor (Principal.toText(cid)) : RankingPush).recordGradedSession(result, signals)) {
+              case (#ok) ranking := false;
+              case (#err(_)) {};
+            };
+          } catch (_ : Error.Error) {};
+        };
+      };
+    };
+
+    var question = o.question;
+    if (question) {
+      switch (Env.canisterId<system>("question")) {
+        case null {};
+        case (?cid) {
+          let answered = Array.map<AnswerRecord, (Text, Bool)>(s.answers, func(a) { (a.questionId, a.isCorrect) });
+          try {
+            switch (await (actor (Principal.toText(cid)) : QuestionPush).recordGradedAnswers(s.owner, id, answered)) {
+              case (#ok) question := false;
+              case (#err(_)) {};
+            };
+          } catch (_ : Error.Error) {};
+        };
+      };
+    };
+
+    var user = o.user;
+    if (user) {
+      switch (Env.canisterId<system>("user")) {
+        case null {};
+        case (?cid) {
+          try {
+            switch (await (actor (Principal.toText(cid)) : UserPush).recordGradedStudy(s.owner, id, articleScores(s, meta))) {
+              case (#ok) user := false;
+              case (#err(_)) {};
+            };
+          } catch (_ : Error.Error) {};
+        };
+      };
+    };
+
+    if (not ranking and not question and not user) {
+      Map.remove(outbox, Text.compare, id);
+      Map.remove(questionMeta, Text.compare, id);
+    } else if (o.attempts + 1 >= MAX_PUSH_ATTEMPTS) {
+      Map.remove(outbox, Text.compare, id);
+      Map.remove(questionMeta, Text.compare, id);
+      droppedPushes += 1;
+    } else {
+      // 1, 2, 4 ... minutes, then hourly.
+      let backoff = MINUTE_NS * Nat.pow(2, Nat.min(o.attempts, 6));
+      Map.add(outbox, Text.compare, id, { ranking; question; user; attempts = o.attempts + 1; nextTry = Time.now() + backoff });
+    };
+  };
+
+  // Each answered article's accuracy within the session, 0-100. Unanswered
+  // questions don't count against an article (as in the app before).
+  func articleScores(s : ExamSession, meta : [QuestionMeta]) : [(Text, Nat)] {
+    let totals = Map.empty<Text, (Nat, Nat)>();
+    for (a in s.answers.values()) {
+      switch (Array.find<QuestionMeta>(meta, func(m) { m.questionId == a.questionId })) {
+        case null {};
+        case (?m) {
+          let (c, t) = switch (Map.get(totals, Text.compare, m.articleId)) { case (?x) x; case null (0, 0) };
+          Map.add(totals, Text.compare, m.articleId, (c + (if (a.isCorrect) 1 else 0), t + 1));
+        };
+      };
+    };
+    Array.map<(Text, (Nat, Nat)), (Text, Nat)>(Map.toArray(totals), func((art, (c, t))) { (art, c * 100 / t) })
+  };
+
+  public query func metrics() : async { sessionCount : Nat; pendingPushes : Nat; droppedPushes : Nat; answerKeys : Nat } {
+    { sessionCount = Map.size(sessions); pendingPushes = Map.size(outbox); droppedPushes; answerKeys = Map.size(answerKeys) }
   };
 }
