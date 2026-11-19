@@ -87,6 +87,19 @@ describe("results pushed by the exam canister", () => {
     expect(progress).toEqual([expect.objectContaining({ articleId: bank.art1, masteryScore: 66n })]);
   });
 
+  it("weights the rating by question difficulty", async () => {
+    const hard = await seedBank(6, 0, "Expert");
+    const easyPlayer = await official("Easy", "OH");
+    const hardPlayer = await official("Hard", "OH");
+    await play(easyPlayer, bank, await start(easyPlayer, bank, 5), 5);
+    await play(hardPlayer, hard, await start(hardPlayer, hard, 5), 5);
+    const easy = await statsOnce(easyPlayer);
+    const tough = await statsOnce(hardPlayer);
+    // All correct either way, but beating Expert questions is worth more.
+    expect(easy.elo).toBeGreaterThan(1000);
+    expect(tough.elo).toBeGreaterThan(easy.elo);
+  });
+
   it("follows a renamed official onto the leaderboard", async () => {
     const a = await official("Old Name", "OH");
     const s = await start(a, bank, 5);

@@ -192,6 +192,7 @@ service : {
       answerKeys: nat;
       droppedPushes: nat;
       pendingPushes: nat;
+      prunedSessions: nat;
       sessionCount: nat;
     }) query;
   setAdmin: (p: principal) -> (Result_4);
