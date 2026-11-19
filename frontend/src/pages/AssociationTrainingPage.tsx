@@ -5,11 +5,13 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useCanisterQuery } from "../hooks/useCanisterQuery";
 import LoadError from "../components/LoadError";
-import { associationService, type AssociationRec, type TrainingRequirement } from "../services/association";
+import { associationService, SetRequirementFailed, type AssociationRec, type TrainingRequirement } from "../services/association";
 import { examService } from "../services/exam";
 import { userService } from "../services/user";
 import { toCsv } from "../lib/csv";
-import { buildEntries, formatDuration, hours, requirementStatus, seasonWindow, totalIn } from "../lib/transcript";
+import {
+  buildEntries, formatDuration, hours, parseRequirementInput, requirementErrorKey, requirementStatus, seasonWindow, totalIn,
+} from "../lib/transcript";
 
 const DEFAULT_SEASON_START = 8;
 
@@ -77,15 +79,15 @@ export default function AssociationTrainingPage() {
   }
 
   async function save() {
-    const h = Number(hoursInput || "0");
-    if (!Number.isInteger(h) || h < 0) { setSaveError(t("assocTraining.invalidHours")); return; }
+    const parsed = parseRequirementInput(hoursInput, monthInput);
+    if ("error" in parsed) { setSaveError(t(parsed.error)); return; }
     setSaving(true);
     setSaveError(null);
     try {
-      await associationService.setTrainingRequirement(assoc.id, h, monthInput);
+      await associationService.setTrainingRequirement(assoc.id, parsed.ok);
       q.reload();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : t("assocTraining.saveFailed"));
+      setSaveError(e instanceof SetRequirementFailed ? t(requirementErrorKey(e.reason)) : t("assocTraining.saveFailed"));
     } finally {
       setSaving(false);
     }

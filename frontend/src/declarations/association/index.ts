@@ -32,8 +32,14 @@ export interface Completion {
   'score' : bigint,
   'assignmentId' : string,
 }
-export type Result = { 'ok' : TrainingRequirement } |
-  { 'err' : string };
+export type GetRequirementError = { 'notAuthorized' : null } |
+  { 'associationNotFound' : null };
+export interface RequirementInput {
+  'seasonStartMonth' : bigint,
+  'hoursPerSeason' : bigint,
+}
+export type Result = { 'ok' : [] | [TrainingRequirement] } |
+  { 'err' : SetRequirementError };
 export type Result_1 = { 'ok' : Completion } |
   { 'err' : string };
 export type Result_2 = { 'ok' : null } |
@@ -41,7 +47,7 @@ export type Result_2 = { 'ok' : null } |
 export type Result_3 = { 'ok' : AssociationRec } |
   { 'err' : string };
 export type Result_4 = { 'ok' : [] | [TrainingRequirement] } |
-  { 'err' : string };
+  { 'err' : GetRequirementError };
 export type Result_5 = { 'ok' : Array<Principal> } |
   { 'err' : string };
 export type Result_6 = { 'ok' : Array<Assignment> } |
@@ -50,6 +56,10 @@ export type Result_7 = { 'ok' : Array<Completion> } |
   { 'err' : string };
 export type Result_8 = { 'ok' : Assignment } |
   { 'err' : string };
+export type SetRequirementError = { 'associationNotFound' : null } |
+  { 'notCoordinator' : null } |
+  { 'invalidHours' : null } |
+  { 'invalidSeasonStartMonth' : null };
 export interface TrainingRequirement {
   'seasonStartMonth' : bigint,
   'updatedAt' : bigint,
@@ -94,7 +104,14 @@ export interface _SERVICE {
    * / counts once; retaking replaces the earlier completion.
    */
   'recordGradedCompletion' : ActorMethod<[string, string], Result_1>,
-  'setTrainingRequirement' : ActorMethod<[string, bigint, bigint], Result>,
+  /**
+   * / Sets the association's requirement, or clears it with null.
+   * / Coordinator only.
+   */
+  'setTrainingRequirement' : ActorMethod<
+    [string, [] | [RequirementInput]],
+    Result
+  >,
 }
 export const Assignment = IDL.Record({
   'id' : IDL.Text,
@@ -143,14 +160,28 @@ export const TrainingRequirement = IDL.Record({
   'updatedAt' : IDL.Int,
   'hoursPerSeason' : IDL.Nat,
 });
+export const GetRequirementError = IDL.Variant({
+  'notAuthorized' : IDL.Null,
+  'associationNotFound' : IDL.Null,
+});
 export const Result_4 = IDL.Variant({
   'ok' : IDL.Opt(TrainingRequirement),
-  'err' : IDL.Text,
+  'err' : GetRequirementError,
 });
 export const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+export const RequirementInput = IDL.Record({
+  'seasonStartMonth' : IDL.Nat,
+  'hoursPerSeason' : IDL.Nat,
+});
+export const SetRequirementError = IDL.Variant({
+  'associationNotFound' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+  'invalidHours' : IDL.Null,
+  'invalidSeasonStartMonth' : IDL.Null,
+});
 export const Result = IDL.Variant({
-  'ok' : TrainingRequirement,
-  'err' : IDL.Text,
+  'ok' : IDL.Opt(TrainingRequirement),
+  'err' : SetRequirementError,
 });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
@@ -200,7 +231,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
   'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'setTrainingRequirement' : IDL.Func(
-      [IDL.Text, IDL.Nat, IDL.Nat],
+      [IDL.Text, IDL.Opt(RequirementInput)],
       [Result],
       [],
     ),
@@ -253,12 +284,29 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'updatedAt' : IDL.Int,
     'hoursPerSeason' : IDL.Nat,
   });
+  const GetRequirementError = IDL.Variant({
+    'notAuthorized' : IDL.Null,
+    'associationNotFound' : IDL.Null,
+  });
   const Result_4 = IDL.Variant({
     'ok' : IDL.Opt(TrainingRequirement),
-    'err' : IDL.Text,
+    'err' : GetRequirementError,
   });
   const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
-  const Result = IDL.Variant({ 'ok' : TrainingRequirement, 'err' : IDL.Text });
+  const RequirementInput = IDL.Record({
+    'seasonStartMonth' : IDL.Nat,
+    'hoursPerSeason' : IDL.Nat,
+  });
+  const SetRequirementError = IDL.Variant({
+    'associationNotFound' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+    'invalidHours' : IDL.Null,
+    'invalidSeasonStartMonth' : IDL.Null,
+  });
+  const Result = IDL.Variant({
+    'ok' : IDL.Opt(TrainingRequirement),
+    'err' : SetRequirementError,
+  });
   
   return IDL.Service({
     'createAssignment' : IDL.Func(
@@ -311,7 +359,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
     'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
     'setTrainingRequirement' : IDL.Func(
-        [IDL.Text, IDL.Nat, IDL.Nat],
+        [IDL.Text, IDL.Opt(RequirementInput)],
         [Result],
         [],
       ),

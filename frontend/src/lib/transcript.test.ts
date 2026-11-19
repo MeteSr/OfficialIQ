@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildEntries, formatDuration, monthlyTotals, requirementStatus, seasonWindow, totalIn } from "./transcript";
+import {
+  buildEntries, formatDuration, monthlyTotals, parseRequirementInput, requirementErrorKey, requirementStatus, seasonWindow, totalIn,
+} from "./transcript";
 
 const ms = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12).getTime();
 const ns = (t: number) => BigInt(t) * 1_000_000n;
@@ -53,5 +55,30 @@ describe("transcript", () => {
   it("formats durations", () => {
     expect(formatDuration(45 * 60)).toBe("45m");
     expect(formatDuration(3 * 3600 + 25 * 60 + 59)).toBe("3h 25m");
+  });
+});
+
+describe("parseRequirementInput", () => {
+  it("turns hours and a month into a requirement", () => {
+    expect(parseRequirementInput("12", 8)).toEqual({ ok: { hoursPerSeason: 12, seasonStartMonth: 8 } });
+  });
+  it("treats blank or 0 hours as clearing it", () => {
+    expect(parseRequirementInput("", 8)).toEqual({ ok: null });
+    expect(parseRequirementInput(" 0 ", 8)).toEqual({ ok: null });
+  });
+  it("rejects fractions, negatives and text", () => {
+    for (const h of ["1.5", "-3", "ten", "1e3"]) expect(parseRequirementInput(h, 8)).toEqual({ error: "assocTraining.invalidHours" });
+  });
+  it("rejects more hours than the canister allows", () => {
+    expect(parseRequirementInput("2001", 8)).toEqual({ error: "assocTraining.invalidHours" });
+  });
+});
+
+describe("requirementErrorKey", () => {
+  it("maps each canister error to a message key", () => {
+    expect(requirementErrorKey({ notCoordinator: null })).toBe("assocTraining.errNotCoordinator");
+    expect(requirementErrorKey({ associationNotFound: null })).toBe("assocAnalytics.notFound");
+    expect(requirementErrorKey({ invalidHours: null })).toBe("assocTraining.invalidHours");
+    expect(requirementErrorKey({ invalidSeasonStartMonth: null })).toBe("assocTraining.errInvalidMonth");
   });
 });

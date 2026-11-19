@@ -162,7 +162,7 @@ export const userService = {
   async getMemberTrainingActivity(p: any): Promise<TrainingActivity> {
     if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
     const res = await actor().getMemberTrainingActivity(p);
-    if ("err" in res) throw new Error(res.err);
+    if ("err" in res) throw new Error("Not authorized");
     return res.ok;
   },
 

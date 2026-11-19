@@ -85,7 +85,7 @@ export type Result_3 = { 'ok' : Array<ClientError> } |
 export type Result_4 = { 'ok' : [] | [PushSubscription] } |
   { 'err' : string };
 export type Result_5 = { 'ok' : TrainingActivity } |
-  { 'err' : string };
+  { 'err' : TrainingAccessError };
 export type Result_6 = { 'ok' : UpcomingGame } |
   { 'err' : string };
 export type Role = { 'Assessor' : null } |
@@ -94,6 +94,7 @@ export type Role = { 'Assessor' : null } |
   { 'Coordinator' : null };
 export interface StudyDay { 'day' : bigint, 'seconds' : bigint }
 export interface StudyPace { 'articlesPerWeek' : bigint, 'startDate' : bigint }
+export type TrainingAccessError = { 'notAuthorized' : null };
 export interface TrainingActivity {
   'weeklyQuizzes' : Array<WeeklyQuizResult>,
   'studyDays' : Array<StudyDay>,
@@ -257,9 +258,10 @@ export const TrainingActivity = IDL.Record({
   'studyDays' : IDL.Vec(StudyDay),
   'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
 });
+export const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
 export const Result_5 = IDL.Variant({
   'ok' : TrainingActivity,
-  'err' : IDL.Text,
+  'err' : TrainingAccessError,
 });
 export const LinkedAccount = IDL.Record({
   'linkedAt' : IDL.Int,
@@ -473,7 +475,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'studyDays' : IDL.Vec(StudyDay),
     'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
   });
-  const Result_5 = IDL.Variant({ 'ok' : TrainingActivity, 'err' : IDL.Text });
+  const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
+  const Result_5 = IDL.Variant({
+    'ok' : TrainingActivity,
+    'err' : TrainingAccessError,
+  });
   const LinkedAccount = IDL.Record({
     'linkedAt' : IDL.Int,
     'provider' : IDL.Text,

@@ -4,6 +4,13 @@ type TrainingRequirement =
    seasonStartMonth: nat;
    updatedAt: int;
  };
+type SetRequirementError = 
+ variant {
+   associationNotFound;
+   invalidHours;
+   invalidSeasonStartMonth;
+   notCoordinator;
+ };
 type Result_8 = 
  variant {
    err: text;
@@ -26,7 +33,7 @@ type Result_5 =
  };
 type Result_4 = 
  variant {
-   err: text;
+   err: GetRequirementError;
    ok: opt TrainingRequirement;
  };
 type Result_3 = 
@@ -46,8 +53,18 @@ type Result_1 =
  };
 type Result = 
  variant {
-   err: text;
-   ok: TrainingRequirement;
+   err: SetRequirementError;
+   ok: opt TrainingRequirement;
+ };
+type RequirementInput = 
+ record {
+   hoursPerSeason: nat;
+   seasonStartMonth: nat;
+ };
+type GetRequirementError = 
+ variant {
+   associationNotFound;
+   notAuthorized;
  };
 type Completion = 
  record {
@@ -108,6 +125,8 @@ service : {
   /// the exam canister, taken on the assignment's articles. Each session
   /// counts once; retaking replaces the earlier completion.
   recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result_1);
-  setTrainingRequirement: (associationId: text, hoursPerSeason: nat,
-   seasonStartMonth: nat) -> (Result);
+  /// Sets the association's requirement, or clears it with null.
+  /// Coordinator only.
+  setTrainingRequirement: (associationId: text, input:
+   opt RequirementInput) -> (Result);
 }

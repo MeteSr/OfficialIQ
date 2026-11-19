@@ -1141,7 +1141,7 @@
     "save": "Save requirement",
     "saving": "Saving…",
     "saveFailed": "Couldn't save the requirement.",
-    "invalidHours": "Enter a whole number of hours.",
+    "invalidHours": "Enter a whole number of hours, up to 2000.",
     "metSummary_one": "{{met}} of {{count}} member meets the requirement",
     "metSummary_other": "{{met}} of {{count}} members meet the requirement",
     "unavailable": "Unavailable",
@@ -1149,6 +1149,8 @@
     "csvRequired": "Required hours",
     "csvMeets": "Meets requirement",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "errNotCoordinator": "Only the association's coordinator can change the requirement.",
+    "errInvalidMonth": "Choose a month for the season to start."
   }
 }

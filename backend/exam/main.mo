@@ -15,6 +15,7 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
 import Types "../lib/Types";
+import Training "../lib/Training";
 import Stored "Stored";
 
 persistent actor Exam {
@@ -264,10 +265,9 @@ persistent actor Exam {
   // ─── Training transcript (issue #67) ──────────────────────────────────────
   //
   // Training time an association can check against its hour requirement.
-  // Only sessions graded here count, and each is credited the time its
-  // answers took (already capped per question at secPerQ when recorded),
-  // never more than the wall-clock time between starting and finishing it.
-  // So a session's time can't be inflated from the browser.
+  // Only sessions graded here count, credited by Training.creditedSec
+  // (answer time, never more than start-to-finish wall-clock time), so a
+  // session's time can't be inflated from the browser.
 
   public type TrainingSession = {
     id            : Text;
@@ -282,26 +282,22 @@ persistent actor Exam {
     finishedAt    : Int;
   };
 
-  func creditedSecOf(s : Session, finishedAt : Int) : Nat {
-    var answerSec = 0;
-    for (a in s.answers.values()) answerSec += a.elapsedSec;
-    let wallSec = Int.abs(Int.max(0, finishedAt - s.startedAt)) / 1_000_000_000;
-    Nat.min(answerSec, wallSec)
-  };
+  public type TrainingAccessError = { #notAuthorized };
 
   func trainingOf(p : Principal) : [TrainingSession] {
     let out = List.empty<TrainingSession>();
     for (s in Index.rows(sessionsByOwner, Principal.compare, p, sessions).values()) {
       switch (resultOf(s)) {
-        case (?r) List.add(out, {
+        case (?r) out.add({
           id = r.id; mode = r.mode; sportId = r.sportId; questionCount = r.questionCount;
           answered = r.answered; correct = r.correct; score = r.score;
-          creditedSec = creditedSecOf(s, r.finishedAt); startedAt = s.startedAt; finishedAt = r.finishedAt;
+          creditedSec = Training.creditedSec(s.answers.map(func a = a.elapsedSec), s.startedAt, r.finishedAt);
+          startedAt = s.startedAt; finishedAt = r.finishedAt;
         });
         case null {};
       };
     };
-    List.toArray(out)
+    out.toArray()
   };
 
   /// The caller's finished graded sessions with the training time each is
@@ -312,13 +308,13 @@ persistent actor Exam {
 
   /// A member's training sessions, for the coordinator of an association
   /// they belong to (same check as getMemberExams).
-  public shared composite query ({ caller }) func getMemberTraining(p : Principal) : async Result.Result<[TrainingSession], Text> {
+  public shared composite query ({ caller }) func getMemberTraining(p : Principal) : async Result.Result<[TrainingSession], TrainingAccessError> {
     if (caller != p) {
       let allowed = switch (ASSOCIATION_ID) {
-        case (?id) { await (actor (Principal.toText(id)) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
         case null false;
       };
-      if (not allowed) return #err("Not authorized");
+      if (not allowed) return #err(#notAuthorized);
     };
     #ok(trainingOf(p))
   };

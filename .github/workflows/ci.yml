@@ -68,6 +68,10 @@ jobs:
       - name: Type-check canisters
         run: mops check --no-lint
 
+      # Pure Motoko logic in backend/lib (test/*.test.mo).
+      - name: Motoko unit tests
+        run: mops test
+
       # backend/*/*.did and frontend/src/declarations are generated from the
       # canisters; fail when someone changed an interface without
       # regenerating them (the diff in the log is the fix).

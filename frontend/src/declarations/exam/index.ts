@@ -124,11 +124,12 @@ export type Result_3 = { 'ok' : GradedStart } |
 export type Result_4 = { 'ok' : null } |
   { 'err' : string };
 export type Result_5 = { 'ok' : Array<TrainingSession> } |
-  { 'err' : string };
+  { 'err' : TrainingAccessError };
 export type Result_6 = { 'ok' : string } |
   { 'err' : string };
 export type Result_7 = { 'ok' : AnswerFeedback } |
   { 'err' : string };
+export type TrainingAccessError = { 'notAuthorized' : null };
 export interface TrainingSession {
   'id' : string,
   'startedAt' : bigint,
@@ -292,9 +293,10 @@ export const TrainingSession = IDL.Record({
   'finishedAt' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
+export const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
 export const Result_5 = IDL.Variant({
   'ok' : IDL.Vec(TrainingSession),
-  'err' : IDL.Text,
+  'err' : TrainingAccessError,
 });
 export const GradedResult = IDL.Record({
   'id' : IDL.Text,
@@ -485,9 +487,10 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'finishedAt' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
+  const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
   const Result_5 = IDL.Variant({
     'ok' : IDL.Vec(TrainingSession),
-    'err' : IDL.Text,
+    'err' : TrainingAccessError,
   });
   const GradedResult = IDL.Record({
     'id' : IDL.Text,

@@ -1,6 +1,7 @@
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/association";
+import type { Requirement, SetRequirementError } from "../lib/transcript";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,13 @@ export type Completion = {
 };
 
 export type TrainingRequirement = { hoursPerSeason: bigint; seasonStartMonth: bigint; updatedAt: bigint };
+
+/** A rejected setTrainingRequirement; map `reason` with requirementErrorKey. */
+export class SetRequirementFailed extends Error {
+  constructor(public readonly reason: SetRequirementError) {
+    super(Object.keys(reason)[0]);
+  }
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -112,18 +120,20 @@ export const associationService = {
     return actor().getMyCompletions();
   },
 
-  /** Coordinator only. 0 hours clears the requirement. */
-  async setTrainingRequirement(associationId: string, hoursPerSeason: number, seasonStartMonth: number): Promise<TrainingRequirement> {
+  /** Coordinator only. null clears the requirement. Throws SetRequirementFailed. */
+  async setTrainingRequirement(associationId: string, req: Requirement | null): Promise<TrainingRequirement | null> {
     if (!CANISTER_ID) throw new Error("Association canister not deployed");
-    const res = await actor().setTrainingRequirement(associationId, BigInt(hoursPerSeason), BigInt(seasonStartMonth));
-    if ("err" in res) throw new Error(res.err);
-    return res.ok;
+    const input: [] | [{ hoursPerSeason: bigint; seasonStartMonth: bigint }] =
+      req ? [{ hoursPerSeason: BigInt(req.hoursPerSeason), seasonStartMonth: BigInt(req.seasonStartMonth) }] : [];
+    const res = await actor().setTrainingRequirement(associationId, input);
+    if ("err" in res) throw new SetRequirementFailed(res.err);
+    return res.ok.length ? res.ok[0] : null;
   },
 
   async getTrainingRequirement(associationId: string): Promise<TrainingRequirement | null> {
     if (!CANISTER_ID) return null;
     const res = await actor().getTrainingRequirement(associationId);
-    if ("err" in res) throw new Error(res.err);
+    if ("err" in res) throw new Error("notAuthorized" in res.err ? "Not authorized" : "Association not found");
     return res.ok.length ? res.ok[0] : null;
   },
 

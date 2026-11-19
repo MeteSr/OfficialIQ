@@ -141,7 +141,7 @@ export const examService = {
   async getMemberTraining(p: any): Promise<TrainingSession[]> {
     if (!CANISTER_ID) return [];
     const res = await actor().getMemberTraining(p);
-    if ("err" in res) throw new Error(res.err);
+    if ("err" in res) throw new Error("Not authorized");
     return res.ok;
   },
 

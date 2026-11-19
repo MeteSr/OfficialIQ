@@ -1141,7 +1141,7 @@
     "save": "Guardar requisito",
     "saving": "Guardando…",
     "saveFailed": "No se pudo guardar el requisito.",
-    "invalidHours": "Ingresa un número entero de horas.",
+    "invalidHours": "Ingresa un número entero de horas, hasta 2000.",
     "metSummary_one": "{{met}} de {{count}} miembro cumple el requisito",
     "metSummary_other": "{{met}} de {{count}} miembros cumplen el requisito",
     "unavailable": "No disponible",
@@ -1149,6 +1149,8 @@
     "csvRequired": "Horas requeridas",
     "csvMeets": "Cumple el requisito",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "errNotCoordinator": "Solo el coordinador de la asociación puede cambiar el requisito.",
+    "errInvalidMonth": "Elige el mes en que empieza la temporada."
   }
 }

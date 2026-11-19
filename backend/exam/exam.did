@@ -11,6 +11,7 @@ type TrainingSession =
    sportId: text;
    startedAt: int;
  };
+type TrainingAccessError = variant {notAuthorized;};
 type Result_7 = 
  variant {
    err: text;
@@ -23,7 +24,7 @@ type Result_6 =
  };
 type Result_5 = 
  variant {
-   err: text;
+   err: TrainingAccessError;
    ok: vec TrainingSession;
  };
 type Result_4 = 

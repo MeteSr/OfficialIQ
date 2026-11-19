@@ -35,6 +35,7 @@ type TrainingActivity =
    studyDays: vec StudyDay;
    weeklyQuizzes: vec WeeklyQuizResult;
  };
+type TrainingAccessError = variant {notAuthorized;};
 type StudyPace = 
  record {
    articlesPerWeek: nat;
@@ -59,7 +60,7 @@ type Result_6 =
  };
 type Result_5 = 
  variant {
-   err: text;
+   err: TrainingAccessError;
    ok: TrainingActivity;
  };
 type Result_4 = 

@@ -117,3 +117,33 @@ export function formatDuration(sec: number): string {
 export function hours(sec: number): string {
   return (sec / 3600).toFixed(1);
 }
+
+/** Mirrors Training.MAX_HOURS_PER_SEASON in backend/lib/Training.mo. */
+export const MAX_HOURS_PER_SEASON = 2000;
+
+/**
+ * The coordinator's form input as a requirement to save: blank or 0 hours
+ * clears it (null), anything but a whole number in range is an error key.
+ */
+export function parseRequirementInput(
+  hoursText: string, seasonStartMonth: number,
+): { ok: Requirement | null } | { error: string } {
+  const text = hoursText.trim();
+  if (text === "" || text === "0") return { ok: null };
+  if (!/^\d+$/.test(text)) return { error: "assocTraining.invalidHours" };
+  const hoursPerSeason = Number(text);
+  if (hoursPerSeason > MAX_HOURS_PER_SEASON) return { error: "assocTraining.invalidHours" };
+  return { ok: { hoursPerSeason, seasonStartMonth } };
+}
+
+export type SetRequirementError =
+  | { associationNotFound: null } | { notCoordinator: null }
+  | { invalidHours: null } | { invalidSeasonStartMonth: null };
+
+/** The message key for an error from association.setTrainingRequirement. */
+export function requirementErrorKey(e: SetRequirementError): string {
+  if ("associationNotFound" in e) return "assocAnalytics.notFound";
+  if ("notCoordinator" in e) return "assocTraining.errNotCoordinator";
+  if ("invalidHours" in e) return "assocTraining.invalidHours";
+  return "assocTraining.errInvalidMonth";
+}
