@@ -14,6 +14,7 @@ type WeeklyQuizResult =
 type UpcomingGameInput = 
  record {
    gameDate: int;
+   hasStartTime: opt bool;
    levelId: text;
    notes: text;
    opponent: text;
@@ -41,10 +42,15 @@ type Role =
    Coordinator;
    Official;
  };
-type Result_4 = 
+type Result_5 = 
  variant {
    err: text;
    ok: UpcomingGame;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: vec GameDayPush;
  };
 type Result_3 = 
  variant {
@@ -121,6 +127,11 @@ type LinkedAccount =
    linkedAt: int;
    provider: text;
  };
+type GameDayPush = 
+ record {
+   game: UpcomingGame;
+   official: principal;
+ };
 type ArticleProgress = 
  record {
    articleId: text;
@@ -129,7 +140,8 @@ type ArticleProgress =
    timesStudied: nat;
  };
 service : {
-  addUpcomingGame: (input: UpcomingGameInput) -> (Result_4);
+  ackGameDayPush: (gameId: text) -> (Result_1);
+  addUpcomingGame: (input: UpcomingGameInput) -> (Result_5);
   becomeCoordinator: () -> (Result);
   createProfile: (req: ProfileUpdate) -> (Result);
   getMonthlyQuizHistory: () -> (vec MonthlyQuizResult) query;
@@ -139,6 +151,9 @@ service : {
   getMyPushSubscription: () -> (opt PushSubscription) query;
   getMyStudyPace: () -> (opt StudyPace) query;
   getMyUpcomingGames: () -> (vec UpcomingGame) query;
+  /// Games starting within the next two hours whose official has push set up
+  /// and hasn't been pushed for them yet. Push relay or admin only.
+  getPendingGameDayPushes: () -> (Result_4) query;
   getProfile: (p: principal) -> (opt Profile) query;
   getPublicProfile: (p: principal) -> (opt PublicProfile) query;
   getSubscriptionFor: (p: principal) -> (Result_3) query;

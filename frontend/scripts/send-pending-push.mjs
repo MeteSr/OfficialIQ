@@ -1,7 +1,9 @@
 // Polls ranking.getPendingPushEvents() for streak milestones (7/30/100 days)
-// crossed since the last run and sends a real Web Push to each subscribed
-// official, via their stored subscription in the user canister. Acks each
-// event on successful send so it isn't resent next run.
+// crossed since the last run, and user.getPendingGameDayPushes() for games
+// starting within two hours (the game-day refresher, #63), and sends a real
+// Web Push to each subscribed official, via their stored subscription in the
+// user canister. Acks each event on successful send so it isn't resent next
+// run.
 //
 // Motoko/the IC has no usable ECDSA-P256 signing primitive for VAPID JWTs
 // (threshold ECDSA is secp256k1, a different curve), so the actual signed,
@@ -52,8 +54,14 @@ const userIdlFactory = ({ IDL: I }) => {
   });
   const ResultUnit = I.Variant({ ok: I.Null, err: I.Text });
   const ResultSub = I.Variant({ ok: I.Opt(PushSubscription), err: I.Text });
+  const UpcomingGame = I.Record({
+    id: I.Text, opponent: I.Text, gameDate: I.Int, sportId: I.Text, levelId: I.Text, notes: I.Text, createdAt: I.Int,
+  });
+  const ResultGameDay = I.Variant({ ok: I.Vec(I.Record({ official: I.Principal, game: UpcomingGame })), err: I.Text });
   return I.Service({
     getSubscriptionFor: I.Func([I.Principal], [ResultSub], ["query"]),
+    getPendingGameDayPushes: I.Func([], [ResultGameDay], ["query"]),
+    ackGameDayPush: I.Func([I.Text], [ResultUnit], []),
   });
 };
 
@@ -125,6 +133,41 @@ async function main() {
         }
       } else if ("Native" in sub) {
         console.log(`  · ${memberPrincipal.toText()} — ${milestone}-day milestone: native token registered but sending isn't wired yet (needs a Firebase/APNs project — see issue #31)`);
+        skipped++;
+      }
+    }
+  }
+
+  // Game-day refreshers: one push per game, about two hours before it.
+  // The canister only lists officials who have a subscription.
+  const gameDayRes = await user.getPendingGameDayPushes();
+  if ("err" in gameDayRes) {
+    console.error(`  ✗ getPendingGameDayPushes: ${gameDayRes.err}`);
+    errors++;
+  } else {
+    for (const { official, game } of gameDayRes.ok) {
+      const subRes = await user.getSubscriptionFor(official);
+      if ("err" in subRes || subRes.ok.length === 0) { skipped++; continue; }
+      const sub = subRes.ok[0];
+      if ("WebPush" in sub) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
+            JSON.stringify({
+              title: "Game in 2 hours",
+              body: `5-minute refresher before ${game.opponent}`,
+              url: `/refresher/${game.id}`,
+            }),
+          );
+          await user.ackGameDayPush(game.id);
+          console.log(`  ✓ ${official.toText()} — game-day refresher for ${game.id}`);
+          sent++;
+        } catch (err) {
+          console.error(`  ✗ ${official.toText()} — game-day refresher for ${game.id}: ${err.statusCode ?? ""} ${err.message ?? err}`);
+          errors++;
+        }
+      } else {
+        // Same as streaks: native delivery isn't wired yet (issue #31).
         skipped++;
       }
     }

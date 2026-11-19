@@ -6,14 +6,16 @@ import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
 import { userService, type LinkedAccount, type UpcomingGame } from "../services/user";
 import { contentService, type CasebookPlay } from "../services/content";
+import { challengeService, type Crew } from "../services/challenge";
+import { CURRENT_SEASON, gameTimeMs } from "../lib/gameDay";
+import { createCrewForGame, crewForGame } from "../lib/crew";
 
-const CURRENT_SEASON = "2025-26";
 const PROVIDERS = ["ArbiterSports", "RefTown"];
 
 // gameDate comes back from the canister in nanoseconds (matches Time.now()
 // throughout this app), not the JS-native milliseconds.
-function formatDate(gameDateNs: number): string {
-  return new Date(gameDateNs / 1e6).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+function formatDate(gameDateNs: bigint): string {
+  return new Date(gameTimeMs(gameDateNs)).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 // ArbiterSports/RefTown have no public API as of this writing (partnership
@@ -40,6 +42,9 @@ export default function SchedulePage() {
   const [gameDate, setGameDate] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [crews, setCrews] = useState<Crew[]>([]);
+  const [crewBusy, setCrewBusy] = useState<string | null>(null);
+  const [crewError, setCrewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -52,6 +57,10 @@ export default function SchedulePage() {
       const [acc, gm] = await Promise.all([userService.getMyLinkedAccounts(), userService.getMyUpcomingGames()]);
       setAccounts(acc);
       setGames(gm);
+      const now = Date.now();
+      challengeService.getMyCrews()
+        .then(cs => setCrews(cs.filter(c => gameTimeMs(c.expiresAt) > now).sort((a, b) => Number(a.gameDate - b.gameDate))))
+        .catch(() => setCrews([]));
 
       const poes = await contentService.listPointsOfEmphasis(CURRENT_SEASON).catch(() => []);
       const linkedArticle = poes.flatMap(p => p.linkedArticleIds)[0];
@@ -103,12 +112,29 @@ export default function SchedulePage() {
     if (!opponent.trim() || !gameDate) return;
     setSaving(true);
     try {
+      // datetime-local is the official's local time, which the refresher
+      // push is timed from (two hours before).
       const ms = new Date(gameDate).getTime();
-      await userService.addUpcomingGame({ opponent: opponent.trim(), gameDate: ms, sportId, levelId, notes: notes.trim() });
+      await userService.addUpcomingGame({ opponent: opponent.trim(), gameDate: ms, sportId, levelId, notes: notes.trim(), hasStartTime: true });
       setOpponent(""); setGameDate(""); setNotes("");
       load();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function openCrew(g: UpcomingGame) {
+    const existing = crewForGame(crews, g);
+    if (existing) { navigate(`/crew/${existing.id}`); return; }
+    setCrewBusy(g.id);
+    setCrewError(null);
+    try {
+      const crew = await createCrewForGame({ opponent: g.opponent, gameDateMs: gameTimeMs(g.gameDate), sportId: g.sportId || sportId, levelId: g.levelId || levelId });
+      navigate(`/crew/${crew.id}`);
+    } catch (e: any) {
+      setCrewError(e?.message ?? t("common.error"));
+    } finally {
+      setCrewBusy(null);
     }
   }
 
@@ -174,11 +200,19 @@ export default function SchedulePage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{g.opponent}</div>
-                  <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{formatDate(Number(g.gameDate))}</div>
+                  <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{formatDate(g.gameDate)}</div>
                   {g.notes && <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{g.notes}</div>}
                 </div>
                 <button onClick={() => handleRemoveGame(g.id)} style={{ padding: "4px 10px", background: T.bg, borderRadius: 6, fontSize: 11, color: T.muted }}>
                   {t("schedule.remove")}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={() => navigate(`/refresher/${g.id}`)} style={{ flex: 1, padding: "9px 0", background: T.red, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                  {t("schedule.refresher")}
+                </button>
+                <button onClick={() => openCrew(g)} disabled={crewBusy !== null} style={{ flex: 1, padding: "9px 0", background: T.navy, color: T.white, borderRadius: 6, fontSize: 12, fontWeight: 700, opacity: crewBusy === g.id ? 0.6 : 1 }}>
+                  {crewBusy === g.id ? t("schedule.openingCrew") : crewForGame(crews, g) ? t("schedule.openCrew") : t("schedule.crewPregame")}
                 </button>
               </div>
               {recommendedPlays.length > 0 && (
@@ -196,9 +230,24 @@ export default function SchedulePage() {
             </div>
           ))}
 
+          {crewError && <div role="alert" style={{ fontSize: 12, color: T.wrong, marginBottom: 10 }}>{crewError}</div>}
+
+          {crews.length > 0 && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, margin: "16px 0 8px" }}>{t("schedule.myCrews")}</div>
+              {crews.map(c => (
+                <button key={c.id} onClick={() => navigate(`/crew/${c.id}`)} style={{ width: "100%", textAlign: "left", padding: "10px 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 8, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ fontWeight: 700 }}>{c.gameLabel}</span>
+                  <span style={{ color: T.muted }}>{formatDate(c.gameDate)} · {t("schedule.crewCount", { count: c.members.length })}</span>
+                </button>
+              ))}
+            </>
+          )}
+
           {/* Add game form */}
           <div style={{ padding: 14, background: T.bg, borderRadius: 10, marginTop: 4 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t("schedule.addGame")}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{t("schedule.addGame")}</div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>{t("schedule.refresherHint")}</div>
             <input
               value={opponent}
               onChange={e => setOpponent(e.target.value)}
@@ -206,7 +255,7 @@ export default function SchedulePage() {
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 8 }}
             />
             <input
-              type="date"
+              type="datetime-local"
               value={gameDate}
               onChange={e => setGameDate(e.target.value)}
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, marginBottom: 8 }}

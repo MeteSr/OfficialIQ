@@ -28,6 +28,35 @@ export type Challenge = {
   expiresAt:   bigint;
 };
 
+// Crew pregame (#64): officials on the same game play one question set and
+// see each other's misses.
+export type CrewResult = {
+  principal:  import("@icp-sdk/core/principal").Principal;
+  score:      bigint;
+  missed:     string[];
+  finishedAt: bigint;
+};
+
+export type Crew = {
+  id:          string;
+  code:        string;
+  creator:     import("@icp-sdk/core/principal").Principal;
+  gameLabel:   string;
+  gameDate:    bigint; // nanoseconds
+  sportId:     string;
+  levelId:     string;
+  questionIds: string[];
+  members:     import("@icp-sdk/core/principal").Principal[];
+  results:     CrewResult[];
+  createdAt:   bigint;
+  expiresAt:   bigint;
+};
+
+export type CrewPreview = {
+  id: string; gameLabel: string; gameDate: bigint; sportId: string; levelId: string;
+  memberCount: bigint; questionCount: bigint; expiresAt: bigint;
+};
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 const CANISTER_ID = canisterId("challenge");
@@ -95,5 +124,54 @@ export const challengeService = {
     if (!CANISTER_ID) return MOCK_CHALLENGES.find(c => c.id === id) ?? null;
     const res = await actor().getChallenge(id);
     return res.length ? res[0] : null;
+  },
+
+  // ─── Crews ──────────────────────────────────────────────────────────────
+
+  /** gameDateMs is JS milliseconds. */
+  async createCrew(input: { gameLabel: string; gameDateMs: number; sportId: string; levelId: string; questionIds: string[] }): Promise<Crew> {
+    if (!CANISTER_ID) throw new Error("Canister not deployed");
+    const res = await actor().createCrew({
+      gameLabel: input.gameLabel, gameDate: BigInt(Math.round(input.gameDateMs)) * 1_000_000n,
+      sportId: input.sportId, levelId: input.levelId, questionIds: input.questionIds,
+    });
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async getCrewPreview(code: string): Promise<CrewPreview | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getCrewPreview(code);
+    return res.length ? res[0] : null;
+  },
+
+  async joinCrew(code: string): Promise<Crew> {
+    if (!CANISTER_ID) throw new Error("Canister not deployed");
+    const res = await actor().joinCrew(code);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  /** Members only; null when the crew doesn't exist or the caller isn't in it. */
+  async getCrew(id: string): Promise<Crew | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getCrew(id);
+    return res.length ? res[0] : null;
+  },
+
+  async getMyCrews(): Promise<Crew[]> {
+    if (!CANISTER_ID) return [];
+    return actor().getMyCrews();
+  },
+
+  async submitCrewResult(id: string, sessionId: string): Promise<Crew> {
+    const res = await actor().submitCrewResult(id, sessionId);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async leaveCrew(id: string): Promise<void> {
+    const res = await actor().leaveCrew(id);
+    if ("err" in res) throw new Error(res.err);
   },
 };

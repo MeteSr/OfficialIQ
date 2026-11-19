@@ -44,6 +44,9 @@ const ScenarioGeneratorPage = lazy(() => import("./pages/ScenarioGeneratorPage")
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
+const RefresherPage = lazy(() => import("./pages/RefresherPage"));
+const CrewPage = lazy(() => import("./pages/CrewPage"));
+const CrewJoinPage = lazy(() => import("./pages/CrewPage").then(m => ({ default: m.CrewJoinPage })));
 
 // The landing page is the one route that isn't part of the mobile app
 // shell below — a signed-out visitor at "/" should see a real, full-width
@@ -98,6 +101,9 @@ function AppShell() {
           <Route path="/ai-drills" element={<AiDrillsPage />} />
           <Route path="/ai-scenarios" element={<ScenarioGeneratorPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
+          <Route path="/refresher/:gameId" element={<RefresherPage />} />
+          <Route path="/crew/join/:code" element={<CrewJoinPage />} />
+          <Route path="/crew/:id" element={<CrewPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
           <Route path="/quiz/share/:token" element={<QuizPage />} />

@@ -585,6 +585,21 @@ persistent actor Exam {
     resultOf(s)
   };
 
+  /// The questions a finished graded session got wrong or left unanswered,
+  /// for the session's owner and the sibling canisters (crew pregame reads
+  /// it so the crew's misses come from grading here, not the browser).
+  public shared query ({ caller }) func gradedMisses(sessionId : Text) : async ?[Text] {
+    let s = switch (Map.get(sessions, Text.compare, sessionId)) { case (?s) s; case null return null };
+    if (caller != s.owner and not isSiblingCanister(caller)) return null;
+    if (resultOf(s) == null) return null;
+    ?Array.filter<Text>(s.questionIds, func(qid) {
+      switch (Array.find<AnswerRecord>(s.answers, func(a) { a.questionId == qid })) {
+        case (?a) not a.isCorrect;
+        case null true;
+      }
+    })
+  };
+
   func resultOf(s : ExamSession) : ?GradedResult {
     if (not Set.contains(gradedIds, Text.compare, s.id)) return null;
     let finishedAt = switch (s.finishedAt) { case (?t) t; case null return null };

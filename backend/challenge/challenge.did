@@ -1,7 +1,58 @@
+type Result_2 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: Crew;
+ };
 type Result = 
  variant {
    err: text;
    ok: Challenge;
+ };
+type CrewResult = 
+ record {
+   finishedAt: int;
+   missed: vec text;
+   "principal": principal;
+   score: nat;
+ };
+type CrewPreview = 
+ record {
+   expiresAt: int;
+   gameDate: int;
+   gameLabel: text;
+   id: text;
+   levelId: text;
+   memberCount: nat;
+   questionCount: nat;
+   sportId: text;
+ };
+type CrewInput = 
+ record {
+   gameDate: int;
+   gameLabel: text;
+   levelId: text;
+   questionIds: vec text;
+   sportId: text;
+ };
+type Crew = 
+ record {
+   code: text;
+   createdAt: int;
+   creator: principal;
+   expiresAt: int;
+   gameDate: int;
+   gameLabel: text;
+   id: text;
+   levelId: text;
+   members: vec principal;
+   questionIds: vec text;
+   results: vec CrewResult;
+   sportId: text;
  };
 type ChallengeStatus = 
  variant {
@@ -33,11 +84,24 @@ type Challenge =
  };
 service : {
   acceptChallenge: (id: text) -> (Result);
+  createCrew: (input: CrewInput) -> (Result_1);
   getChallenge: (id: text) -> (opt Challenge) query;
+  /// Members only: the crew with everyone's results and misses.
+  getCrew: (id: text) -> (opt Crew) query;
+  getCrewPreview: (code: text) -> (opt CrewPreview) query;
   getMyChallenges: () -> (vec Challenge) query;
-  metrics: () -> (record {challengeCount: nat;}) query;
+  getMyCrews: () -> (vec Crew) query;
+  joinCrew: (code: text) -> (Result_1);
+  leaveCrew: (id: text) -> (Result_2);
+  metrics: () -> (record {
+                    challengeCount: nat;
+                    crewCount: nat;
+                  }) query;
   sendChallenge: (opponent: principal, sport: text, articleIds: vec text,
    questionIds: vec text, count: nat) -> (Result);
+  /// Records the caller's score and misses from the graded exam session they
+  /// played this crew's questions in.
+  submitCrewResult: (id: text, sessionId: text) -> (Result_1);
   /// Records the caller's result from a finished exam session graded by the
   /// exam canister. The session must cover exactly this challenge's
   /// questions and can be used once.

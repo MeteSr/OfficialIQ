@@ -85,6 +85,10 @@ export interface _SERVICE {
     [Array<string>],
     Array<[] | [UserQuestionHistory]>
   >,
+  'getMyWeakArticles' : ActorMethod<
+    [string, bigint],
+    Array<[string, bigint, bigint]>
+  >,
   'getQuestion' : ActorMethod<[string], [] | [Question]>,
   /**
    * / A sport's whole question bank, a page at a time in id order, for the
@@ -197,6 +201,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'getMyHistoryBatch' : IDL.Func(
       [IDL.Vec(IDL.Text)],
       [IDL.Vec(IDL.Opt(UserQuestionHistory))],
+      ['query'],
+    ),
+  'getMyWeakArticles' : IDL.Func(
+      [IDL.Text, IDL.Nat],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat))],
       ['query'],
     ),
   'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),
@@ -316,6 +325,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'getMyHistoryBatch' : IDL.Func(
         [IDL.Vec(IDL.Text)],
         [IDL.Vec(IDL.Opt(UserQuestionHistory))],
+        ['query'],
+      ),
+    'getMyWeakArticles' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat))],
         ['query'],
       ),
     'getQuestion' : IDL.Func([IDL.Text], [IDL.Opt(Question)], ['query']),

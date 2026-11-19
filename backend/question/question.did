@@ -99,6 +99,12 @@ service : {
         }) query;
   getMyHistoryBatch: (questionIds: vec text) ->
    (vec opt UserQuestionHistory) query;
+  getMyWeakArticles: (sportId: text, limit: nat) ->
+   (vec record {
+          text;
+          nat;
+          nat;
+        }) query;
   getQuestion: (id: text) -> (opt Question) query;
   /// A sport's whole question bank, a page at a time in id order, for the
   /// app's offline cache (sampleQuiz capped it at 500 per type with no way
