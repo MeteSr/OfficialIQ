@@ -59,9 +59,11 @@ module {
     finishedAt    : Int;
   };
 
-  /// One answer of a finished session, as exam pushes it to ranking for
-  /// the skill counters (speed streak, casebook accuracy).
-  public type AnswerSignal = { isCorrect : Bool; elapsedSec : Nat; isCasebook : Bool };
+  /// One answer of a finished session, as exam pushes it to ranking for the
+  /// rating (weighted by difficulty) and the skill counters (speed streak,
+  /// casebook accuracy). difficulty is optional so older exam builds still
+  /// decode.
+  public type AnswerSignal = { isCorrect : Bool; elapsedSec : Nat; isCasebook : Bool; difficulty : ?Difficulty };
 
   /// The part of the exam canister that ranking, challenge and association
   /// call.

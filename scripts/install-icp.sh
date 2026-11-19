@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Installs the pinned ICP toolchain (icp-cli, ic-wasm, mops — versions in
 # tools/package.json, kept current by Dependabot) and puts it on PATH.
-# Shared by the GitHub Actions workflows, GitLab CI and the deploy Docker
+# Shared by the GitHub Actions workflows and the deploy Docker
 # image — nothing here is GitHub-specific. See docs/DEPLOYMENT.md.
 #
 # For day-to-day local work the icp-cli skill's global install is fine too:

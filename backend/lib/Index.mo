@@ -24,6 +24,17 @@ module {
     }
   };
 
+  /// Drops `id` from `key`'s rows (and the key once it has none).
+  public func remove<K>(ix : Index<K>, compare : (K, K) -> Order.Order, key : K, id : Text) {
+    switch (Map.get(ix, compare, key)) {
+      case (?ids) {
+        let kept = List.filter<Text>(ids, func(x) { x != id });
+        if (List.isEmpty(kept)) Map.remove(ix, compare, key) else Map.add(ix, compare, key, kept);
+      };
+      case null {};
+    }
+  };
+
   public func ids<K>(ix : Index<K>, compare : (K, K) -> Order.Order, key : K) : [Text] {
     switch (Map.get(ix, compare, key)) {
       case (?ids) List.toArray(ids);

@@ -13,6 +13,7 @@ import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
 import Env "../lib/Env";
 import Types "../lib/Types";
+import Stored "Stored";
 import Set "mo:core/Set";
 
 persistent actor Ranking {
@@ -96,7 +97,14 @@ persistent actor Ranking {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var stats : Map.Map<Principal, UserStats> = Map.empty<Principal, UserStats>();
+  // Stored stats (Stored.mo); the API returns them through view().
+  type Stats = Stored.Stats;
+  var stats : Map.Map<Principal, Stats> = Map.empty<Principal, Stats>();
+
+  /// Stored stats as the API returns them. The identity while the two types
+  /// have the same fields; when one changes, the compiler asks here.
+  func view(s : Stats) : UserStats = s;
+  func viewOpt(s : ?Stats) : ?UserStats = switch s { case (?x) ?view(x); case null null };
 
   var friends : Map.Map<Principal, [Principal]> = Map.empty<Principal, [Principal]>();
 
@@ -156,8 +164,8 @@ persistent actor Ranking {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  func sortByKey(pool : [UserStats], key : SortKey) : [UserStats] {
-    Array.sort<UserStats>(pool, func(a, b) {
+  func sortByKey(pool : [Stats], key : SortKey) : [Stats] {
+    Array.sort<Stats>(pool, func(a, b) {
       switch key {
         case (#Elo) {
           if (a.elo > b.elo) #less else if (a.elo < b.elo) #greater else #equal
@@ -175,7 +183,7 @@ persistent actor Ranking {
     })
   };
 
-  func toEntries(sorted : [UserStats], limit : Nat) : [LeaderboardEntry] {
+  func toEntries(sorted : [Stats], limit : Nat) : [LeaderboardEntry] {
     let cap = if (limit < sorted.size()) limit else sorted.size();
     let buf = VarArray.repeat<LeaderboardEntry>({
       rank = 0; principal = Principal.fromText("2vxsx-fae"); displayName = "";
@@ -240,7 +248,10 @@ persistent actor Ranking {
     if (Set.contains(claimedSessions, Text.compare, sessionId)) return #err("Already counted");
     if (r.questionCount < MIN_RANKED_QUESTIONS) return #err("Ranked exams need at least " # Nat.toText(MIN_RANKED_QUESTIONS) # " questions");
     Set.add(claimedSessions, Text.compare, sessionId);
-    #ok(applyExamResult(caller, r.score, name, r.sportId, st, r.avgElapsedSec))
+    // Older apps don't send per-answer difficulty: rate every question as
+    // Intermediate.
+    let outcomes = Array.tabulate<(Bool, ?Types.Difficulty)>(r.questionCount, func(i) { (i < r.correct, null) });
+    #ok(view(applyExamResult(caller, r.score, outcomes, name, r.sportId, st, r.avgElapsedSec)))
   };
 
   // Sessions the exam canister has pushed (recordGradedSession), so a retry
@@ -263,7 +274,11 @@ persistent actor Ranking {
     Set.add(pushedSessions, Text.compare, r.id);
     if (r.questionCount >= MIN_RANKED_QUESTIONS and not Set.contains(claimedSessions, Text.compare, r.id)) {
       Set.add(claimedSessions, Text.compare, r.id);
-      ignore applyExamResult(r.owner, r.score, name, r.sportId, st, r.avgElapsedSec);
+      // Unanswered questions count as wrong, at Intermediate.
+      let outcomes = Array.tabulate<(Bool, ?Types.Difficulty)>(r.questionCount, func(i) {
+        if (i < answers.size()) (answers[i].isCorrect, answers[i].difficulty) else (false, null)
+      });
+      ignore applyExamResult(r.owner, r.score, outcomes, name, r.sportId, st, r.avgElapsedSec);
     };
     ignore countAnswered(r.owner, r.answered);
     for (a in answers.values()) countSignal(r.owner, a.isCorrect, a.elapsedSec, a.isCasebook);
@@ -310,8 +325,43 @@ persistent actor Ranking {
     };
   };
 
-  func applyExamResult(caller : Principal, score : Nat, displayName : Text, sport : Text, state : Text, avgElapsedSec : Nat) : UserStats {
-    let prev : UserStats = switch (Map.get(stats, Principal.compare, caller)) {
+  // ─── Rating ─────────────────────────────────────────────────────────────────
+  //
+  // Elo against the questions: each question has a rating from its
+  // difficulty, and an official's rating moves by how they did against what
+  // their rating predicted. Beating Expert questions earns more than beating
+  // Beginner ones, and missing a Beginner question costs more. A session
+  // moves the rating by at most K (scaled by the speed multiplier). Against
+  // Intermediate questions at 1000 this is the old (accuracy - 0.5) * 32.
+
+  let K_FACTOR : Float = 32.0;
+
+  func questionRating(d : ?Types.Difficulty) : Float {
+    switch d {
+      case (?#Beginner) 850.0;
+      case (?#Intermediate or null) 1000.0;
+      case (?#Advanced) 1150.0;
+      case (?#Expert) 1300.0;
+    }
+  };
+
+  /// The probability an official rated `player` answers a question rated
+  /// `question` correctly.
+  func expected(player : Float, question : Float) : Float {
+    1.0 / (1.0 + Float.pow(10.0, (question - player) / 400.0))
+  };
+
+  func ratingDelta(player : Float, outcomes : [(Bool, ?Types.Difficulty)], avgElapsedSec : Nat) : Float {
+    if (outcomes.size() == 0) return 0.0;
+    var surprise = 0.0;
+    for ((correct, d) in outcomes.values()) {
+      surprise += (if correct 1.0 else 0.0) - expected(player, questionRating(d));
+    };
+    K_FACTOR * surprise / Int.toFloat(outcomes.size()) * speedMultiplier(avgElapsedSec)
+  };
+
+  func applyExamResult(caller : Principal, score : Nat, outcomes : [(Bool, ?Types.Difficulty)], displayName : Text, sport : Text, state : Text, avgElapsedSec : Nat) : Stats {
+    let prev : Stats = switch (Map.get(stats, Principal.compare, caller)) {
       case (?s) s;
       case null {
         { principal = caller; displayName; sport; state;
@@ -322,7 +372,7 @@ persistent actor Ranking {
     let newCount    = prev.examCount + 1;
     let newAcc      = (prev.accuracy * Int.toFloat(prev.examCount) + acc) / Int.toFloat(newCount);
     let newAvgTime  = (prev.avgElapsedSec * Int.toFloat(prev.examCount) + Int.toFloat(avgElapsedSec)) / Int.toFloat(newCount);
-    let delta       = (acc - 0.5) * 32.0 * speedMultiplier(avgElapsedSec);
+    let delta       = ratingDelta(prev.elo, outcomes, avgElapsedSec);
     let newElo      = if (prev.elo + delta < 0.0) 0.0 else prev.elo + delta;
     let newStreak   = if (score >= 80) prev.streak + 1 else 0;
     let newBest     = if (newStreak > prev.bestStreak) newStreak else prev.bestStreak;
@@ -513,7 +563,7 @@ persistent actor Ranking {
   // fields the public leaderboards already show (getPublicStats).
   public shared query ({ caller }) func getStats(p : Principal) : async ?UserStats {
     if (caller != p and not isAdmin(caller)) return null;
-    Map.get(stats, Principal.compare, p)
+    viewOpt(Map.get(stats, Principal.compare, p))
   };
 
   public type PublicStats = {
@@ -534,7 +584,7 @@ persistent actor Ranking {
   };
 
   public query func getNational(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
-    let buf = VarArray.repeat<UserStats>({
+    let buf = VarArray.repeat<Stats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, Map.size(stats));
@@ -542,12 +592,12 @@ persistent actor Ranking {
     for ((_, s) in Map.entries(stats)) {
       if (s.sport == sport) { buf[i] := s; i += 1 };
     };
-    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
+    let pool = VarArray.sliceToArray<Stats>(buf, 0, i);
     toEntries(sortByKey(pool, sortBy), limit)
   };
 
   public query func getState(sport : Text, state : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
-    let buf = VarArray.repeat<UserStats>({
+    let buf = VarArray.repeat<Stats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, Map.size(stats));
@@ -555,14 +605,14 @@ persistent actor Ranking {
     for ((_, s) in Map.entries(stats)) {
       if (s.sport == sport and s.state == state) { buf[i] := s; i += 1 };
     };
-    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
+    let pool = VarArray.sliceToArray<Stats>(buf, 0, i);
     toEntries(sortByKey(pool, sortBy), limit)
   };
 
   public shared query ({ caller }) func getFriends(sport : Text, limit : Nat, sortBy : SortKey) : async [LeaderboardEntry] {
     let myFriends = switch (Map.get(friends, Principal.compare, caller)) { case (?f) f; case null [] };
     let all = Array.concat<Principal>(myFriends, [caller]);
-    let buf = VarArray.repeat<UserStats>({
+    let buf = VarArray.repeat<Stats>({
       principal = Principal.fromText("2vxsx-fae"); displayName = ""; sport = "";
       state = ""; elo = 0.0; streak = 0; bestStreak = 0; accuracy = 0.0; avgElapsedSec = 0.0; examCount = 0; updatedAt = 0;
     }, all.size());
@@ -573,12 +623,12 @@ persistent actor Ranking {
         case null {};
       };
     };
-    let pool = VarArray.sliceToArray<UserStats>(buf, 0, i);
+    let pool = VarArray.sliceToArray<Stats>(buf, 0, i);
     toEntries(sortByKey(pool, sortBy), limit)
   };
 
   public shared query ({ caller }) func getMyStats() : async ?UserStats {
-    Map.get(stats, Principal.compare, caller)
+    viewOpt(Map.get(stats, Principal.compare, caller))
   };
 
   public shared query ({ caller }) func getMyEloHistory() : async [EloSnapshot] {

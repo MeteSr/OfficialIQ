@@ -10,6 +10,7 @@ import { IDL } from '@icp-sdk/core/candid';
 
 export interface AnswerSignal {
   'elapsedSec' : bigint,
+  'difficulty' : [] | [Difficulty],
   'isCorrect' : boolean,
   'isCasebook' : boolean,
 }
@@ -20,6 +21,10 @@ export interface DailyActivity {
   'longestStreak' : bigint,
   'currentStreak' : bigint,
 }
+export type Difficulty = { 'Beginner' : null } |
+  { 'Advanced' : null } |
+  { 'Intermediate' : null } |
+  { 'Expert' : null };
 export interface EloSnapshot {
   'elo' : number,
   'timestamp' : bigint,
@@ -296,8 +301,15 @@ export const GradedResult = IDL.Record({
   'finishedAt' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
+export const Difficulty = IDL.Variant({
+  'Beginner' : IDL.Null,
+  'Advanced' : IDL.Null,
+  'Intermediate' : IDL.Null,
+  'Expert' : IDL.Null,
+});
 export const AnswerSignal = IDL.Record({
   'elapsedSec' : IDL.Nat,
+  'difficulty' : IDL.Opt(Difficulty),
   'isCorrect' : IDL.Bool,
   'isCasebook' : IDL.Bool,
 });
@@ -485,8 +497,15 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'finishedAt' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
+  const Difficulty = IDL.Variant({
+    'Beginner' : IDL.Null,
+    'Advanced' : IDL.Null,
+    'Intermediate' : IDL.Null,
+    'Expert' : IDL.Null,
+  });
   const AnswerSignal = IDL.Record({
     'elapsedSec' : IDL.Nat,
+    'difficulty' : IDL.Opt(Difficulty),
     'isCorrect' : IDL.Bool,
     'isCasebook' : IDL.Bool,
   });

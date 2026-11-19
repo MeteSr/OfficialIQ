@@ -94,3 +94,9 @@ and commit what it writes:
 CI fails when either is stale. Types that cross canisters (GradedResult,
 ExamMode, Difficulty, Question, ExamPick) live in `backend/lib/Types.mo`;
 import them rather than copying them.
+
+Stored types are separate from API types where they've been split
+(`backend/<canister>/Stored.mo`: exam sessions, user profiles, ranking
+stats): stable vars hold the `Stored` type and public methods return the API
+type through `view()`. To change what is stored, add a `V2` type and a new
+stable var filled from the old one in its initializer; never edit a `V1`.

@@ -126,6 +126,13 @@ type EloSnapshot =
    elo: float64;
    timestamp: int;
  };
+type Difficulty = 
+ variant {
+   Advanced;
+   Beginner;
+   Expert;
+   Intermediate;
+ };
 type DailyActivity = 
  record {
    activityDay: int;
@@ -136,6 +143,7 @@ type DailyActivity =
  };
 type AnswerSignal = 
  record {
+   difficulty: opt Difficulty;
    elapsedSec: nat;
    isCasebook: bool;
    isCorrect: bool;

@@ -15,6 +15,7 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
 import Types "../lib/Types";
+import Stored "Stored";
 
 persistent actor Exam {
 
@@ -79,7 +80,17 @@ persistent actor Exam {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  var sessions : Map.Map<Text, ExamSession> = Map.empty<Text, ExamSession>();
+  // Stored sessions (Stored.mo); the API returns them through view().
+  type Session = Stored.Session;
+  var sessions : Map.Map<Text, Session> = Map.empty<Text, Session>();
+
+  /// A stored session as the API returns it. While Stored.Session and
+  /// ExamSession have the same fields this is the identity; when one
+  /// changes, this is where the compiler asks for the mapping.
+  func view(s : Session) : ExamSession = s;
+  func views(ss : [Session]) : [ExamSession] = Array.map<Session, ExamSession>(ss, view);
+  /// An API config as stored.
+  func fromConfig(c : ExamConfig) : Stored.Config = c;
 
   var shareIndex : Map.Map<Text, Text> = Map.empty<Text, Text>();
 
@@ -138,10 +149,10 @@ persistent actor Exam {
       case (?t) { Map.add(shareIndex, Text.compare, t, id); ?t };
       case null null;
     };
-    let session : ExamSession = {
+    let session : Session = {
       id            = id;
       owner         = caller;
-      config        = config;
+      config        = fromConfig(config);
       questionIds   = questionIds;
       answers       = [];
       score         = null;
@@ -152,7 +163,7 @@ persistent actor Exam {
     };
     Map.add(sessions, Text.compare, id, session);
     Index.add(sessionsByOwner, Principal.compare, caller, id);
-    #ok(session)
+    #ok(view(session))
   };
 
   // Client-graded submission is retired: answers are graded here, one at a
@@ -247,13 +258,13 @@ persistent actor Exam {
   };
 
   func examsOf(p : Principal) : [ExamSession] {
-    Index.rows(sessionsByOwner, Principal.compare, p, sessions)
+    views(Index.rows(sessionsByOwner, Principal.compare, p, sessions))
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {
     switch (Map.get(shareIndex, Text.compare, token)) {
       case null null;
-      case (?id) Map.get(sessions, Text.compare, id);
+      case (?id) switch (Map.get(sessions, Text.compare, id)) { case (?s) ?view(s); case null null };
     }
   };
 
@@ -350,7 +361,7 @@ persistent actor Exam {
   };
 
   // Time budget: secPerQ per question, plus grace. Answers after it are refused.
-  func deadlineOf(s : ExamSession) : Int {
+  func deadlineOf(s : Session) : Int {
     s.startedAt + s.config.secPerQ * s.questionIds.size() * 1_000_000_000 + GRACE_NS
   };
 
@@ -384,7 +395,7 @@ persistent actor Exam {
         switch (Map.get(fixedSetSessions, Text.compare, fixedSetKey(caller, ids))) {
           case (?sid) {
             switch (Map.get(sessions, Text.compare, sid), r) {
-              case (?existing, #ok(qs)) return #ok({ session = existing; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
+              case (?existing, #ok(qs)) return #ok({ session = view(existing); questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
               case _ {};
             };
           };
@@ -417,9 +428,9 @@ persistent actor Exam {
     let id = "ex" # Nat.toText(nextId);
     nextId += 1;
     let questionIds = Array.map<FullQuestion, Text>(qs, func(q) { q.id });
-    let session : ExamSession = {
+    let session : Session = {
       id; owner = caller;
-      config = { config with count = qs.size() };
+      config = fromConfig({ config with count = qs.size() });
       questionIds; answers = []; score = null; avgElapsedSec = null;
       shareToken = token; startedAt = Time.now(); finishedAt = null;
     };
@@ -431,7 +442,7 @@ persistent actor Exam {
         switch (Map.get(fixedSetSessions, Text.compare, k)) {
           case (?sid) {
             switch (Map.get(sessions, Text.compare, sid)) {
-              case (?existing) return #ok({ session = existing; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
+              case (?existing) return #ok({ session = view(existing); questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) });
               case null {};
             };
           };
@@ -452,12 +463,12 @@ persistent actor Exam {
     switch source {
       case (#Ids(_)) {};
       case _ {
-        Map.add(questionMeta, Text.compare, id, Array.map<FullQuestion, QuestionMeta>(qs, func(q) {
-          { questionId = q.id; articleId = q.articleId; isCasebook = q.isCasebook }
+        Map.add(questionMetaV2, Text.compare, id, Array.map<FullQuestion, QuestionMeta>(qs, func(q) {
+          { questionId = q.id; articleId = q.articleId; isCasebook = q.isCasebook; difficulty = q.difficulty }
         }));
       };
     };
-    #ok({ session; questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) })
+    #ok({ session = view(session); questions = Array.map<FullQuestion, QuestionView>(qs, viewOf) })
   };
 
   // Shared exam links: the canister picks the questions and stores them under
@@ -473,7 +484,7 @@ persistent actor Exam {
             // can't be graded or counted.
             Map.remove(answerKeys, Text.compare, start.session.id);
             Set.remove(gradedIds, Text.compare, start.session.id);
-            Map.remove(questionMeta, Text.compare, start.session.id);
+            Map.remove(questionMetaV2, Text.compare, start.session.id);
             #ok(t)
           };
           case null #err("No share token");
@@ -483,7 +494,7 @@ persistent actor Exam {
     }
   };
 
-  func recordGraded(s : ExamSession, questionId : Text, chosenId : Text, elapsedSec : Nat) : Result.Result<AnswerFeedback, Text> {
+  func recordGraded(s : Session, questionId : Text, chosenId : Text, elapsedSec : Nat) : Result.Result<AnswerFeedback, Text> {
     if (s.finishedAt != null) return #err("This exam is finished");
     if (Time.now() > deadlineOf(s)) return #err("Time is up for this exam");
     let k = switch (keyFor(s.id, questionId)) {
@@ -499,7 +510,7 @@ persistent actor Exam {
     #ok(feedbackOf(k, isCorrect))
   };
 
-  func gradedSession(caller : Principal, sessionId : Text) : Result.Result<ExamSession, Text> {
+  func gradedSession(caller : Principal, sessionId : Text) : Result.Result<Session, Text> {
     switch (Map.get(sessions, Text.compare, sessionId)) {
       case null #err("Session not found");
       case (?s) {
@@ -520,7 +531,7 @@ persistent actor Exam {
     }
   };
 
-  func finish(s0 : ExamSession) : GradedFinish {
+  func finish(s0 : Session) : GradedFinish {
     let s = switch (Map.get(sessions, Text.compare, s0.id)) { case (?x) x; case null s0 };
     let finished = if (s.finishedAt != null) s else {
       let total = s.questionIds.size();
@@ -544,7 +555,7 @@ persistent actor Exam {
       };
       feedbackOf(k, ok)
     });
-    { session = finished; feedback }
+    { session = view(finished); feedback }
   };
 
   /// Finishes a session (unanswered questions count as wrong) and returns
@@ -585,7 +596,7 @@ persistent actor Exam {
     resultOf(s)
   };
 
-  func resultOf(s : ExamSession) : ?GradedResult {
+  func resultOf(s : Session) : ?GradedResult {
     if (not Set.contains(gradedIds, Text.compare, s.id)) return null;
     let finishedAt = switch (s.finishedAt) { case (?t) t; case null return null };
     var correct = 0;
@@ -611,11 +622,22 @@ persistent actor Exam {
   // (or an older app still claiming from the browser) can't double-count.
   // Challenges are left out: their result goes to the challenge canister.
 
-  type QuestionMeta = { questionId : Text; articleId : Text; isCasebook : Bool };
+  // Stored per pushed session. V1 (no difficulty) is only read once, to
+  // fill questionMetaV2 on the upgrade that adds it.
+  type QuestionMetaV1 = { questionId : Text; articleId : Text; isCasebook : Bool };
+  type QuestionMeta = { questionId : Text; articleId : Text; isCasebook : Bool; difficulty : Difficulty };
 
   // Session id -> what the pushes need to know about each question. Only
   // sessions that are pushed when they finish have an entry.
-  var questionMeta : Map.Map<Text, [QuestionMeta]> = Map.empty<Text, [QuestionMeta]>();
+  var questionMeta : Map.Map<Text, [QuestionMetaV1]> = Map.empty<Text, [QuestionMetaV1]>();
+  var questionMetaV2 : Map.Map<Text, [QuestionMeta]> = do {
+    let m = Map.empty<Text, [QuestionMeta]>();
+    for ((id, qs) in Map.entries(questionMeta)) {
+      Map.add(m, Text.compare, id, Array.map<QuestionMetaV1, QuestionMeta>(qs, func(q) { { q with difficulty = #Intermediate } }));
+    };
+    Map.clear(questionMeta);
+    m
+  };
 
   // true = still to deliver to that canister.
   type Outbox = { ranking : Bool; question : Bool; user : Bool; attempts : Nat; nextTry : Int };
@@ -642,12 +664,12 @@ persistent actor Exam {
     recordGradedStudy : shared (Principal, Text, [(Text, Nat)]) -> async Result.Result<(), Text>;
   };
 
-  func enqueue(s : ExamSession) {
+  func enqueue(s : Session) {
     switch (s.finishedAt) {
       case (?t) List.add(keyExpiry, (s.id, t + KEY_TTL_NS));
       case null {};
     };
-    if (Map.get(questionMeta, Text.compare, s.id) != null) {
+    if (Map.get(questionMetaV2, Text.compare, s.id) != null) {
       Map.add(outbox, Text.compare, s.id, { ranking = true; question = true; user = true; attempts = 0; nextTry = 0 });
     };
   };
@@ -684,6 +706,7 @@ persistent actor Exam {
     // next finish (or upgrade) starts a new one.
     timer := null;
     pruneKeys();
+    pruneOldSessions();
     let now = Time.now();
     // Ids first: the map changes across the awaits below.
     let due = List.empty<Text>();
@@ -702,10 +725,71 @@ persistent actor Exam {
       let (_, at) = List.at(keyExpiry, keyExpiryHead);
       next := ?(switch next { case (?n) Int.min(n, at); case null at });
     };
+    switch (oldestKept()) {
+      case (?s) {
+        let at = s.startedAt + RETENTION_NS;
+        next := ?(switch next { case (?n) Int.min(n, at); case null at });
+      };
+      case null {};
+    };
     switch next {
       case null {};
       case (?at) arm<system>(Int.max(at, Time.now() + MINUTE_NS));
     };
+  };
+
+  // ─── Retention ─────────────────────────────────────────────────────────────
+  //
+  // Exam sessions are kept for 12 months from when they started, then
+  // deleted with everything that points at them. Session ids are numbered in
+  // the order they started, so the oldest are found by walking the numbers
+  // from retentionCursor; each timer run deletes at most PRUNE_BATCH.
+
+  let RETENTION_NS : Int = 365 * 86_400_000_000_000;
+  let PRUNE_BATCH : Nat = 500;
+
+  // The lowest session number that may still exist.
+  var retentionCursor : Nat = 0;
+  var prunedSessions : Nat = 0;
+
+  // The oldest session still kept, skipping numbers with no session (share
+  // link placeholders that were never stored, or already deleted).
+  func oldestKept() : ?Session {
+    while (retentionCursor < nextId) {
+      switch (Map.get(sessions, Text.compare, "ex" # Nat.toText(retentionCursor))) {
+        case (?s) return ?s;
+        case null retentionCursor += 1;
+      };
+    };
+    null
+  };
+
+  func pruneOldSessions() {
+    let cutoff = Time.now() - RETENTION_NS;
+    var budget = PRUNE_BATCH;
+    label prune while (budget > 0) {
+      let s = switch (oldestKept()) { case (?s) s; case null break prune };
+      if (s.startedAt > cutoff) break prune;
+      deleteSession(s);
+      retentionCursor += 1;
+      budget -= 1;
+    };
+  };
+
+  func deleteSession(s : Session) {
+    Map.remove(sessions, Text.compare, s.id);
+    Index.remove(sessionsByOwner, Principal.compare, s.owner, s.id);
+    switch (s.shareToken) {
+      case (?t) { if (Map.get(shareIndex, Text.compare, t) == ?s.id) Map.remove(shareIndex, Text.compare, t) };
+      case null {};
+    };
+    let fk = fixedSetKey(s.owner, s.questionIds);
+    if (Map.get(fixedSetSessions, Text.compare, fk) == ?s.id) Map.remove(fixedSetSessions, Text.compare, fk);
+    Map.remove(answerKeys, Text.compare, s.id);
+    Set.remove(gradedIds, Text.compare, s.id);
+    Map.remove(questionMetaV2, Text.compare, s.id);
+    Map.remove(outbox, Text.compare, s.id);
+    prunedSessions += 1;
   };
 
   func pruneKeys() {
@@ -728,7 +812,7 @@ persistent actor Exam {
   // re-read afterwards.
   func deliver<system>(id : Text) : async* () {
     let o = switch (Map.get(outbox, Text.compare, id)) { case (?o) o; case null return };
-    let (s, meta) = switch (Map.get(sessions, Text.compare, id), Map.get(questionMeta, Text.compare, id)) {
+    let (s, meta) = switch (Map.get(sessions, Text.compare, id), Map.get(questionMetaV2, Text.compare, id)) {
       case (?s, ?m) (s, m);
       case _ { Map.remove(outbox, Text.compare, id); return };
     };
@@ -742,8 +826,10 @@ persistent actor Exam {
         case null {};
         case (?cid) {
           let signals = Array.map<AnswerRecord, Types.AnswerSignal>(s.answers, func(a) {
+            let m = metaOf(a.questionId);
             { isCorrect = a.isCorrect; elapsedSec = a.elapsedSec;
-              isCasebook = switch (metaOf(a.questionId)) { case (?m) m.isCasebook; case null false } }
+              isCasebook = switch m { case (?m) m.isCasebook; case null false };
+              difficulty = switch m { case (?m) ?m.difficulty; case null null } }
           });
           try {
             switch (await (actor (Principal.toText(cid)) : RankingPush).recordGradedSession(result, signals)) {
@@ -788,10 +874,10 @@ persistent actor Exam {
 
     if (not ranking and not question and not user) {
       Map.remove(outbox, Text.compare, id);
-      Map.remove(questionMeta, Text.compare, id);
+      Map.remove(questionMetaV2, Text.compare, id);
     } else if (o.attempts + 1 >= MAX_PUSH_ATTEMPTS) {
       Map.remove(outbox, Text.compare, id);
-      Map.remove(questionMeta, Text.compare, id);
+      Map.remove(questionMetaV2, Text.compare, id);
       droppedPushes += 1;
     } else {
       // 1, 2, 4 ... minutes, then hourly.
@@ -802,7 +888,7 @@ persistent actor Exam {
 
   // Each answered article's accuracy within the session, 0-100. Unanswered
   // questions don't count against an article (as in the app before).
-  func articleScores(s : ExamSession, meta : [QuestionMeta]) : [(Text, Nat)] {
+  func articleScores(s : Session, meta : [QuestionMeta]) : [(Text, Nat)] {
     let totals = Map.empty<Text, (Nat, Nat)>();
     for (a in s.answers.values()) {
       switch (Array.find<QuestionMeta>(meta, func(m) { m.questionId == a.questionId })) {
@@ -844,7 +930,7 @@ persistent actor Exam {
     #ok(())
   };
 
-  public query func metrics() : async { sessionCount : Nat; pendingPushes : Nat; droppedPushes : Nat; answerKeys : Nat } {
-    { sessionCount = Map.size(sessions); pendingPushes = Map.size(outbox); droppedPushes; answerKeys = Map.size(answerKeys) }
+  public query func metrics() : async { sessionCount : Nat; pendingPushes : Nat; droppedPushes : Nat; answerKeys : Nat; prunedSessions : Nat } {
+    { sessionCount = Map.size(sessions); pendingPushes = Map.size(outbox); droppedPushes; answerKeys = Map.size(answerKeys); prunedSessions }
   };
 }
