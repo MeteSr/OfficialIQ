@@ -69,7 +69,7 @@ export default function ExamPage() {
       const config = { sportId, articleIds: selected, casebook, count: BigInt(count), secPerQ: BigInt(secPerQ), mode: modeMap[mode] };
       if (mode === "Share Link") {
         const token = await examService.createShareLink(config, [
-          { articleIds: selected, casebook, count: BigInt(count), difficulty: [], adaptive: false },
+          { articleIds: selected, casebook, count: BigInt(count), difficulty: [], adaptive: false, tag: [] },
         ]);
         setShareToken(token);
         await navigator.clipboard.writeText(`${window.location.origin}/quiz/share/${token}`).catch(() => {});

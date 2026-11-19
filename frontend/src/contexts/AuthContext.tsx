@@ -4,6 +4,7 @@ import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { initAgent, resetAgent } from "../services/actor";
 import { userService, type UserProfile } from "../services/user";
 import { useAuthStore } from "../store/authStore";
+import { usePlanStore } from "../store/planStore";
 import { syncAllContent } from "../lib/offlineSync";
 import { DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { setLanguage } from "../i18n";
@@ -45,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuth(principal, profile);
     syncAllContent(profile?.sport || DEFAULT_SPORT_ID, profile?.level || DEFAULT_LEVEL_ID).catch(() => {});
     if (profile?.preferredLanguage) setLanguage(profile.preferredLanguage);
+    usePlanStore.getState().refresh().catch(() => {});
   }
 
   useEffect(() => {

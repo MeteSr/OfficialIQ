@@ -6,12 +6,19 @@ import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Set "mo:core/Set";
 import List "mo:core/List";
 import Env "../lib/Env";
+import Timer "mo:core/Timer";
+import Error "mo:core/Error";
 import Stored "Stored";
+import Training "../lib/Training";
+import Billing "../lib/Billing";
+import Json "../lib/Json";
+import Blob "mo:core/Blob";
+import Call "mo:ic/Call";
+import IC "mo:ic/Types";
 
 persistent actor User {
 
@@ -224,6 +231,10 @@ persistent actor User {
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (not validProfile(req)) return #err("Profile field too long");
     if (Map.get(profiles, Principal.compare, caller) != null) return #err("Profile already exists");
+    refreshEnv<system>();
+    // Otherwise the erasure still running would delete the new account's
+    // data in the other canisters.
+    if (Map.get(erasures, Principal.compare, caller) != null) return #err("Your old account is still being deleted. Try again in a few minutes.");
 
     let p : StoredProfile = {
       principal         = caller;
@@ -303,6 +314,7 @@ persistent actor User {
       case null return #err("Exam canister not configured");
     };
     if (articleScores.size() > 200) return #err("Too many articles");
+    refreshEnv<system>();
     if (Set.contains(gradedStudySessions, Text.compare, sessionId)) return #ok(());
     Set.add(gradedStudySessions, Text.compare, sessionId);
     for ((articleId, score) in articleScores.values()) {
@@ -327,6 +339,95 @@ persistent actor User {
       articleId; lastStudied = now; timesStudied = 1; masteryScore = score;
     }]);
     Map.add(progress, Principal.compare, caller, final);
+  };
+
+  // ─── Study time (issue #67) ────────────────────────────────────────────────
+  //
+  // Reading time an association can count toward its training requirement,
+  // measured here rather than reported by the app: while an official has
+  // study material open, the app calls recordStudyBeat about once a minute,
+  // and each beat credits the time since the previous one under the rules in
+  // lib/Training.mo (gap limit, daily cap, retention).
+
+  public type StudyDay = Training.StudyDay;
+
+  let studyDays : Map.Map<Principal, [StudyDay]> = Map.empty<Principal, [StudyDay]>();
+
+  // When each official's last beat arrived. Transient: losing it on an
+  // upgrade costs at most the minute in progress, and it never has to be
+  // migrated.
+  transient let lastStudyBeat : Map.Map<Principal, Int> = Map.empty<Principal, Int>();
+
+  public shared ({ caller }) func recordStudyBeat() : async () {
+    if (caller.isAnonymous()) return;
+    refreshEnv<system>();
+    let now = Time.now();
+    let sec = Training.beatCredit(lastStudyBeat.get(Principal.compare, caller), now);
+    if (sec > 0) {
+      let days = switch (studyDays.get(Principal.compare, caller)) { case (?d) d; case null [] };
+      studyDays.add(Principal.compare, caller, Training.addStudy(days, now, sec));
+    };
+    lastStudyBeat.add(Principal.compare, caller, now);
+  };
+
+  /// Everything the training transcript needs from this canister.
+  public type TrainingActivity = {
+    studyDays      : [StudyDay];
+    weeklyQuizzes  : [WeeklyQuizResult];
+    monthlyQuizzes : [MonthlyQuizResult];
+  };
+
+  public type TrainingAccessError = { #notAuthorized };
+
+  func activityOf(p : Principal) : TrainingActivity {
+    {
+      studyDays      = switch (studyDays.get(Principal.compare, p)) { case (?d) d; case null [] };
+      weeklyQuizzes  = switch (weeklyQuizHistory.get(Principal.compare, p)) { case (?h) h; case null [] };
+      monthlyQuizzes = switch (monthlyQuizHistory.get(Principal.compare, p)) { case (?h) h; case null [] };
+    }
+  };
+
+  public shared query ({ caller }) func getMyTrainingActivity() : async TrainingActivity {
+    activityOf(caller)
+  };
+
+  // A query can't read canister environment variables, so update calls copy
+  // the association canister's id here (as the exam canister does). Stable,
+  // so the coordinator check keeps working right after an upgrade.
+  var ASSOCIATION_ID : ?Principal = null;
+  // The sibling canisters allowed to ask accessFor / isPro.
+  var SIBLING_IDS : [Principal] = [];
+  transient let SIBLINGS : [Text] = ["exam", "ai_proxy", "association", "ranking", "challenge", "mentorship", "report", "question", "content"];
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
+    let ids = List.empty<Principal>();
+    for (name in SIBLINGS.values()) {
+      switch (Env.canisterId<system>(name)) { case (?id) ids.add(id); case null {} };
+    };
+    if (ids.size() > 0) SIBLING_IDS := ids.toArray();
+  };
+
+  func isSibling(p : Principal) : Bool = SIBLING_IDS.find(func s = s == p) != null;
+
+  // Environment variables can't be read while the canister installs, so the
+  // ids are first read by a timer right after install and each upgrade,
+  // then refreshed by update calls.
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
+
+  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+
+  /// A member's training activity, for the coordinator of an association
+  /// they belong to.
+  public shared composite query ({ caller }) func getMemberTrainingActivity(p : Principal) : async Result.Result<TrainingActivity, TrainingAccessError> {
+    if (caller != p and not isAdmin(caller)) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return #err(#notAuthorized);
+    };
+    #ok(activityOf(p))
   };
 
   public shared ({ caller }) func recordWeeklyQuizResult(weekNumber : Nat, newScore : Nat, retentionScore : Nat) : async () {
@@ -398,6 +499,464 @@ persistent actor User {
     Map.remove(pushSubscriptions, Principal.compare, caller);
     #ok(())
   };
+
+  // ─── Pro entitlements (issue #71) ──────────────────────────────────────────
+  //
+  // Who has Pro, and until when. One official can hold several entitlements
+  // (bought on the web and covered by an association, say); Pro is active
+  // while any one hasn't expired. The tier rules live in lib/Billing.mo.
+  // While the paywall is off (the default) everyone keeps today's limits.
+
+  public type Entitlement = Billing.Entitlement;
+  public type EntitlementSource = Billing.EntitlementSource;
+  public type Access = Billing.Access;
+
+  public type MyEntitlement = {
+    tier           : { #free; #pro };
+    paywallEnabled : Bool;
+    entitlements   : [Entitlement];
+  };
+
+  public type AdminError = { #notAdmin };
+  public type SiblingError = { #notSibling };
+  public type ClaimError = {
+    #notSignedIn;
+    #invalidSession;
+    #notConfigured;
+    #stripeUnavailable;
+    #notYours;
+    #notComplete;
+    #notSubscription;
+    #notActive;
+    #alreadyClaimed;
+    #malformed;
+  };
+
+  let entitlements : Map.Map<Principal, [Entitlement]> = Map.empty<Principal, [Entitlement]>();
+  // Stripe subscription id -> the official who claimed it, so one
+  // subscription can't be claimed twice.
+  let webSubscriptionOwner : Map.Map<Text, Principal> = Map.empty<Text, Principal>();
+  var paywallEnabled : Bool = false;
+  // Restricted Stripe key: read-only on Checkout Sessions and Subscriptions.
+  // Outcall headers are visible to node providers, so it must not be able
+  // to move money. Never returned by any method.
+  var stripeKey : ?Text = null;
+
+  func entitlementsOf(p : Principal) : [Entitlement] =
+    switch (entitlements.get(Principal.compare, p)) { case (?es) es; case null [] };
+
+  func sameSource(a : EntitlementSource, b : EntitlementSource) : Bool = switch (a, b) {
+    case (#web x, #web y) x == y;
+    case (#association x, #association y) x == y;
+    case (#appStore, #appStore) true;
+    case (#playStore, #playStore) true;
+    case (#comp, #comp) true;
+    case _ false;
+  };
+
+  /// Adds `e`, replacing an entitlement from the same source.
+  func putEntitlement(p : Principal, e : Entitlement) {
+    let rest = entitlementsOf(p).filter(func x = not sameSource(x.source, e.source));
+    entitlements.add(Principal.compare, p, rest.concat([e]));
+  };
+
+  func dropEntitlement(p : Principal, source : EntitlementSource) {
+    let rest = entitlementsOf(p).filter(func x = not sameSource(x.source, source));
+    if (rest.size() == 0) entitlements.remove(Principal.compare, p) else entitlements.add(Principal.compare, p, rest);
+  };
+
+  func accessOf(p : Principal) : Access = Billing.access(paywallEnabled, entitlementsOf(p), Time.now());
+
+  public shared query ({ caller }) func getMyEntitlement() : async MyEntitlement {
+    let es = entitlementsOf(caller);
+    { tier = if (Billing.isProAt(es, Time.now())) #pro else #free; paywallEnabled; entitlements = es }
+  };
+
+  /// For sibling canisters (ai_proxy, exam, and later #63/#65): what `p`
+  /// gets. #paywallOff while billing is switched off.
+  public shared query ({ caller }) func accessFor(p : Principal) : async Result.Result<Access, SiblingError> {
+    if (not isSibling(caller)) return #err(#notSibling);
+    #ok(accessOf(p))
+  };
+
+  /// For sibling canisters: whether `p` gets Pro features. True for
+  /// everyone while the paywall is off.
+  public shared query ({ caller }) func isPro(p : Principal) : async Result.Result<Bool, SiblingError> {
+    if (not isSibling(caller)) return #err(#notSibling);
+    #ok(accessOf(p) != #free)
+  };
+
+  public type PaywallError = { #notAdmin; #examNotUpdated };
+
+  type ExamPaywall = actor { setPaywallFlag : shared Bool -> async Result.Result<(), Text> };
+
+  /// Switches billing on or off. The exam canister keeps a copy for its
+  /// plain-query history methods; if it can't be told, the switch still
+  /// changes here and the call reports #examNotUpdated, so try again.
+  public shared ({ caller }) func setPaywallEnabled(on : Bool) : async Result.Result<(), PaywallError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    refreshEnv<system>();
+    paywallEnabled := on;
+    let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err(#examNotUpdated) };
+    try {
+      switch (await (actor (examId.toText()) : ExamPaywall).setPaywallFlag(on)) { case (#ok) #ok(()); case (#err(_)) #err(#examNotUpdated) }
+    } catch (_) { #err(#examNotUpdated) }
+  };
+
+  /// Pro for support cases, reviewers and the App Store review account,
+  /// until `until` (nanoseconds). Replaces an earlier comp.
+  public shared ({ caller }) func grantComp(p : Principal, until : Int) : async Result.Result<(), AdminError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    putEntitlement(p, { tier = #pro; source = #comp; expiresAt = until; updatedAt = Time.now() });
+    #ok(())
+  };
+
+  public shared ({ caller }) func revokeComp(p : Principal) : async Result.Result<(), AdminError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    dropEntitlement(p, #comp);
+    #ok(())
+  };
+
+  public shared ({ caller }) func setStripeKey(key : ?Text) : async Result.Result<(), AdminError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    stripeKey := key;
+    #ok(())
+  };
+
+  // ─── Stripe (web checkout) ─────────────────────────────────────────────────
+  //
+  // No webhook: after Stripe Checkout redirects back, the app calls
+  // claimWebSubscription with the session id, and this canister asks Stripe
+  // itself. These outcalls grant Pro, so they're replicated (every node
+  // fetches and they must agree) rather than trusting one node, with a
+  // transform that keeps only the fields the rules read
+  // (Billing.SESSION_FIELDS / SUBSCRIPTION_FIELDS).
+
+  transient let STRIPE_API : Text = "https://api.stripe.com/v1/";
+  // Pinned so `current_period_end` stays on the Subscription object.
+  transient let STRIPE_VERSION : Text = "2024-06-20";
+  transient let STRIPE_MAX_RESPONSE_BYTES : Nat64 = 64_000;
+
+  public query func transformStripe({ context : Blob; response : IC.HttpRequestResult }) : async IC.HttpRequestResult {
+    let keep = if (context == "session".encodeUtf8()) Billing.SESSION_FIELDS else Billing.SUBSCRIPTION_FIELDS;
+    let body = switch (response.body.decodeUtf8()) { case (?t) Json.project(t, keep); case null "{}" };
+    { status = response.status; headers = []; body = body.encodeUtf8() }
+  };
+
+  type StripeResult = { #ok : Text; #notFound; #unavailable };
+
+  func stripeGet(key : Text, path : Text, kind : Text) : async StripeResult {
+    let resp = try {
+      await Call.httpRequest(STRIPE_API # path)
+        .withMethod(#get)
+        .withHeader("Authorization", "Bearer " # key)
+        .withHeader("Stripe-Version", STRIPE_VERSION)
+        .withMaxResponseBytes(STRIPE_MAX_RESPONSE_BYTES)
+        .withTransform({ function = transformStripe; context = kind.encodeUtf8() })
+        .withExpectedRoundtripTimeMs(10_000)
+        .withExpectedTransformInstructions(50_000_000)
+        .send()
+    } catch (_) { return #unavailable };
+    if (resp.status == 404) return #notFound;
+    if (resp.status != 200) return #unavailable;
+    switch (resp.body.decodeUtf8()) { case (?t) #ok(t); case null #unavailable }
+  };
+
+  /// Grants Pro from a finished Stripe Checkout: the session must name the
+  /// caller as its client_reference_id, be complete, and have started a
+  /// subscription that is active or trialing.
+  public shared ({ caller }) func claimWebSubscription(sessionId : Text) : async Result.Result<MyEntitlement, ClaimError> {
+    if (caller.isAnonymous()) return #err(#notSignedIn);
+    if (not Billing.validStripeId("cs_", sessionId)) return #err(#invalidSession);
+    let key = switch stripeKey { case (?k) k; case null return #err(#notConfigured) };
+    let sessionJson = switch (await stripeGet(key, "checkout/sessions/" # sessionId, "session")) {
+      case (#ok(t)) t;
+      case (#notFound) return #err(#invalidSession);
+      case (#unavailable) return #err(#stripeUnavailable);
+    };
+    let subId = switch (Billing.claimCheck(sessionJson, caller.toText())) {
+      case (#ok(id)) id;
+      case (#err(e)) return #err(e);
+    };
+    switch (webSubscriptionOwner.get(Text.compare, subId)) {
+      case (?owner) { if (owner != caller) return #err(#alreadyClaimed) };
+      case null {};
+    };
+    let subJson = switch (await stripeGet(key, "subscriptions/" # subId, "subscription")) {
+      case (#ok(t)) t;
+      case (#notFound) return #err(#notSubscription);
+      case (#unavailable) return #err(#stripeUnavailable);
+    };
+    switch (Billing.subscriptionState(subJson)) {
+      case (?#renew(end)) {
+        // Re-checked after the awaits: another claim may have landed meanwhile.
+        switch (webSubscriptionOwner.get(Text.compare, subId)) {
+          case (?owner) { if (owner != caller) return #err(#alreadyClaimed) };
+          case null {};
+        };
+        webSubscriptionOwner.add(Text.compare, subId, caller);
+        putEntitlement(caller, { tier = #pro; source = #web subId; expiresAt = end; updatedAt = Time.now() });
+        let es = entitlementsOf(caller);
+        #ok({ tier = if (Billing.isProAt(es, Time.now())) #pro else #free; paywallEnabled; entitlements = es })
+      };
+      case (?#pending or ?#ended) #err(#notActive);
+      case null #err(#malformed);
+    }
+  };
+
+  // Renewals: an hourly timer asks Stripe about web subscriptions near or
+  // just past expiry (Billing.needsRenewalCheck), at most RENEWAL_BATCH per
+  // run, extending those that renewed and letting the rest lapse at their
+  // period end. Transient: after an upgrade the checks simply start over.
+  transient let RENEWAL_BATCH : Nat = 20;
+  transient let lastRenewalCheck : Map.Map<Text, Int> = Map.empty<Text, Int>();
+
+  func renewDue() : async () {
+    let key = switch stripeKey { case (?k) k; case null return };
+    let now = Time.now();
+    let due = List.empty<(Principal, Text)>();
+    label scan for ((p, es) in entitlements.entries()) {
+      for (e in es.values()) {
+        switch (e.source) {
+          case (#web subId) {
+            if (Billing.needsRenewalCheck(e, lastRenewalCheck.get(Text.compare, subId), now)) {
+              due.add((p, subId));
+              if (due.size() >= RENEWAL_BATCH) break scan;
+            };
+          };
+          case _ {};
+        };
+      };
+    };
+    for ((p, subId) in due.values()) {
+      lastRenewalCheck.add(Text.compare, subId, Time.now());
+      switch (await stripeGet(key, "subscriptions/" # subId, "subscription")) {
+        case (#ok(json)) {
+          switch (Billing.subscriptionState(json)) {
+            case (?#renew(end)) {
+              // Still theirs? (The account may have been deleted meanwhile.)
+              if (webSubscriptionOwner.get(Text.compare, subId) == ?p) {
+                putEntitlement(p, { tier = #pro; source = #web subId; expiresAt = end; updatedAt = Time.now() });
+              };
+            };
+            case _ {};
+          };
+        };
+        case _ {};
+      };
+    };
+  };
+
+  transient let _renewalTimer : Timer.TimerId = Timer.recurringTimer<system>(#seconds 3600, renewDue);
+
+  func forgetEntitlements(p : Principal) {
+    for (e in entitlementsOf(p).values()) {
+      switch (e.source) { case (#web subId) webSubscriptionOwner.remove(Text.compare, subId); case _ {} };
+    };
+    entitlements.remove(Principal.compare, p);
+  };
+
+  func proBySource() : [(Text, Nat)] {
+    let now = Time.now();
+    var web = 0; var appStore = 0; var playStore = 0; var association = 0; var comp = 0;
+    for (es in entitlements.values()) {
+      for (e in es.values()) {
+        if (e.expiresAt > now) switch (e.source) {
+          case (#web _) web += 1;
+          case (#appStore) appStore += 1;
+          case (#playStore) playStore += 1;
+          case (#association _) association += 1;
+          case (#comp) comp += 1;
+        };
+      };
+    };
+    [("web", web), ("appStore", appStore), ("playStore", playStore), ("association", association), ("comp", comp)]
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+  //
+  // App Store guideline 5.1.1(v) and Google Play's account deletion policy:
+  // an official can delete their account and its data from inside the app.
+  // deleteAccount removes everything this canister holds at once, then a
+  // timer asks every other canister to forget them (forgetUser), retrying
+  // with backoff until each one has. Exam goes first, so a result it hasn't
+  // pushed yet can't re-create stats in ranking after ranking has forgotten
+  // them.
+
+  let ERASE_TARGETS : [Text] = ["exam", "challenge", "mentorship", "association", "report", "ranking", "question", "content", "ai_proxy"];
+
+  type Erasure = { pending : [Text]; attempts : Nat; nextTry : Int; requestedAt : Int };
+  var erasures : Map.Map<Principal, Erasure> = Map.empty<Principal, Erasure>();
+  var completedErasures : Nat = 0;
+
+  public type DeletionStatus = { #NotRequested; #InProgress : { remaining : Nat }; };
+
+  public shared ({ caller }) func deleteAccount() : async Result.Result<(), Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    Map.remove(profiles, Principal.compare, caller);
+    Map.remove(studyPaces, Principal.compare, caller);
+    Map.remove(progress, Principal.compare, caller);
+    Map.remove(weeklyQuizHistory, Principal.compare, caller);
+    Map.remove(monthlyQuizHistory, Principal.compare, caller);
+    studyDays.remove(Principal.compare, caller);
+    lastStudyBeat.remove(Principal.compare, caller);
+    Map.remove(linkedAccounts, Principal.compare, caller);
+    Map.remove(upcomingGames, Principal.compare, caller);
+    Map.remove(pushSubscriptions, Principal.compare, caller);
+    // This does not cancel a store or Stripe subscription: the app tells the
+    // official to cancel it first.
+    forgetEntitlements(caller);
+    if (Map.get(erasures, Principal.compare, caller) == null) {
+      Map.add(erasures, Principal.compare, caller, { pending = ERASE_TARGETS; attempts = 0; nextTry = 0; requestedAt = Time.now() });
+    };
+    armErase<system>(Time.now());
+    #ok(())
+  };
+
+  public shared query ({ caller }) func getDeletionStatus() : async DeletionStatus {
+    switch (Map.get(erasures, Principal.compare, caller)) {
+      case (?e) #InProgress({ remaining = e.pending.size() });
+      case null #NotRequested;
+    }
+  };
+
+  type Forgetful = actor { forgetUser : shared Principal -> async Result.Result<(), Text> };
+
+  transient var eraseTimer : ?(Timer.TimerId, Int) = null;
+
+  func armErase<system>(at : Int) {
+    let now = Time.now();
+    switch eraseTimer {
+      case (?(_, fires)) { if (fires <= at) return };
+      case null {};
+    };
+    switch eraseTimer { case (?(id, _)) Timer.cancelTimer(id); case null {} };
+    let delayNs = Int.abs(Int.max(at - now, 0));
+    let id = Timer.setTimer<system>(#nanoseconds delayNs, func() : async () { await flushErasures() });
+    eraseTimer := ?(id, now + delayNs);
+  };
+
+  // Timers don't survive an upgrade; pick the queue up again.
+  system func postupgrade() {
+    if (not Map.isEmpty(erasures)) armErase<system>(Time.now());
+  };
+
+  func flushErasures() : async () {
+    eraseTimer := null;
+    let now = Time.now();
+    let due = List.empty<Principal>();
+    for ((p, e) in Map.entries(erasures)) { if (e.nextTry <= now) List.add(due, p) };
+    for (p in List.values(due)) { await* erase(p) };
+    var next : ?Int = null;
+    for ((_, e) in Map.entries(erasures)) {
+      next := ?(switch next { case (?n) Int.min(n, e.nextTry); case null e.nextTry });
+    };
+    switch next {
+      case (?at) armErase<system>(Int.max(at, Time.now() + 60_000_000_000));
+      case null {};
+    };
+  };
+
+  // Works through one official's remaining canisters in order, stopping at
+  // the first that fails so the order holds on the retry.
+  func erase<system>(p : Principal) : async* () {
+    let e = switch (Map.get(erasures, Principal.compare, p)) { case (?e) e; case null return };
+    var remaining = e.pending;
+    label targets for (name in e.pending.values()) {
+      switch (Env.canisterId<system>(name)) {
+        // Not deployed alongside this one (e.g. a partial local deploy):
+        // nothing there to forget.
+        case null {};
+        case (?cid) {
+          let ok = try {
+            switch (await (actor (Principal.toText(cid)) : Forgetful).forgetUser(p)) { case (#ok) true; case (#err(_)) false }
+          } catch (_ : Error.Error) false;
+          if (not ok) break targets;
+        };
+      };
+      remaining := Array.sliceToArray<Text>(remaining, 1, remaining.size());
+    };
+    if (remaining.size() == 0) {
+      Map.remove(erasures, Principal.compare, p);
+      completedErasures += 1;
+    } else {
+      // 1, 2, 4 ... minutes, then hourly, until it goes through. Never
+      // dropped: the official was told their data would be deleted.
+      let backoff = 60_000_000_000 * Nat.pow(2, Nat.min(e.attempts, 6));
+      Map.add(erasures, Principal.compare, p, { e with pending = remaining; attempts = e.attempts + 1; nextTry = Time.now() + backoff });
+    };
+  };
+
+  // ─── App error log ─────────────────────────────────────────────────────────
+  //
+  // The app reports crashes and failed loads here (src/lib/errorReporting.ts)
+  // so they're visible without a third-party crash service, and so no extra
+  // party sees users' data. Nothing identifies the official: the caller isn't
+  // stored, and the app strips principals from messages before sending. The
+  // log keeps the latest MAX_CLIENT_ERRORS entries; admins read it on the
+  // app's moderation page.
+
+  public type ClientErrorInput = {
+    kind     : Text; // "crash" | "unhandled" | "load"
+    message  : Text;
+    stack    : Text;
+    route    : Text;
+    release  : Text;
+    platform : Text; // "web" | "android" | "ios"
+  };
+
+  public type ClientError = {
+    seq      : Nat;
+    at       : Int;
+    kind     : Text;
+    message  : Text;
+    stack    : Text;
+    route    : Text;
+    release  : Text;
+    platform : Text;
+    signedIn : Bool;
+  };
+
+  let MAX_CLIENT_ERRORS : Nat = 500;
+  var clientErrors : Map.Map<Nat, ClientError> = Map.empty<Nat, ClientError>();
+  var nextClientErrorSeq : Nat = 0;
+
+  func clip(t : Text, n : Nat) : Text {
+    if (Text.size(t) <= n) return t;
+    var out = "";
+    var i = 0;
+    label take for (c in t.chars()) {
+      if (i >= n) break take;
+      out #= Text.fromChar(c);
+      i += 1;
+    };
+    out
+  };
+
+  public shared ({ caller }) func logClientError(e : ClientErrorInput) : async () {
+    let seq = nextClientErrorSeq;
+    nextClientErrorSeq += 1;
+    Map.add(clientErrors, Nat.compare, seq, {
+      seq; at = Time.now();
+      kind = clip(e.kind, 16); message = clip(e.message, 500); stack = clip(e.stack, 2_000);
+      route = clip(e.route, 200); release = clip(e.release, 40); platform = clip(e.platform, 16);
+      signedIn = not Principal.isAnonymous(caller);
+    });
+    if (seq >= MAX_CLIENT_ERRORS) Map.remove(clientErrors, Nat.compare, seq - MAX_CLIENT_ERRORS);
+  };
+
+  /// Newest first, at most `limit`.
+  public shared query ({ caller }) func listClientErrors(limit : Nat) : async Result.Result<[ClientError], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let out = List.empty<ClientError>();
+    label newest for ((_, e) in Map.reverseEntries(clientErrors)) {
+      if (List.size(out) >= limit) break newest;
+      List.add(out, e);
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared query ({ caller }) func isAdminCaller() : async Bool { isAdmin(caller) };
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -533,8 +1092,8 @@ persistent actor User {
   // Game ids whose refresher push went out.
   var gameDayPushed : Set.Set<Text> = Set.empty<Text>();
 
-  let GAME_DAY_LEAD_NS : Int = 2 * 3600 * 1_000_000_000;
-  let MAX_GAME_DAY_BATCH : Nat = 500;
+  transient let GAME_DAY_LEAD_NS : Int = 2 * 3600 * 1_000_000_000;
+  transient let MAX_GAME_DAY_BATCH : Nat = 500;
 
   public type GameDayPush = { official : Principal; game : UpcomingGame };
 
@@ -546,6 +1105,8 @@ persistent actor User {
     let out = List.empty<GameDayPush>();
     label scan for ((official, games) in Map.entries(upcomingGames)) {
       if (Map.get(pushSubscriptions, Principal.compare, official) == null) continue scan;
+      // The refresher is Pro once the paywall is on (#71).
+      if (accessOf(official) == #free) continue scan;
       for (g in games.values()) {
         if (List.size(out) >= MAX_GAME_DAY_BATCH) break scan;
         if (g.gameDate > now and g.gameDate <= now + GAME_DAY_LEAD_NS
@@ -564,7 +1125,7 @@ persistent actor User {
     #ok(())
   };
 
-  public query func metrics() : async { userCount : Nat } {
-    { userCount = Map.size(profiles) }
+  public query func metrics() : async { userCount : Nat; pendingDeletions : Nat; completedDeletions : Nat; clientErrors : Nat; proBySource : [(Text, Nat)]; paywallEnabled : Bool } {
+    { userCount = profiles.size(); pendingDeletions = erasures.size(); completedDeletions = completedErasures; clientErrors = nextClientErrorSeq; proBySource = proBySource(); paywallEnabled }
   };
 }

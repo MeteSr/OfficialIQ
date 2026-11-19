@@ -44,7 +44,7 @@ describe("RefresherPage", () => {
   afterEach(cleanup);
 
   it("targets the official's most-missed rules, then plays at the game's level", async () => {
-    getMyWeakArticles.mockResolvedValue([{ articleId: "s:art3", wrong: 4, answered: 5 }]);
+    getMyWeakArticles.mockResolvedValue({ proOnly: false, rows: [{ articleId: "s:art3", wrong: 4, answered: 5 }] });
     renderPage();
     expect(await screen.findByText("Free throws")).toBeTruthy();
     expect(screen.getByText(/Central vs North/)).toBeTruthy();
@@ -59,8 +59,17 @@ describe("RefresherPage", () => {
   });
 
   it("falls back to the whole level for an official with no misses yet", async () => {
-    getMyWeakArticles.mockResolvedValue([]);
+    getMyWeakArticles.mockResolvedValue({ proOnly: false, rows: [] });
     renderPage();
     expect(await screen.findByText(/Rules at your level/)).toBeTruthy();
+  });
+
+  it("offers Pro instead of the refresher to a free official once the paywall is on", async () => {
+    getMyWeakArticles.mockResolvedValue({ proOnly: true, rows: [] });
+    renderPage();
+    expect(await screen.findByText(/part of OfficialIQ Pro/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Go Pro/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start refresher/ })).toBeNull();
+    expect(startGradedSession).not.toHaveBeenCalled();
   });
 });

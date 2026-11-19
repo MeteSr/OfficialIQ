@@ -8,6 +8,7 @@ import { examService, type ExamSession, DEFAULT_CERT_TEMPLATE } from "../service
 import { rankingService } from "../services/ranking";
 import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
+import HistoryWindowNote from "../components/HistoryWindowNote";
 import { computeReadiness, type Readiness } from "../lib/readiness";
 
 const TIME_BUCKET_KEYS = [
@@ -144,6 +145,8 @@ export default function AnalyticsPage() {
           {t("analytics.subtitle")}
         </div>
       </div>
+
+      <HistoryWindowNote />
 
       <div style={{ padding: 16 }}>
         {/* Readiness */}

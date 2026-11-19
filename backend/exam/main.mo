@@ -15,6 +15,8 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Index "../lib/Index";
 import Types "../lib/Types";
+import Training "../lib/Training";
+import Billing "../lib/Billing";
 import Stored "Stored";
 
 persistent actor Exam {
@@ -210,8 +212,32 @@ persistent actor Exam {
     Map.get(examTemplates, Text.compare, id)
   };
 
+  /// The caller's exam history (issue #71): the last 30 days for a free
+  /// official, everything kept (12 months) for Pro or while the paywall is
+  /// off. Older sessions stay stored, so upgrading shows them at once.
+  public shared composite query ({ caller }) func getMyExamHistory() : async [ExamSession] {
+    let access : Billing.Access = switch (userAccess()) {
+      case (?u) { try { switch (await u.accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff } } catch (_) { #paywallOff } };
+      case null #paywallOff;
+    };
+    visibleExams(caller, access)
+  };
+
+  /// Older clients' history call. A plain query can't ask the user canister
+  /// who is Pro, so while the paywall is on it returns the free window to
+  /// everyone; the app uses getMyExamHistory instead.
   public shared query ({ caller }) func getMyExams() : async [ExamSession] {
-    examsOf(caller)
+    visibleExams(caller, if paywallOn #free else #paywallOff)
+  };
+
+  // Copied from the user canister whenever an admin switches the paywall
+  // (setPaywallFlag), for the plain queries above and below.
+  var paywallOn : Bool = false;
+
+  public shared ({ caller }) func setPaywallFlag(on : Bool) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    paywallOn := on;
+    #ok(())
   };
 
   // An official's exam history is private: getExamsFor answers only for the
@@ -228,12 +254,30 @@ persistent actor Exam {
   var ASSOCIATION_ID : ?Principal = null;
   var RANKING_ID : ?Principal = null;
   var CHALLENGE_ID : ?Principal = null;
+  var USER_ID : ?Principal = null;
+
+  type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
+
+  // The user canister to ask about a caller's tier. Composite queries
+  // can't call a local async* helper (M0187), so each one awaits accessFor
+  // itself; if the user canister can't say, history isn't hidden.
+  func userAccess() : ?UserAccess = switch USER_ID { case (?id) ?(actor (id.toText()) : UserAccess); case null null };
+
+  func visibleExams(p : Principal, access : Billing.Access) : [ExamSession] {
+    let now = Time.now();
+    examsOf(p).filter(func s = Billing.examVisible(access, s.startedAt, now))
+  };
 
   func refreshEnv<system>() {
+    switch (Env.canisterId<system>("user")) { case (?id) USER_ID := ?id; case null {} };
     switch (Env.canisterId<system>("association")) { case (?id) ASSOCIATION_ID := ?id; case null {} };
     switch (Env.canisterId<system>("ranking")) { case (?id) RANKING_ID := ?id; case null {} };
     switch (Env.canisterId<system>("challenge")) { case (?id) CHALLENGE_ID := ?id; case null {} };
   };
+
+  // Environment variables can't be read during install, so a timer reads
+  // the ids right after install and each upgrade.
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
 
   func isSiblingCanister(p : Principal) : Bool {
     ASSOCIATION_ID == ?p or RANKING_ID == ?p or CHALLENGE_ID == ?p
@@ -242,8 +286,9 @@ persistent actor Exam {
   type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
 
   public shared query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
-    if (caller != p and not isAdmin(caller)) return [];
-    examsOf(p)
+    if (isAdmin(caller)) return examsOf(p);
+    if (caller != p) return [];
+    visibleExams(p, if paywallOn #free else #paywallOff)
   };
 
   public shared composite query ({ caller }) func getMemberExams(p : Principal) : async [ExamSession] {
@@ -253,12 +298,75 @@ persistent actor Exam {
         case null false;
       };
       if (not allowed) return [];
+      // Coordinators see their members' full history.
+      return examsOf(p);
     };
-    examsOf(p)
+    let access : Billing.Access = switch (userAccess()) {
+      case (?u) { try { switch (await u.accessFor(p)) { case (#ok(a)) a; case (#err(_)) #paywallOff } } catch (_) { #paywallOff } };
+      case null #paywallOff;
+    };
+    visibleExams(p, access)
   };
 
   func examsOf(p : Principal) : [ExamSession] {
     views(Index.rows(sessionsByOwner, Principal.compare, p, sessions))
+  };
+
+  // ─── Training transcript (issue #67) ──────────────────────────────────────
+  //
+  // Training time an association can check against its hour requirement.
+  // Only sessions graded here count, credited by Training.creditedSec
+  // (answer time, never more than start-to-finish wall-clock time), so a
+  // session's time can't be inflated from the browser.
+
+  public type TrainingSession = {
+    id            : Text;
+    mode          : ExamMode;
+    sportId       : Text;
+    questionCount : Nat;
+    answered      : Nat;
+    correct       : Nat;
+    score         : Nat;
+    creditedSec   : Nat;
+    startedAt     : Int;
+    finishedAt    : Int;
+  };
+
+  public type TrainingAccessError = { #notAuthorized };
+
+  func trainingOf(p : Principal) : [TrainingSession] {
+    let out = List.empty<TrainingSession>();
+    for (s in Index.rows(sessionsByOwner, Principal.compare, p, sessions).values()) {
+      switch (resultOf(s)) {
+        case (?r) out.add({
+          id = r.id; mode = r.mode; sportId = r.sportId; questionCount = r.questionCount;
+          answered = r.answered; correct = r.correct; score = r.score;
+          creditedSec = Training.creditedSec(s.answers.map(func a = a.elapsedSec), s.startedAt, r.finishedAt);
+          startedAt = s.startedAt; finishedAt = r.finishedAt;
+        });
+        case null {};
+      };
+    };
+    out.toArray()
+  };
+
+  /// The caller's finished graded sessions with the training time each is
+  /// credited, for their transcript.
+  public shared query ({ caller }) func getMyTraining() : async [TrainingSession] {
+    trainingOf(caller)
+  };
+
+  /// A member's training sessions, for the coordinator of an association
+  /// they belong to (same check as getMemberExams).
+  public shared composite query ({ caller }) func getMemberTraining(p : Principal) : async Result.Result<[TrainingSession], TrainingAccessError> {
+    if (caller != p) {
+      let allowed = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
+        case null false;
+      };
+      if (not allowed) return #err(#notAuthorized);
+    };
+    #ok(trainingOf(p))
   };
 
   public query func getByShareToken(token : Text) : async ?ExamSession {
@@ -915,6 +1023,34 @@ persistent actor Exam {
       };
     };
     Array.map<(Text, (Nat, Nat)), (Text, Nat)>(Map.toArray(totals), func((art, (c, t))) { (art, c * 100 / t) })
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their exam sessions, share links, answer keys and any results
+  /// still waiting to be pushed. The user canister calls this before the
+  /// canisters those results go to. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (id in Index.take(sessionsByOwner, Principal.compare, p).values()) {
+      switch (Map.take(sessions, Text.compare, id)) {
+        case (?s) { switch (s.shareToken) { case (?t) Map.remove(shareIndex, Text.compare, t); case null {} } };
+        case null {};
+      };
+      Map.remove(answerKeys, Text.compare, id);
+      Map.remove(questionMeta, Text.compare, id);
+      Map.remove(outbox, Text.compare, id);
+      Set.remove(gradedIds, Text.compare, id);
+    };
+    let prefix = Principal.toText(p) # "|";
+    let keys = List.empty<Text>();
+    label scan for ((k, _) in Map.entriesFrom(fixedSetSessions, Text.compare, prefix)) {
+      if (not Text.startsWith(k, #text prefix)) break scan;
+      List.add(keys, k);
+    };
+    for (k in List.values(keys)) Map.remove(fixedSetSessions, Text.compare, k);
+    #ok(())
   };
 
   public query func metrics() : async { sessionCount : Nat; pendingPushes : Nat; droppedPushes : Nat; answerKeys : Nat; prunedSessions : Nat } {

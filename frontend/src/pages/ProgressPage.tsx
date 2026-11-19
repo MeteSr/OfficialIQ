@@ -1,8 +1,10 @@
+import HistoryWindowNote from "../components/HistoryWindowNote";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { T, fill } from "../tokens";
+import { features } from "../lib/features";
 import { rankingService, type UserStats, type EloSnapshot } from "../services/ranking";
 import { userService, type ArticleProgress } from "../services/user";
 import { contentService, type Article } from "../services/content";
@@ -180,6 +182,8 @@ export default function ProgressPage() {
         )}
       </div>
 
+      <HistoryWindowNote />
+
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -213,12 +217,12 @@ export default function ProgressPage() {
               <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
                 {t("progress.weakestAreas")}
               </div>
-              <button
+              {features.ai && <button
                 onClick={() => navigate("/ai-drills")}
                 style={{ padding: "0 12px", minHeight: 44, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontFamily: T.font, fontWeight: 600, fontSize: 11.5, cursor: "pointer" }}
               >
                 {t("progress.aiPractice")}
-              </button>
+              </button>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {weakest.map(p => {

@@ -11,6 +11,8 @@ import { MONTHLY_QUIZ_QUESTIONS, isInLastFiveDaysOfMonth, monthlyWindowDaysLeft 
 import { mentorshipService } from "../services/mentorship";
 import { reportService } from "../services/report";
 import { levelLabel, useSport } from "../lib/sport";
+import { features } from "../lib/features";
+import { currentSeason, showRuleChangesOnHome } from "../lib/ruleChanges";
 
 const STREAK_MILESTONES = [100, 30, 7];
 const STREAK_MILESTONE_KEY = "officialiq_streak_milestone_seen";
@@ -32,6 +34,14 @@ export default function HomePage() {
   const [articles,     setArticles]     = useState<Article[]>([]);
   const [pace,         setPace]         = useState<StudyPace | null>(null);
   const [schedule,     setSchedule]     = useState<WeeklySchedule | null>(null);
+  const [ruleChangeCount, setRuleChangeCount] = useState(0);
+  const season = currentSeason(Date.now());
+
+  // "What changed this season" (issue #68), shown for the season's first
+  // weeks. Optional, so a failure just leaves the card out.
+  useEffect(() => {
+    contentService.listRuleChanges(sportId, season).then(cs => setRuleChangeCount(cs.length)).catch(() => {});
+  }, [sportId, season]);
 
   function refreshChallenges() {
     challengeService.getMyChallenges().then(async (cs) => {
@@ -300,6 +310,24 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* This season's rule changes */}
+        {showRuleChangesOnHome(Date.now(), ruleChangeCount) && (
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "15px 16px" }}>
+            <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+              {t("ruleChanges.homeTitle")}
+            </div>
+            <div style={{ fontFamily: T.font, fontSize: 14, color: T.text, lineHeight: 1.4, marginTop: 8 }}>
+              {t("ruleChanges.homeBody", { count: ruleChangeCount, season })}
+            </div>
+            <button
+              onClick={() => navigate("/rule-changes")}
+              style={{ width: "100%", minHeight: 44, marginTop: 14, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 14, color: T.text, cursor: "pointer" }}
+            >
+              {t("ruleChanges.homeCta")}
+            </button>
+          </div>
+        )}
+
         {/* Monthly exam window */}
         {isInLastFiveDaysOfMonth(new Date()) && (
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "15px 16px" }}>
@@ -320,9 +348,9 @@ export default function HomePage() {
         )}
 
         {/* Quick actions */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: features.audio ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
           {[
-            { label: t("home.audio"),      path: "/audio"    },
+            ...(features.audio ? [{ label: t("home.audio"), path: "/audio" }] : []),
             { label: t("home.commute"),    path: "/commute"  },
             { label: t("home.quickDrill"), path: "/quiz/ncaa_basketball:art4" },
           ].map((a) => (

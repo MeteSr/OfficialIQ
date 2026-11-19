@@ -1,12 +1,31 @@
-type Result_6 = 
+type TrainingSession = 
+ record {
+   answered: nat;
+   correct: nat;
+   creditedSec: nat;
+   finishedAt: int;
+   id: text;
+   mode: ExamMode;
+   questionCount: nat;
+   score: nat;
+   sportId: text;
+   startedAt: int;
+ };
+type TrainingAccessError = variant {notAuthorized;};
+type Result_7 = 
  variant {
    err: text;
    ok: AnswerFeedback;
  };
-type Result_5 = 
+type Result_6 = 
  variant {
    err: text;
    ok: text;
+ };
+type Result_5 = 
+ variant {
+   err: TrainingAccessError;
+   ok: vec TrainingSession;
  };
 type Result_4 = 
  variant {
@@ -58,6 +77,7 @@ type Pick =
    casebook: bool;
    count: nat;
    difficulty: opt Difficulty;
+   tag: opt text;
  };
 type GradedStart = 
  record {
@@ -172,17 +192,35 @@ service : {
   /// Answers one question and reveals it. One answer per question; a
   /// timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
   answerQuestion: (sessionId: text, questionId: text, chosenId: text,
-   elapsedSec: nat) -> (Result_6);
+   elapsedSec: nat) -> (Result_7);
   createSession: (config: ExamConfig, questionIds: vec text) -> (Result_2);
-  createShareLink: (config: ExamConfig, picks: vec Pick) -> (Result_5);
+  createShareLink: (config: ExamConfig, picks: vec Pick) -> (Result_6);
   /// Finishes a session (unanswered questions count as wrong) and returns
   /// the full answer key. Safe to call again.
   finishSession: (sessionId: text) -> (Result_1);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their exam sessions, share links, answer keys and any results
+  /// still waiting to be pushed. The user canister calls this before the
+  /// canisters those results go to. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_4);
   getByShareToken: (token: text) -> (opt ExamSession) query;
   getExamTemplate: (id: text) -> (opt ExamTemplate) query;
   getExamsFor: (p: principal) -> (vec ExamSession) query;
   getMemberExams: (p: principal) -> (vec ExamSession) composite_query;
+  /// A member's training sessions, for the coordinator of an association
+  /// they belong to (same check as getMemberExams).
+  getMemberTraining: (p: principal) -> (Result_5) composite_query;
+  /// The caller's exam history (issue #71): the last 30 days for a free
+  /// official, everything kept (12 months) for Pro or while the paywall is
+  /// off. Older sessions stay stored, so upgrading shows them at once.
+  getMyExamHistory: () -> (vec ExamSession) composite_query;
+  /// Older clients' history call. A plain query can't ask the user canister
+  /// who is Pro, so while the paywall is on it returns the free window to
+  /// everyone; the app uses getMyExamHistory instead.
   getMyExams: () -> (vec ExamSession) query;
+  /// The caller's finished graded sessions with the training time each is
+  /// credited, for their transcript.
+  getMyTraining: () -> (vec TrainingSession) query;
   /// The questions a finished graded session got wrong or left unanswered,
   /// for the session's owner and the sibling canisters (crew pregame reads
   /// it so the crew's misses come from grading here, not the browser).
@@ -200,6 +238,7 @@ service : {
       sessionCount: nat;
     }) query;
   setAdmin: (p: principal) -> (Result_4);
+  setPaywallFlag: (on: bool) -> (Result_4);
   startGradedSession: (config: ExamConfig, source: QuestionSource) ->
    (Result_3);
   submitExam: (_id: text, _answers: vec AnswerRecord) -> (Result_2);

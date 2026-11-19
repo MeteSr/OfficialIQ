@@ -227,11 +227,11 @@ persistent actor Challenge {
   var crewsByMember : Index.Index<Principal> = Index.empty<Principal>();
   var nextCrewId   : Nat = 0;
 
-  let MAX_CREW : Nat = 8;
-  let MAX_CREW_QUESTIONS : Nat = 15;
+  transient let MAX_CREW : Nat = 8;
+  transient let MAX_CREW_QUESTIONS : Nat = 15;
   // A crew stays open until a while after its game, then closes.
-  let CREW_AFTER_GAME_NS : Int = 6 * 3600 * 1_000_000_000;
-  let MAX_CREW_AHEAD_NS : Int = 30 * 24 * 3600 * 1_000_000_000;
+  transient let CREW_AFTER_GAME_NS : Int = 6 * 3600 * 1_000_000_000;
+  transient let MAX_CREW_AHEAD_NS : Int = 30 * 24 * 3600 * 1_000_000_000;
 
   func previewOf(c : Crew) : CrewPreview {
     { id = c.id; gameLabel = c.gameLabel; gameDate = c.gameDate; sportId = c.sportId; levelId = c.levelId;
@@ -341,6 +341,44 @@ persistent actor Challenge {
     // only members' results are shown.
     Map.add(crews, Text.compare, id, { c with members = Array.filter<Principal>(c.members, func(m) { m != caller }) });
     // crewsByMember keeps the id; getMyCrews filters by membership.
+    #ok(())
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// deletes every challenge they sent or received, and takes them (and
+  /// their results) out of every crew; a crew left with no members is
+  /// deleted. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (id in Index.take(challengesByParticipant, Principal.compare, p).values()) {
+      switch (Map.take(challenges, Text.compare, id)) {
+        case (?ch) {
+          let other = if (ch.challenger == p) ch.challenged else ch.challenger;
+          Index.removeId(challengesByParticipant, Principal.compare, other, id);
+        };
+        case null {};
+      };
+    };
+    for (id in Index.take(crewsByMember, Principal.compare, p).values()) {
+      switch (Map.get(crews, Text.compare, id)) {
+        case (?c) {
+          let members = Array.filter<Principal>(c.members, func(m) { m != p });
+          if (members.size() == 0) {
+            Map.remove(crews, Text.compare, id);
+            Map.remove(crewCodes, Text.compare, c.code);
+          } else {
+            Map.add(crews, Text.compare, id, { c with
+              members;
+              results = Array.filter<CrewResult>(c.results, func(r) { r.principal != p });
+              creator = if (c.creator == p) Principal.anonymous() else c.creator;
+            });
+          };
+        };
+        case null {};
+      };
+    };
     #ok(())
   };
 

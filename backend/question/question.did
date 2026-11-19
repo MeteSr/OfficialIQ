@@ -1,3 +1,4 @@
+type WeakArticlesError = variant {proOnly;};
 type UserQuestionHistory = 
  record {
    easiness: float64;
@@ -9,20 +10,58 @@ type UserQuestionHistory =
    timesAnswered: nat;
    timesCorrect: nat;
  };
-type Result_2 = 
+type TagError = 
+ variant {
+   notAdmin;
+   notFound;
+   tooMany;
+ };
+type Result_6 = 
  variant {
    err: text;
    ok: Question;
  };
-type Result_1 = 
+type Result_5 = 
+ variant {
+   err: WeakArticlesError;
+   ok: vec record {
+             text;
+             nat;
+             nat;
+           };
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: vec QuestionReport;
+ };
+type Result_3 = 
  variant {
    err: text;
    ok: vec Question;
  };
-type Result = 
+type Result_2 = 
+ variant {
+   err: text;
+   ok: QuestionReport;
+ };
+type Result_1 = 
  variant {
    err: text;
    ok;
+ };
+type Result = 
+ variant {
+   err: TagError;
+   ok;
+ };
+type ReportReason = 
+ variant {
+   Other;
+   Outdated;
+   Typo;
+   Unclear;
+   WrongAnswer;
  };
 type QuizFilter = 
  record {
@@ -31,6 +70,18 @@ type QuizFilter =
    count: nat;
    difficulty: opt Difficulty;
    sportId: text;
+ };
+type QuestionReport = 
+ record {
+   createdAt: int;
+   id: text;
+   note: text;
+   questionId: text;
+   reason: ReportReason;
+   reporter: principal;
+   resolution: text;
+   resolved: bool;
+   resolvedAt: opt int;
  };
 type QuestionInput = 
  record {
@@ -67,6 +118,7 @@ type ExamPick =
    casebook: bool;
    count: nat;
    difficulty: opt Difficulty;
+   tag: opt text;
  };
 type Difficulty = 
  variant {
@@ -81,7 +133,12 @@ type Choice =
    "text": text;
  };
 service : {
-  addQuestion: (input: QuestionInput) -> (Result_2);
+  addQuestion: (input: QuestionInput) -> (Result_6);
+  /// Called by the user canister when an official deletes their account:
+  /// drops their spaced-repetition history and their question reports. The
+  /// per-question answer totals stay: they are counts with no one's
+  /// identity in them. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_1);
   getAdaptiveQuiz: (filter: QuizFilter) -> (vec Question) query;
   getAnswerRates: (questionIds: vec text) ->
    (vec record {
@@ -100,12 +157,10 @@ service : {
   getMyHistoryBatch: (questionIds: vec text) ->
    (vec opt UserQuestionHistory) query;
   getMyWeakArticles: (sportId: text, limit: nat) ->
-   (vec record {
-          text;
-          nat;
-          nat;
-        }) query;
+   (Result_5) composite_query;
   getQuestion: (id: text) -> (opt Question) query;
+  getQuestionTags: (questionId: text) -> (vec text) query;
+  isAdminCaller: () -> (bool) query;
   /// A sport's whole question bank, a page at a time in id order, for the
   /// app's offline cache (sampleQuiz capped it at 500 per type with no way
   /// to get the rest). Pass the previous page's `next` as `after`.
@@ -114,10 +169,18 @@ service : {
       next: opt text;
       questions: vec Question;
     }) query;
-  metrics: () -> (record {questionCount: nat;}) query;
+  /// Admin queue. Open reports only, or every report when `includeResolved`.
+  listQuestionReports: (includeResolved: bool) -> (Result_4) query;
+  metrics: () -> (record {
+                    openReports: nat;
+                    questionCount: nat;
+                  }) query;
+  /// Questions the caller has an open report on, so the app can show
+  /// "Reported" instead of the button.
+  myOpenReports: (questionIds: vec text) -> (vec text) query;
   pickForExam: (sportId: text, picks: vec ExamPick, player: principal) ->
-   (Result_1);
-  questionsForExam: (ids: vec text) -> (Result_1);
+   (Result_3);
+  questionsForExam: (ids: vec text) -> (Result_3);
   recordAnswer: (questionId: text, isCorrect: bool) -> ();
   /// Called by the exam canister when a quiz or exam finishes, with the
   /// player's graded answers: updates their spaced-repetition history and
@@ -127,7 +190,12 @@ service : {
    vec record {
          text;
          bool;
-       }) -> (Result);
+       }) -> (Result_1);
+  reportQuestion: (questionId: text, reason: ReportReason, note: text) ->
+   (Result_2);
+  resolveQuestionReport: (id: text, resolution: text) -> (Result_2);
   sampleQuiz: (filter: QuizFilter) -> (vec Question) query;
-  setAdmin: (p: principal) -> (Result);
+  setAdmin: (p: principal) -> (Result_1);
+  /// Replaces a question's tags (an empty list removes them). Admin only.
+  setQuestionTags: (questionId: text, tags: vec text) -> (Result);
 }

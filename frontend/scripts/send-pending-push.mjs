@@ -1,9 +1,11 @@
 // Polls ranking.getPendingPushEvents() for streak milestones (7/30/100 days)
 // crossed since the last run, and user.getPendingGameDayPushes() for games
-// starting within two hours (the game-day refresher, #63), and sends a real
-// Web Push to each subscribed official, via their stored subscription in the
-// user canister. Acks each event on successful send so it isn't resent next
-// run.
+// starting within two hours (the game-day refresher, #63), and sends a
+// notification to each subscribed official, via their stored subscription
+// in the user canister: Web Push for the website, APNs for the iOS app, FCM
+// for the Android app (lib/nativePush.mjs). Acks each event on a successful
+// send so it isn't resent next run. A channel without its credentials is
+// skipped and its events stay queued until they're set.
 //
 // Motoko/the IC has no usable ECDSA-P256 signing primitive for VAPID JWTs
 // (threshold ECDSA is secp256k1, a different curve), so the actual signed,
@@ -21,14 +23,14 @@
 //     node scripts/send-pending-push.mjs [environment]
 //
 // Meant to run periodically (cron) or manually by an admin — see
-// scripts/send-push.sh. Native (Capacitor/FCM/APNs) tokens are registered
-// (see user.mo's PushSubscription#Native) but not sent to yet — that needs
-// a real Firebase project / APNs certificate, a human/business task like
-// the rest of issue #31's store-submission requirements.
+// scripts/send-push.sh. Native credentials (all optional, see docs/MOBILE.md):
+//   APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID   iOS (APNs token auth)
+//   FCM_SERVICE_ACCOUNT_JSON                 Android (Firebase)
 
 import webpush from "web-push";
 import { Actor } from "@icp-sdk/core/agent";
 import { connect, environmentFromArgs } from "./lib/icp.mjs";
+import { apnsSender, fcmSender } from "./lib/nativePush.mjs";
 
 const NETWORK = environmentFromArgs();
 
@@ -69,13 +71,17 @@ async function main() {
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const subject = process.env.VAPID_SUBJECT;
-  if (!privateKey || !publicKey || !subject) {
+  const hasWebPush = !!(privateKey && publicKey && subject);
+  if (hasWebPush) webpush.setVapidDetails(subject, publicKey, privateKey);
+  const apns = apnsSender();
+  const fcm = fcmSender();
+  if (!hasWebPush && !apns && !fcm) {
     throw new Error(
-      "VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, and VAPID_SUBJECT must all be set. " +
-      "Generate a key pair with: npx web-push generate-vapid-keys",
+      "No push channel is configured. Set VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY and VAPID_SUBJECT for the website " +
+      "(npx web-push generate-vapid-keys), and/or the APNs and FCM secrets for the apps (docs/MOBILE.md).",
     );
   }
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  console.log(`Channels: web push ${hasWebPush ? "on" : "off"}, iOS ${apns ? "on" : "off"}, Android ${fcm ? "on" : "off"}`);
 
   const { agent, principal, ids } = await connect(NETWORK, ["ranking", "user"]);
   const rankingId = ids.ranking;
@@ -99,6 +105,20 @@ async function main() {
 
   let sent = 0, skipped = 0, errors = 0;
 
+  // How to reach a subscription on a channel this run has credentials for,
+  // or null (then the event stays queued for a later run).
+  function senderFor(sub, message) {
+    if ("WebPush" in sub && hasWebPush) {
+      return () => webpush.sendNotification(
+        { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
+        JSON.stringify(message),
+      );
+    }
+    if ("Native" in sub && sub.Native.platform === "ios" && apns) return () => apns.send(sub.Native.token, message);
+    if ("Native" in sub && sub.Native.platform === "android" && fcm) return () => fcm.send(sub.Native.token, message);
+    return null;
+  }
+
   for (const [memberPrincipal, milestones] of pending) {
     const subRes = await user.getSubscriptionFor(memberPrincipal);
     if ("err" in subRes) {
@@ -118,26 +138,23 @@ async function main() {
     for (const milestone of milestones) {
       const copy = MILESTONE_COPY[Number(milestone)] ?? { title: "OfficialIQ", body: `${milestone}-day streak!` };
 
-      if ("WebPush" in sub) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
-            JSON.stringify({ title: copy.title, body: copy.body, url: "/home" }),
-          );
-          await ranking.ackPushEvent(memberPrincipal, milestone);
-          console.log(`  ✓ ${memberPrincipal.toText()} — ${milestone}-day milestone`);
-          sent++;
-        } catch (err) {
-          console.error(`  ✗ ${memberPrincipal.toText()} — ${milestone}-day milestone: ${err.statusCode ?? ""} ${err.message ?? err}`);
-          errors++;
-        }
-      } else if ("Native" in sub) {
-        console.log(`  · ${memberPrincipal.toText()} — ${milestone}-day milestone: native token registered but sending isn't wired yet (needs a Firebase/APNs project — see issue #31)`);
+      const send = senderFor(sub, { title: copy.title, body: copy.body, url: "/home" });
+      if (!send) {
+        // That channel isn't configured: keep the event for a later run.
         skipped++;
+        continue;
+      }
+      try {
+        await send();
+        await ranking.ackPushEvent(memberPrincipal, milestone);
+        console.log(`  ✓ ${memberPrincipal.toText()} — ${milestone}-day milestone`);
+        sent++;
+      } catch (err) {
+        console.error(`  ✗ ${memberPrincipal.toText()} — ${milestone}-day milestone: ${err.statusCode ?? ""} ${err.message ?? err}`);
+        errors++;
       }
     }
   }
-
   // Game-day refreshers: one push per game, about two hours before it.
   // The canister only lists officials who have a subscription.
   const gameDayRes = await user.getPendingGameDayPushes();
@@ -148,30 +165,25 @@ async function main() {
     for (const { official, game } of gameDayRes.ok) {
       const subRes = await user.getSubscriptionFor(official);
       if ("err" in subRes || subRes.ok.length === 0) { skipped++; continue; }
-      const sub = subRes.ok[0];
-      if ("WebPush" in sub) {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.WebPush.endpoint, keys: { p256dh: sub.WebPush.p256dh, auth: sub.WebPush.auth } },
-            JSON.stringify({
-              title: "Game in 2 hours",
-              body: `5-minute refresher before ${game.opponent}`,
-              url: `/refresher/${game.id}`,
-            }),
-          );
-          await user.ackGameDayPush(game.id);
-          console.log(`  ✓ ${official.toText()} — game-day refresher for ${game.id}`);
-          sent++;
-        } catch (err) {
-          console.error(`  ✗ ${official.toText()} — game-day refresher for ${game.id}: ${err.statusCode ?? ""} ${err.message ?? err}`);
-          errors++;
-        }
-      } else {
-        // Same as streaks: native delivery isn't wired yet (issue #31).
-        skipped++;
+      const send = senderFor(subRes.ok[0], {
+        title: "Game in 2 hours",
+        body: `5-minute refresher before ${game.opponent}`,
+        url: `/refresher/${game.id}`,
+      });
+      if (!send) { skipped++; continue; }
+      try {
+        await send();
+        await user.ackGameDayPush(game.id);
+        console.log(`  ✓ ${official.toText()} — game-day refresher for ${game.id}`);
+        sent++;
+      } catch (err) {
+        console.error(`  ✗ ${official.toText()} — game-day refresher for ${game.id}: ${err.statusCode ?? ""} ${err.message ?? err}`);
+        errors++;
       }
     }
   }
+  apns?.close();
+  fcm?.close();
 
   console.log("");
   console.log(`Done. Sent: ${sent}, skipped: ${skipped}, errors: ${errors}`);

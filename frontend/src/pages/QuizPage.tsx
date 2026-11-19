@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
+import ReportQuestionButton from "../components/ReportQuestionButton";
 import { questionService, type Question, type UserQuestionHistory } from "../services/question";
 import { examService, unrevealed } from "../services/exam";
 import { rankingService } from "../services/ranking";
@@ -22,6 +23,8 @@ const DEFAULT_SECONDS_PER_Q = 45;
 type NavState = {
   assignmentId?: string; articleIds?: string[]; casebook?: boolean;
   mode?: ExamConfig["mode"];
+  /** Only questions with this tag, e.g. the season's rule changes (#68). */
+  tag?: string;
 } | null;
 
 export default function QuizPage() {
@@ -130,7 +133,7 @@ export default function QuizPage() {
         };
         try {
           const start = await examService.startGradedSession(config, {
-            Picks: [{ articleIds: effectiveArticleIds, casebook: effectiveCasebook, count: BigInt(countFromQuery), difficulty: [], adaptive: isAdaptive }],
+            Picks: [{ articleIds: effectiveArticleIds, casebook: effectiveCasebook, count: BigInt(countFromQuery), difficulty: [], adaptive: isAdaptive, tag: navState?.tag ? [navState.tag] : [] }],
           });
           loadQuestions(start.questions.map(unrevealed), start.session.id);
           setSessionId(start.session.id);
@@ -514,6 +517,7 @@ export default function QuizPage() {
             <strong>{t("challenge.correct")}</strong> — {currentQ.citation}: {currentQ.explanation}
           </div>
         )}
+        {revealed && <ReportQuestionButton key={currentQ.id} questionId={currentQ.id} />}
       </div>
 
       <div style={{ padding: 16 }}>

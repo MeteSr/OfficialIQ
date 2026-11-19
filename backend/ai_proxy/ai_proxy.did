@@ -34,13 +34,33 @@ type HttpHeader =
    name: text;
    value: text;
  };
+type Access = 
+ variant {
+   free;
+   paywallOff;
+   pro;
+ };
 service : {
   askRuleAssistant: (question: text, context: text) -> (Result_4);
+  /// Called by the user canister when an official deletes their account:
+  /// drops their daily usage counter. Safe to repeat.
+  forgetUser: (p: principal) -> (Result);
   generatePersonalizedDrills: (weakAreasContext: text, count: nat) ->
    (Result_4);
   generateScenarios: (instructions: text, articleContext: text, count:
    nat) -> (Result_4);
   getGlobalUsage: () -> (Result_3) query;
+  /// The caller's AI usage today and their cap, by tier (issue #71).
+  getMyAiUsage: () ->
+   (record {
+      access: Access;
+      limitPerDay: nat;
+      resetAt: int;
+      used: nat;
+    }) composite_query;
+  /// Older clients' status call. A plain query can't ask the user canister,
+  /// so the cap is the one from the caller's last request; the app uses
+  /// getMyAiUsage instead.
   getMyRateLimitStatus: () ->
    (record {
       limitPerDay: nat;

@@ -17,8 +17,9 @@ import { Principal } from "@icp-sdk/core/principal";
 import { levelLabel, sportLabel, useSport, DEFAULT_SPORT_ID, DEFAULT_LEVEL_ID } from "../lib/sport";
 import { syncAllContent } from "../lib/offlineSync";
 import { aiProxyService } from "../services/aiProxy";
-import { enablePush, disablePush, isPushConfigured, isWebPushSupported } from "../lib/pushNotifications";
-import { Capacitor } from "@capacitor/core";
+import { enablePush, disablePush, isPushConfigured, isPushAvailable } from "../lib/pushNotifications";
+import { features } from "../lib/features";
+import PlanRow from "../components/PlanRow";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
 
@@ -555,11 +556,14 @@ export default function MePage() {
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
             {t("me.groupTraining")}
           </div>
+          <PlanRow />
           <NavRow label={t("me.viewFullProgress")} path="/progress" />
-          <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />
-          {isAiAdmin && <NavRow label={t("me.aiScenarioGenerator")} tag="AI" tagColor={fill.accent} path="/ai-scenarios" />}
-          <NavRow label={t("me.askRuleAssistant")} tag="AI" tagColor={fill.accent} path="/ask" />
-          <NavRow label={t("me.submitClip")} path="/submit-clip" />
+          <NavRow label={t("me.ruleChanges")} path="/rule-changes" />
+          <NavRow label={t("me.trainingTranscript")} path="/transcript" />
+          {features.ai && <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />}
+          {features.ai && isAiAdmin && <NavRow label={t("me.aiScenarioGenerator")} tag="AI" tagColor={fill.accent} path="/ai-scenarios" />}
+          {features.ai && <NavRow label={t("me.askRuleAssistant")} tag="AI" tagColor={fill.accent} path="/ask" />}
+          {features.clipSubmissions && <NavRow label={t("me.submitClip")} path="/submit-clip" />}
         </div>
 
         {/* People group */}
@@ -570,7 +574,7 @@ export default function MePage() {
           <NavRow label={t("me.studyGroups")} path="/groups" />
           <NavRow label={t("me.mentorship")} path="/mentor" />
           <NavRow label={t("me.associations")} path="/association" />
-          {isContentAdmin && <NavRow label={t("me.clipModerationQueue")} tag="ADMIN" tagColor={fill.attention} path="/moderation" />}
+          {isContentAdmin && <NavRow label={t("me.moderationQueue")} tag="ADMIN" tagColor={fill.attention} path="/moderation" />}
         </div>
 
         {/* Records group */}
@@ -680,23 +684,25 @@ export default function MePage() {
             </div>
           )}
 
-          {/* Push reminders */}
+          {/* Push reminders: only where this build can deliver them */}
+          {isPushAvailable() && (<>
           <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div>
               <div style={{ fontFamily: T.font, fontWeight: 600, fontSize: 13.5, color: T.text }}>{t("me.pushTitle")}</div>
               <div style={{ fontFamily: T.font, fontWeight: 400, fontSize: 12, color: T.muted, marginTop: 3 }}>
-                {Capacitor.isNativePlatform() || isWebPushSupported() ? t("me.pushSupported") : t("me.pushUnsupported")}
+                {t("me.pushSupported")}
               </div>
             </div>
             <button
               onClick={handleTogglePush}
-              disabled={pushBusy || (!Capacitor.isNativePlatform() && !isWebPushSupported())}
+              disabled={pushBusy}
               style={{ width: 52, height: 30, borderRadius: 15, border: `1px solid ${pushEnabled ? fill.accent : T.border}`, background: pushEnabled ? fill.accent : T.surface, position: "relative", padding: 0, flexShrink: 0, cursor: "pointer", opacity: pushBusy ? 0.6 : 1 }}
             >
               <span style={{ position: "absolute", top: 3, left: pushEnabled ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: pushEnabled ? fill.onAccent : T.muted, display: "block", transition: "left 0.15s" }} />
             </button>
           </div>
           {pushError && <div style={{ fontFamily: T.font, fontSize: 11, color: T.wrong }}>{pushError}</div>}
+          </>)}
 
           {/* Dark mode */}
           <div style={{ padding: "14px 16px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -711,6 +717,16 @@ export default function MePage() {
               <span style={{ position: "absolute", top: 3, left: T.mode === "dark" ? 27 : 3, width: 22, height: 22, borderRadius: 11, background: T.mode === "dark" ? fill.onAccent : T.muted, display: "block", transition: "left 0.15s" }} />
             </button>
           </div>
+        </div>
+
+        {/* Account and legal */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
+            {t("me.groupAccount")}
+          </div>
+          <NavRow label={t("me.privacyPolicy")} path="/privacy" />
+          <NavRow label={t("me.terms")} path="/terms" />
+          <NavRow label={t("me.deleteAccount")} path="/account/delete" />
         </div>
 
         {/* Sign out */}

@@ -30,11 +30,24 @@ type UpcomingGame =
    opponent: text;
    sportId: text;
  };
+type TrainingActivity = 
+ record {
+   monthlyQuizzes: vec MonthlyQuizResult;
+   studyDays: vec StudyDay;
+   weeklyQuizzes: vec WeeklyQuizResult;
+ };
+type TrainingAccessError = variant {notAuthorized;};
 type StudyPace = 
  record {
    articlesPerWeek: nat;
    startDate: int;
  };
+type StudyDay = 
+ record {
+   day: nat;
+   seconds: nat;
+ };
+type SiblingError = variant {notSibling;};
 type Role = 
  variant {
    Admin;
@@ -42,25 +55,60 @@ type Role =
    Coordinator;
    Official;
  };
-type Result_5 = 
+type Result_9 = 
  variant {
-   err: text;
-   ok: UpcomingGame;
+   err: TrainingAccessError;
+   ok: TrainingActivity;
  };
-type Result_4 = 
+type Result_8 = 
  variant {
    err: text;
    ok: vec GameDayPush;
  };
-type Result_3 = 
+type Result_7 = 
  variant {
    err: text;
    ok: opt PushSubscription;
+ };
+type Result_6 = 
+ variant {
+   err: SiblingError;
+   ok: bool;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: vec ClientError;
+ };
+type Result_4 = 
+ variant {
+   err: PaywallError;
+   ok;
+ };
+type Result_3 = 
+ variant {
+   err: AdminError;
+   ok;
  };
 type Result_2 = 
  variant {
    err: text;
    ok: StudyPace;
+ };
+type Result_12 = 
+ variant {
+   err: SiblingError;
+   ok: Access;
+ };
+type Result_11 = 
+ variant {
+   err: text;
+   ok: UpcomingGame;
+ };
+type Result_10 = 
+ variant {
+   err: ClaimError;
+   ok: MyEntitlement;
  };
 type Result_1 = 
  variant {
@@ -111,6 +159,20 @@ type Profile =
    sport: text;
    state: text;
  };
+type PaywallError = 
+ variant {
+   examNotUpdated;
+   notAdmin;
+ };
+type MyEntitlement = 
+ record {
+   entitlements: vec Entitlement;
+   paywallEnabled: bool;
+   tier: variant {
+           free;
+           pro;
+         };
+ };
 type MonthlyQuizResult = 
  record {
    articleScores: vec record {
@@ -127,10 +189,75 @@ type LinkedAccount =
    linkedAt: int;
    provider: text;
  };
+type HttpRequestResult = 
+ record {
+   body: blob;
+   headers: vec HttpHeader;
+   status: nat;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
 type GameDayPush = 
  record {
    game: UpcomingGame;
    official: principal;
+ };
+type EntitlementSource = 
+ variant {
+   appStore;
+   association: text;
+   comp;
+   playStore;
+   web: text;
+ };
+type Entitlement = 
+ record {
+   expiresAt: int;
+   source: EntitlementSource;
+   tier: variant {pro;};
+   updatedAt: int;
+ };
+type DeletionStatus = 
+ variant {
+   InProgress: record {remaining: nat;};
+   NotRequested;
+ };
+type ClientErrorInput = 
+ record {
+   kind: text;
+   message: text;
+   platform: text;
+   release: text;
+   route: text;
+   stack: text;
+ };
+type ClientError = 
+ record {
+   at: int;
+   kind: text;
+   message: text;
+   platform: text;
+   release: text;
+   route: text;
+   seq: nat;
+   signedIn: bool;
+   stack: text;
+ };
+type ClaimError = 
+ variant {
+   alreadyClaimed;
+   invalidSession;
+   malformed;
+   notActive;
+   notComplete;
+   notConfigured;
+   notSignedIn;
+   notSubscription;
+   notYours;
+   stripeUnavailable;
  };
 type ArticleProgress = 
  record {
@@ -139,29 +266,71 @@ type ArticleProgress =
    masteryScore: nat;
    timesStudied: nat;
  };
+type AdminError = variant {notAdmin;};
+type Access = 
+ variant {
+   free;
+   paywallOff;
+   pro;
+ };
 service : {
+  /// For sibling canisters (ai_proxy, exam, and later #63/#65): what `p`
+  /// gets. #paywallOff while billing is switched off.
+  accessFor: (p: principal) -> (Result_12) query;
   ackGameDayPush: (gameId: text) -> (Result_1);
-  addUpcomingGame: (input: UpcomingGameInput) -> (Result_5);
+  addUpcomingGame: (input: UpcomingGameInput) -> (Result_11);
   becomeCoordinator: () -> (Result);
+  /// Grants Pro from a finished Stripe Checkout: the session must name the
+  /// caller as its client_reference_id, be complete, and have started a
+  /// subscription that is active or trialing.
+  claimWebSubscription: (sessionId: text) -> (Result_10);
   createProfile: (req: ProfileUpdate) -> (Result);
+  deleteAccount: () -> (Result_1);
+  getDeletionStatus: () -> (DeletionStatus) query;
+  /// A member's training activity, for the coordinator of an association
+  /// they belong to.
+  getMemberTrainingActivity: (p: principal) -> (Result_9) composite_query;
   getMonthlyQuizHistory: () -> (vec MonthlyQuizResult) query;
+  getMyEntitlement: () -> (MyEntitlement) query;
   getMyLinkedAccounts: () -> (vec LinkedAccount) query;
   getMyProfile: () -> (opt Profile) query;
   getMyProgress: () -> (vec ArticleProgress) query;
   getMyPushSubscription: () -> (opt PushSubscription) query;
   getMyStudyPace: () -> (opt StudyPace) query;
+  getMyTrainingActivity: () -> (TrainingActivity) query;
   getMyUpcomingGames: () -> (vec UpcomingGame) query;
   /// Games starting within the next two hours whose official has push set up
   /// and hasn't been pushed for them yet. Push relay or admin only.
-  getPendingGameDayPushes: () -> (Result_4) query;
+  getPendingGameDayPushes: () -> (Result_8) query;
   getProfile: (p: principal) -> (opt Profile) query;
   getPublicProfile: (p: principal) -> (opt PublicProfile) query;
-  getSubscriptionFor: (p: principal) -> (Result_3) query;
+  getSubscriptionFor: (p: principal) -> (Result_7) query;
   getWeeklyQuizHistory: () -> (vec WeeklyQuizResult) query;
   getWeeklySchedule: (allArticleIds: vec text) -> (WeeklySchedule) query;
+  /// Pro for support cases, reviewers and the App Store review account,
+  /// until `until` (nanoseconds). Replaces an earlier comp.
+  grantComp: (p: principal, until: int) -> (Result_3);
+  isAdminCaller: () -> (bool) query;
   isCoordinator: (p: principal) -> (bool) query;
+  /// For sibling canisters: whether `p` gets Pro features. True for
+  /// everyone while the paywall is off.
+  isPro: (p: principal) -> (Result_6) query;
   linkExternalAccount: (provider: text, externalId: text) -> (Result_1);
-  metrics: () -> (record {userCount: nat;}) query;
+  /// Newest first, at most `limit`.
+  listClientErrors: (limit: nat) -> (Result_5) query;
+  logClientError: (e: ClientErrorInput) -> ();
+  metrics: () ->
+   (record {
+      clientErrors: nat;
+      completedDeletions: nat;
+      paywallEnabled: bool;
+      pendingDeletions: nat;
+      proBySource: vec record {
+                         text;
+                         nat;
+                       };
+      userCount: nat;
+    }) query;
   recordArticleStudied: (articleId: text, score: nat) -> ();
   /// Called by the exam canister when a quiz or exam finishes: each article
   /// in it counts as studied, scored by its accuracy in that session. Safe
@@ -176,14 +345,25 @@ service : {
          text;
          nat;
        }) -> ();
+  recordStudyBeat: () -> ();
   recordWeeklyQuizResult: (weekNumber: nat, newScore: nat, retentionScore:
    nat) -> ();
   registerPushSubscription: (sub: PushSubscription) -> (Result_1);
   removeUpcomingGame: (id: text) -> (Result_1);
+  revokeComp: (p: principal) -> (Result_3);
   setAdmin: (p: principal) -> (Result_1);
+  /// Switches billing on or off. The exam canister keeps a copy for its
+  /// plain-query history methods; if it can't be told, the switch still
+  /// changes here and the call reports #examNotUpdated, so try again.
+  setPaywallEnabled: (on: bool) -> (Result_4);
   setPushRelay: (p: opt principal) -> (Result_1);
   setRole: (p: principal, role: Role) -> (Result);
+  setStripeKey: (key: opt text) -> (Result_3);
   setStudyPace: (articlesPerWeek: nat) -> (Result_2);
+  transformStripe: (record {
+                      context: blob;
+                      response: HttpRequestResult;
+                    }) -> (HttpRequestResult) query;
   unlinkExternalAccount: (provider: text) -> (Result_1);
   unregisterPushSubscription: () -> (Result_1);
   updateProfile: (req: ProfileUpdate) -> (Result);

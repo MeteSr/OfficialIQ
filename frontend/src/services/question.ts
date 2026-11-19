@@ -3,6 +3,13 @@ import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/question";
 import { cacheQuestions, getCachedQuestion, getCachedQuestionsFor } from "../lib/offlineDb";
 
+export const REPORT_REASONS = ["WrongAnswer", "Unclear", "Outdated", "Typo", "Other"] as const;
+export type ReportReason = typeof REPORT_REASONS[number];
+export type QuestionReport = {
+  id: string; questionId: string; reporter: import("@icp-sdk/core/principal").Principal; reason: ReportReason;
+  note: string; createdAt: bigint; resolved: boolean; resolution: string; resolvedAt: [] | [bigint];
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Difficulty =
@@ -210,10 +217,16 @@ export const questionService = {
 
   /** How often every official got each question right, keyed by question id. Missing ids have no answers yet. */
   /** The caller's articles with the most missed answers in a sport, worst first (game-day refresher). */
-  async getMyWeakArticles(sportId: string, limit = 5): Promise<{ articleId: string; wrong: number; answered: number }[]> {
-    if (!CANISTER_ID) return [];
-    const rows = await actor().getMyWeakArticles(sportId, BigInt(limit));
-    return rows.map(([articleId, wrong, answered]) => ({ articleId, wrong: Number(wrong), answered: Number(answered) }));
+  /**
+   * The caller's most-missed articles, for the game-day refresher. That
+   * targeting is Pro once the paywall is on (#71): then a free official
+   * gets proOnly.
+   */
+  async getMyWeakArticles(sportId: string, limit = 5): Promise<{ proOnly: boolean; rows: { articleId: string; wrong: number; answered: number }[] }> {
+    if (!CANISTER_ID) return { proOnly: false, rows: [] };
+    const res = await actor().getMyWeakArticles(sportId, BigInt(limit));
+    if ("err" in res) return { proOnly: true, rows: [] };
+    return { proOnly: false, rows: res.ok.map(([articleId, wrong, answered]) => ({ articleId, wrong: Number(wrong), answered: Number(answered) })) };
   },
 
   async getAnswerRates(questionIds: string[]): Promise<Map<string, { wrongCount: number; totalCount: number }>> {
@@ -224,5 +237,37 @@ export const questionService = {
       for (const [id, wrong, total] of rows) out.set(id, { wrongCount: Number(wrong), totalCount: Number(total) });
     }
     return out;
+  },
+  /** Flags a question as wrong or unclear for an admin to review. */
+  async reportQuestion(questionId: string, reason: ReportReason, note: string): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().reportQuestion(questionId, { [reason]: null } as never, note);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  /** Of these questions, the ones the caller has an open report on. */
+  async myOpenReports(questionIds: string[]): Promise<string[]> {
+    if (!CANISTER_ID || questionIds.length === 0) return [];
+    return actor().myOpenReports(questionIds);
+  },
+
+  /** Admin only. */
+  async listQuestionReports(includeResolved = false): Promise<QuestionReport[]> {
+    if (!CANISTER_ID) return [];
+    const res = await actor().listQuestionReports(includeResolved);
+    if ("err" in res) throw new Error(res.err);
+    return res.ok.map(r => ({ ...r, reason: Object.keys(r.reason)[0] as ReportReason }));
+  },
+
+  /** Admin only. */
+  async resolveQuestionReport(id: string, resolution: string): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().resolveQuestionReport(id, resolution);
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  async isAdmin(): Promise<boolean> {
+    if (!CANISTER_ID) return false;
+    return actor().isAdminCaller();
   },
 };

@@ -7,6 +7,7 @@ import { useSport } from "../lib/sport";
 import { useCanisterQuery } from "../hooks/useCanisterQuery";
 import LoadError from "../components/LoadError";
 import GradedQuiz from "../components/GradedQuiz";
+import UpgradeSheet from "../components/UpgradeSheet";
 import { userService } from "../services/user";
 import { contentService } from "../services/content";
 import { questionService } from "../services/question";
@@ -27,6 +28,7 @@ export default function RefresherPage() {
   const profileSport = useSport();
   const [phase, setPhase] = useState<Phase>("intro");
   const [result, setResult] = useState<{ finish: GradedFinish; questions: Question[] } | null>(null);
+  const [upsell, setUpsell] = useState(false);
 
   const plan = useCanisterQuery(async () => {
     const games = await userService.getMyUpcomingGames();
@@ -40,13 +42,15 @@ export default function RefresherPage() {
       }),
       questionService.getMyWeakArticles(sportId, 3),
     ]);
+    if (weak.proOnly) return { proOnly: true as const };
     const titles = new Map(level.articles.map(a => [a.id, a.title]));
-    const picks = refresherPicks(weak.map(w => w.articleId), level.articles.map(a => a.id), level.emphasisArticleIds);
-    return { game, sportId, picks, weakTitles: weak.map(w => titles.get(w.articleId) ?? w.articleId) };
+    const picks = refresherPicks(weak.rows.map(w => w.articleId), level.articles.map(a => a.id), level.emphasisArticleIds);
+    return { proOnly: false as const, game, sportId, picks, weakTitles: weak.rows.map(w => titles.get(w.articleId) ?? w.articleId) };
   }, [gameId, profileSport.sportId, profileSport.levelId]);
 
   const start = useCallback(() => {
     const p = plan.data!;
+    if (p.proOnly) throw new Error("Pro only");
     const count = p.picks.reduce((n, pk) => n + pk.count, 0n);
     return examService.startGradedSession({
       sportId: p.sportId, articleIds: pickedArticleIds(p.picks), casebook: false,
@@ -72,6 +76,20 @@ export default function RefresherPage() {
 
   if (plan.error) return <LoadError onRetry={plan.reload} />;
   if (plan.loading || !plan.data) return <div role="status" style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
+
+  // A Pro feature once the paywall is on (#71); the question canister says so.
+  if (plan.data.proOnly) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{t("gameDay.refresherTitle")}</div>
+        <div style={{ fontSize: 14, color: T.muted, marginBottom: 20 }}>{t("gameDay.proOnly")}</div>
+        <button onClick={() => setUpsell(true)} style={{ padding: "13px 32px", background: T.red, color: T.white, borderRadius: 8, fontSize: 15, fontWeight: 700 }}>
+          {t("plan.upgradeTitle")}
+        </button>
+        <UpgradeSheet open={upsell} reason="feature" onClose={() => setUpsell(false)} />
+      </div>
+    );
+  }
 
   const { game, weakTitles } = plan.data;
   const label = game ? game.opponent : t("gameDay.refresherTitle");

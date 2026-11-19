@@ -51,6 +51,28 @@ describe("crew pregame", () => {
     expect(err(await (await canister("challenge", b)).submitCrewResult(crew.id, sb.session.id))).toMatch(/already used/);
   });
 
+  it("takes a deleted account out of its crews, with its results", async () => {
+    const a = newIdentity();
+    const b = newIdentity();
+    ok(await (await canister("user", b)).createProfile({ displayName: "Leaving", sport: bank.sportId, level: "varsity", state: "OH", preferredLanguage: "en" }));
+    const ids = bank.ruleIds.slice(0, 2);
+    const crew = await newCrew(a, ids);
+    ok(await (await canister("challenge", b)).joinCrew(crew.code));
+    const sb = await startSet(b, ids);
+    await play(b, bank, sb, 1);
+    ok(await (await canister("challenge", b)).submitCrewResult(crew.id, sb.session.id));
+
+    ok(await (await canister("user", b)).deleteAccount());
+    const gone = (c: Crew) => !c.results.some(r => r.principal.toText() === b.getPrincipal().toText()) && c.members.length === 1;
+    let after: Crew | undefined;
+    for (let i = 0; i < 120; i++) {
+      after = ((await (await canister("challenge", a)).getCrew(crew.id)) as Crew[])[0];
+      if (after && gone(after)) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    expect(after && gone(after)).toBe(true);
+  });
+
   it("keeps the crew to its members", async () => {
     const a = newIdentity();
     const ids = bank.ruleIds.slice(0, 3);
@@ -96,11 +118,11 @@ describe("game-day refresher", () => {
     // The exam canister forwards answers to the question canister in the background.
     let rows: [string, bigint, bigint][] = [];
     for (let i = 0; i < 20 && rows.length === 0; i++) {
-      rows = await (await canister("question", a)).getMyWeakArticles(bank.sportId, 5n);
+      rows = ok(await (await canister("question", a)).getMyWeakArticles(bank.sportId, 5n)) as [string, bigint, bigint][];
       if (rows.length === 0) await new Promise(r => setTimeout(r, 500));
     }
     expect(rows).toEqual([[bank.art1, 3n, 3n]]);
-    expect(await (await canister("question", newIdentity())).getMyWeakArticles(bank.sportId, 5n)).toEqual([]);
+    expect(ok(await (await canister("question", newIdentity())).getMyWeakArticles(bank.sportId, 5n))).toEqual([]);
   });
 
   it("lists a timed game within two hours once, for officials with push", async () => {
@@ -130,5 +152,34 @@ describe("game-day refresher", () => {
     ok(await admin.ackGameDayPush(soon.id));
     expect(await pendingIds()).not.toContain(soon.id);
     expect(err(await user.getPendingGameDayPushes())).toMatch(/Admin only/);
+  });
+
+  // The refresher is a Pro feature (#71). Paywall on for this test only;
+  // files run one at a time.
+  it("is Pro only once the paywall is on: no weak-article targeting or push for free officials", async () => {
+    const admin = await adminCall("user");
+    ok(await admin.setPaywallEnabled(true));
+    try {
+      const free = newIdentity();
+      const pro = newIdentity();
+      ok(await admin.grantComp(pro.getPrincipal(), nowNs() + 24n * HOUR_NS));
+      expect(err(await (await canister("question", free)).getMyWeakArticles(bank.sportId, 5n))).toEqual({ proOnly: null });
+      ok(await (await canister("question", pro)).getMyWeakArticles(bank.sportId, 5n));
+
+      const gameFor = async (who: Identity) => {
+        const u = await canister("user", who);
+        ok(await u.registerPushSubscription({ WebPush: { endpoint: "https://push.example/y", p256dh: "k", auth: "a" } }));
+        return (ok(await u.addUpcomingGame({
+          opponent: "Pro check", gameDate: nowNs() + HOUR_NS, sportId: bank.sportId, levelId: "varsity", notes: "", hasStartTime: [true],
+        })) as { id: string }).id;
+      };
+      const freeGame = await gameFor(free);
+      const proGame = await gameFor(pro);
+      const ids = (ok(await admin.getPendingGameDayPushes()) as { game: { id: string } }[]).map(p => p.game.id);
+      expect(ids).toContain(proGame);
+      expect(ids).not.toContain(freeGame);
+    } finally {
+      ok(await admin.setPaywallEnabled(false));
+    }
   });
 });

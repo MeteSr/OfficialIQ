@@ -1,6 +1,7 @@
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/association";
+import type { Requirement, SetRequirementError } from "../lib/transcript";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,15 @@ export type Completion = {
   score:        bigint;
   completedAt:  bigint;
 };
+
+export type TrainingRequirement = { hoursPerSeason: bigint; seasonStartMonth: bigint; updatedAt: bigint };
+
+/** A rejected setTrainingRequirement; map `reason` with requirementErrorKey. */
+export class SetRequirementFailed extends Error {
+  constructor(public readonly reason: SetRequirementError) {
+    super(Object.keys(reason)[0]);
+  }
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -108,6 +118,23 @@ export const associationService = {
   async getMyCompletions(): Promise<Completion[]> {
     if (!CANISTER_ID) return [];
     return actor().getMyCompletions();
+  },
+
+  /** Coordinator only. null clears the requirement. Throws SetRequirementFailed. */
+  async setTrainingRequirement(associationId: string, req: Requirement | null): Promise<TrainingRequirement | null> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const input: [] | [{ hoursPerSeason: bigint; seasonStartMonth: bigint }] =
+      req ? [{ hoursPerSeason: BigInt(req.hoursPerSeason), seasonStartMonth: BigInt(req.seasonStartMonth) }] : [];
+    const res = await actor().setTrainingRequirement(associationId, input);
+    if ("err" in res) throw new SetRequirementFailed(res.err);
+    return res.ok.length ? res.ok[0] : null;
+  },
+
+  async getTrainingRequirement(associationId: string): Promise<TrainingRequirement | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getTrainingRequirement(associationId);
+    if ("err" in res) throw new Error("notAuthorized" in res.err ? "Not authorized" : "Association not found");
+    return res.ok.length ? res.ok[0] : null;
   },
 
   async getAssignmentCompletions(assignmentId: string): Promise<Completion[]> {

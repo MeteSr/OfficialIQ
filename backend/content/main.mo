@@ -10,6 +10,7 @@ import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Set "mo:core/Set";
+import Env "../lib/Env";
 
 persistent actor Content {
 
@@ -330,6 +331,23 @@ persistent actor Content {
     }
   };
 
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their clip submissions that weren't used. An approved clip is
+  /// already part of a casebook play, so it stays, with the submitter
+  /// replaced by the anonymous principal. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    let theirs = List.empty<VideoSubmission>();
+    for ((_, s) in Map.entries(submissions)) { if (s.submitter == p) List.add(theirs, s) };
+    for (s in List.values(theirs)) {
+      switch (s.status) {
+        case (#Approved) Map.add(submissions, Text.compare, s.id, { s with submitter = Principal.anonymous() });
+        case _ Map.remove(submissions, Text.compare, s.id);
+      };
+    };
+    #ok(())
+  };
+
   public shared ({ caller }) func upsertPointOfEmphasis(input : PoeInput) : async Result.Result<PointOfEmphasis, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     let id = "poe" # Nat.toText(nextPoeId);
@@ -397,6 +415,93 @@ persistent actor Content {
         #ok(())
       };
     }
+  };
+
+  // ─── Rule changes (issue #68) ──────────────────────────────────────────────
+  //
+  // "What changed this season": each change to a rule, keyed by sport and
+  // season, with the old and new wording and the article it's in. A sibling
+  // of the points of emphasis above. The wording must come from the licensed
+  // rulebook edition named in `source` (#50), so only admins write it.
+  // oldText is empty for a rule that's new this season.
+
+  public type RuleChange = {
+    id        : Text;
+    sportId   : Text;
+    season    : Text;
+    articleId : Text;
+    citation  : Text;
+    title     : Text;
+    oldText   : Text;
+    newText   : Text;
+    summary   : Text;
+    source    : Text;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  public type RuleChangeInput = {
+    sportId   : Text;
+    season    : Text;
+    articleId : Text;
+    citation  : Text;
+    title     : Text;
+    oldText   : Text;
+    newText   : Text;
+    summary   : Text;
+    source    : Text;
+  };
+
+  public type RuleChangeError = { #notAdmin; #notFound; #invalid : Text };
+
+  let ruleChanges : Map.Map<Text, RuleChange> = Map.empty<Text, RuleChange>();
+  var nextRuleChangeId : Nat = 0;
+  transient let MAX_RULE_TEXT_CHARS : Nat = 20_000;
+
+  func blank(t : Text) : Bool = t.trim(#char ' ').size() == 0;
+
+  func invalidRuleChange(i : RuleChangeInput) : ?Text {
+    if (blank(i.sportId)) return ?"sportId";
+    if (blank(i.season)) return ?"season";
+    if (blank(i.articleId)) return ?"articleId";
+    if (blank(i.title)) return ?"title";
+    if (blank(i.newText)) return ?"newText";
+    for ((name, t) in [("title", i.title), ("oldText", i.oldText), ("newText", i.newText), ("summary", i.summary), ("source", i.source), ("citation", i.citation)].values()) {
+      if (t.size() > MAX_RULE_TEXT_CHARS) return ?name;
+    };
+    null
+  };
+
+  /// Adds a change (id null) or replaces the one with `id`. Admin only.
+  public shared ({ caller }) func upsertRuleChange(id : ?Text, input : RuleChangeInput) : async Result.Result<RuleChange, RuleChangeError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    switch (invalidRuleChange(input)) { case (?field) return #err(#invalid(field)); case null {} };
+    let now = Time.now();
+    let (rid, createdAt) = switch id {
+      case null { let n = nextRuleChangeId; nextRuleChangeId += 1; ("rc" # n.toText(), now) };
+      case (?existing) {
+        switch (ruleChanges.get(Text.compare, existing)) {
+          case (?old) (existing, old.createdAt);
+          case null return #err(#notFound);
+        }
+      };
+    };
+    let c : RuleChange = { input with id = rid; createdAt; updatedAt = now };
+    ruleChanges.add(Text.compare, rid, c);
+    #ok(c)
+  };
+
+  public shared ({ caller }) func deleteRuleChange(id : Text) : async Result.Result<(), RuleChangeError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    switch (ruleChanges.take(Text.compare, id)) { case (?_) #ok(()); case null #err(#notFound) }
+  };
+
+  /// A sport's rule changes for a season (e.g. "2026-27"), oldest first.
+  public query func listRuleChanges(sportId : Text, season : Text) : async [RuleChange] {
+    let out = List.empty<RuleChange>();
+    for (c in ruleChanges.values()) { if (c.sportId == sportId and c.season == season) out.add(c) };
+    out.sortInPlace(func(a, b) = Int.compare(a.createdAt, b.createdAt));
+    out.toArray()
   };
 
   // ─── Queries ──────────────────────────────────────────────────────────────

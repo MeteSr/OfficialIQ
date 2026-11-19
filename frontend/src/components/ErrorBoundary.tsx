@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import i18n from "../i18n";
 import { T, fill } from "../tokens";
+import { reportError } from "../lib/errorReporting";
 
 type Props = {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[OfficialIQ] render error", error, info.componentStack);
+    reportError("crash", error, info.componentStack ?? "");
   }
 
   private reset = () => this.setState({ error: null });

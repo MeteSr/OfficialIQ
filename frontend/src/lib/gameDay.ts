@@ -26,16 +26,16 @@ export function playArticles(levelArticleIds: string[], emphasisArticleIds: stri
 export function refresherPicks(weakArticleIds: string[], levelArticleIds: string[], emphasisArticleIds: string[]): Pick[] {
   const weak = weakArticleIds.slice(0, 3);
   return [
-    { articleIds: weak.length > 0 ? weak : levelArticleIds, casebook: false, count: 3n, difficulty: [], adaptive: true },
-    { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 2n, difficulty: [], adaptive: false },
+    { articleIds: weak.length > 0 ? weak : levelArticleIds, casebook: false, count: 3n, difficulty: [], adaptive: true, tag: [] },
+    { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 2n, difficulty: [], adaptive: false, tag: [] },
   ];
 }
 
 /** Six questions the whole crew shares: three rules, three plays at the level. Not adaptive, so not tuned to whoever created it. */
 export function crewPicks(levelArticleIds: string[], emphasisArticleIds: string[]): Pick[] {
   return [
-    { articleIds: levelArticleIds, casebook: false, count: 3n, difficulty: [], adaptive: false },
-    { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 3n, difficulty: [], adaptive: false },
+    { articleIds: levelArticleIds, casebook: false, count: 3n, difficulty: [], adaptive: false, tag: [] },
+    { articleIds: playArticles(levelArticleIds, emphasisArticleIds), casebook: true, count: 3n, difficulty: [], adaptive: false, tag: [] },
   ];
 }
 

@@ -161,6 +161,11 @@ service : {
    (Result_4);
   createGroup: (name: text, sport: text, state: text, isPrivate: bool) ->
    (Result_2);
+  /// Called by the user canister when an official deletes their account:
+  /// drops their stats, history, streaks, friends and push events, takes
+  /// them off other people's friend lists and out of groups, and deletes the
+  /// groups they own. Safe to repeat.
+  forgetUser: (p: principal) -> (Result);
   getDailyStreak: () -> (DailyActivity) query;
   getFriendPrincipals: () -> (vec principal) query;
   getFriends: (sport: text, limit: nat, sortBy: SortKey) ->

@@ -93,6 +93,7 @@ export interface GradedStart {
   'questions' : Array<QuestionView>,
 }
 export interface Pick {
+  'tag' : [] | [string],
   'casebook' : boolean,
   'difficulty' : [] | [Difficulty],
   'count' : bigint,
@@ -123,28 +124,71 @@ export type Result_3 = { 'ok' : GradedStart } |
   { 'err' : string };
 export type Result_4 = { 'ok' : null } |
   { 'err' : string };
-export type Result_5 = { 'ok' : string } |
+export type Result_5 = { 'ok' : Array<TrainingSession> } |
+  { 'err' : TrainingAccessError };
+export type Result_6 = { 'ok' : string } |
   { 'err' : string };
-export type Result_6 = { 'ok' : AnswerFeedback } |
+export type Result_7 = { 'ok' : AnswerFeedback } |
   { 'err' : string };
+export type TrainingAccessError = { 'notAuthorized' : null };
+export interface TrainingSession {
+  'id' : string,
+  'startedAt' : bigint,
+  'mode' : ExamMode,
+  'answered' : bigint,
+  'correct' : bigint,
+  'score' : bigint,
+  'sportId' : string,
+  'creditedSec' : bigint,
+  'finishedAt' : bigint,
+  'questionCount' : bigint,
+}
 export interface _SERVICE {
   /**
    * / Answers one question and reveals it. One answer per question; a
    * / timeout is sent as any chosenId that isn't a choice (e.g. "__timeout__").
    */
-  'answerQuestion' : ActorMethod<[string, string, string, bigint], Result_6>,
+  'answerQuestion' : ActorMethod<[string, string, string, bigint], Result_7>,
   'createSession' : ActorMethod<[ExamConfig, Array<string>], Result_2>,
-  'createShareLink' : ActorMethod<[ExamConfig, Array<Pick>], Result_5>,
+  'createShareLink' : ActorMethod<[ExamConfig, Array<Pick>], Result_6>,
   /**
    * / Finishes a session (unanswered questions count as wrong) and returns
    * / the full answer key. Safe to call again.
    */
   'finishSession' : ActorMethod<[string], Result_1>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes their exam sessions, share links, answer keys and any results
+   * / still waiting to be pushed. The user canister calls this before the
+   * / canisters those results go to. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_4>,
   'getByShareToken' : ActorMethod<[string], [] | [ExamSession]>,
   'getExamTemplate' : ActorMethod<[string], [] | [ExamTemplate]>,
   'getExamsFor' : ActorMethod<[Principal], Array<ExamSession>>,
   'getMemberExams' : ActorMethod<[Principal], Array<ExamSession>>,
+  /**
+   * / A member's training sessions, for the coordinator of an association
+   * / they belong to (same check as getMemberExams).
+   */
+  'getMemberTraining' : ActorMethod<[Principal], Result_5>,
+  /**
+   * / The caller's exam history (issue #71): the last 30 days for a free
+   * / official, everything kept (12 months) for Pro or while the paywall is
+   * / off. Older sessions stay stored, so upgrading shows them at once.
+   */
+  'getMyExamHistory' : ActorMethod<[], Array<ExamSession>>,
+  /**
+   * / Older clients' history call. A plain query can't ask the user canister
+   * / who is Pro, so while the paywall is on it returns the free window to
+   * / everyone; the app uses getMyExamHistory instead.
+   */
   'getMyExams' : ActorMethod<[], Array<ExamSession>>,
+  /**
+   * / The caller's finished graded sessions with the training time each is
+   * / credited, for their transcript.
+   */
+  'getMyTraining' : ActorMethod<[], Array<TrainingSession>>,
   /**
    * / The questions a finished graded session got wrong or left unanswered,
    * / for the session's owner and the sibling canisters (crew pregame reads
@@ -168,6 +212,7 @@ export interface _SERVICE {
     }
   >,
   'setAdmin' : ActorMethod<[Principal], Result_4>,
+  'setPaywallFlag' : ActorMethod<[boolean], Result_4>,
   'startGradedSession' : ActorMethod<[ExamConfig, QuestionSource], Result_3>,
   'submitExam' : ActorMethod<[string, Array<AnswerRecord>], Result_2>,
   /**
@@ -187,7 +232,7 @@ export const AnswerFeedback = IDL.Record({
   'citation' : IDL.Text,
   'correctId' : IDL.Text,
 });
-export const Result_6 = IDL.Variant({
+export const Result_7 = IDL.Variant({
   'ok' : AnswerFeedback,
   'err' : IDL.Text,
 });
@@ -231,18 +276,20 @@ export const Difficulty = IDL.Variant({
   'Expert' : IDL.Null,
 });
 export const Pick = IDL.Record({
+  'tag' : IDL.Opt(IDL.Text),
   'casebook' : IDL.Bool,
   'difficulty' : IDL.Opt(Difficulty),
   'count' : IDL.Nat,
   'adaptive' : IDL.Bool,
   'articleIds' : IDL.Vec(IDL.Text),
 });
-export const Result_5 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+export const Result_6 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
 export const GradedFinish = IDL.Record({
   'feedback' : IDL.Vec(AnswerFeedback),
   'session' : ExamSession,
 });
 export const Result_1 = IDL.Variant({ 'ok' : GradedFinish, 'err' : IDL.Text });
+export const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const ExamTemplate = IDL.Record({
   'id' : IDL.Text,
   'timeLimitSec' : IDL.Nat,
@@ -253,6 +300,23 @@ export const ExamTemplate = IDL.Record({
   'articleWeights' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'sportId' : IDL.Text,
   'questionCount' : IDL.Nat,
+});
+export const TrainingSession = IDL.Record({
+  'id' : IDL.Text,
+  'startedAt' : IDL.Int,
+  'mode' : ExamMode,
+  'answered' : IDL.Nat,
+  'correct' : IDL.Nat,
+  'score' : IDL.Nat,
+  'sportId' : IDL.Text,
+  'creditedSec' : IDL.Nat,
+  'finishedAt' : IDL.Int,
+  'questionCount' : IDL.Nat,
+});
+export const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
+export const Result_5 = IDL.Variant({
+  'ok' : IDL.Vec(TrainingSession),
+  'err' : TrainingAccessError,
 });
 export const GradedResult = IDL.Record({
   'id' : IDL.Text,
@@ -268,7 +332,6 @@ export const GradedResult = IDL.Record({
   'finishedAt' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
-export const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const QuestionSource = IDL.Variant({
   'Ids' : IDL.Vec(IDL.Text),
   'ShareToken' : IDL.Text,
@@ -305,12 +368,13 @@ export const Result = IDL.Variant({ 'ok' : ExamTemplate, 'err' : IDL.Text });
 export const idlService: IDL.ServiceClass = IDL.Service({
   'answerQuestion' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
-      [Result_6],
+      [Result_7],
       [],
     ),
   'createSession' : IDL.Func([ExamConfig, IDL.Vec(IDL.Text)], [Result_2], []),
-  'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_5], []),
+  'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_6], []),
   'finishSession' : IDL.Func([IDL.Text], [Result_1], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_4], []),
   'getByShareToken' : IDL.Func([IDL.Text], [IDL.Opt(ExamSession)], ['query']),
   'getExamTemplate' : IDL.Func([IDL.Text], [IDL.Opt(ExamTemplate)], ['query']),
   'getExamsFor' : IDL.Func([IDL.Principal], [IDL.Vec(ExamSession)], ['query']),
@@ -319,7 +383,18 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(ExamSession)],
       ['composite_query'],
     ),
+  'getMemberTraining' : IDL.Func(
+      [IDL.Principal],
+      [Result_5],
+      ['composite_query'],
+    ),
+  'getMyExamHistory' : IDL.Func(
+      [],
+      [IDL.Vec(ExamSession)],
+      ['composite_query'],
+    ),
   'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
+  'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
   'gradedMisses' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(IDL.Vec(IDL.Text))],
@@ -345,6 +420,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),
+  'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_4], []),
   'startGradedSession' : IDL.Func([ExamConfig, QuestionSource], [Result_3], []),
   'submitExam' : IDL.Func([IDL.Text, IDL.Vec(AnswerRecord)], [Result_2], []),
   'submitGradedAnswers' : IDL.Func(
@@ -365,7 +441,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'citation' : IDL.Text,
     'correctId' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({ 'ok' : AnswerFeedback, 'err' : IDL.Text });
+  const Result_7 = IDL.Variant({ 'ok' : AnswerFeedback, 'err' : IDL.Text });
   const ExamMode = IDL.Variant({
     'Solo' : IDL.Null,
     'ShareLink' : IDL.Null,
@@ -406,18 +482,20 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'Expert' : IDL.Null,
   });
   const Pick = IDL.Record({
+    'tag' : IDL.Opt(IDL.Text),
     'casebook' : IDL.Bool,
     'difficulty' : IDL.Opt(Difficulty),
     'count' : IDL.Nat,
     'adaptive' : IDL.Bool,
     'articleIds' : IDL.Vec(IDL.Text),
   });
-  const Result_5 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const GradedFinish = IDL.Record({
     'feedback' : IDL.Vec(AnswerFeedback),
     'session' : ExamSession,
   });
   const Result_1 = IDL.Variant({ 'ok' : GradedFinish, 'err' : IDL.Text });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ExamTemplate = IDL.Record({
     'id' : IDL.Text,
     'timeLimitSec' : IDL.Nat,
@@ -428,6 +506,23 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'articleWeights' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'sportId' : IDL.Text,
     'questionCount' : IDL.Nat,
+  });
+  const TrainingSession = IDL.Record({
+    'id' : IDL.Text,
+    'startedAt' : IDL.Int,
+    'mode' : ExamMode,
+    'answered' : IDL.Nat,
+    'correct' : IDL.Nat,
+    'score' : IDL.Nat,
+    'sportId' : IDL.Text,
+    'creditedSec' : IDL.Nat,
+    'finishedAt' : IDL.Int,
+    'questionCount' : IDL.Nat,
+  });
+  const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
+  const Result_5 = IDL.Variant({
+    'ok' : IDL.Vec(TrainingSession),
+    'err' : TrainingAccessError,
   });
   const GradedResult = IDL.Record({
     'id' : IDL.Text,
@@ -443,7 +538,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'finishedAt' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
-  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const QuestionSource = IDL.Variant({
     'Ids' : IDL.Vec(IDL.Text),
     'ShareToken' : IDL.Text,
@@ -480,12 +574,13 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   return IDL.Service({
     'answerQuestion' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
-        [Result_6],
+        [Result_7],
         [],
       ),
     'createSession' : IDL.Func([ExamConfig, IDL.Vec(IDL.Text)], [Result_2], []),
-    'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_5], []),
+    'createShareLink' : IDL.Func([ExamConfig, IDL.Vec(Pick)], [Result_6], []),
     'finishSession' : IDL.Func([IDL.Text], [Result_1], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_4], []),
     'getByShareToken' : IDL.Func([IDL.Text], [IDL.Opt(ExamSession)], ['query']),
     'getExamTemplate' : IDL.Func(
         [IDL.Text],
@@ -502,7 +597,18 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(ExamSession)],
         ['composite_query'],
       ),
+    'getMemberTraining' : IDL.Func(
+        [IDL.Principal],
+        [Result_5],
+        ['composite_query'],
+      ),
+    'getMyExamHistory' : IDL.Func(
+        [],
+        [IDL.Vec(ExamSession)],
+        ['composite_query'],
+      ),
     'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
+    'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
     'gradedMisses' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(IDL.Vec(IDL.Text))],
@@ -528,6 +634,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),
+    'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_4], []),
     'startGradedSession' : IDL.Func(
         [ExamConfig, QuestionSource],
         [Result_3],

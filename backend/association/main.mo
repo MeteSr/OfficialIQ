@@ -10,6 +10,7 @@ import Token "../lib/Token";
 import Env "../lib/Env";
 import Types "../lib/Types";
 import Index "../lib/Index";
+import Training "../lib/Training";
 import Set "mo:core/Set";
 
 persistent actor Association {
@@ -199,6 +200,68 @@ persistent actor Association {
     }
   };
 
+  // ─── Training requirement (issue #67) ──────────────────────────────────────
+  //
+  // How many training hours a member must log per season. A season is the
+  // twelve months from the 1st of seasonStartMonth, so it stays within the
+  // exam canister's 12-month retention. Rules in lib/Training.mo.
+
+  public type TrainingRequirement = {
+    hoursPerSeason   : Nat;
+    seasonStartMonth : Nat;
+    updatedAt        : Int;
+  };
+
+  public type SetRequirementError = {
+    #associationNotFound;
+    #notCoordinator;
+    #invalidHours;
+    #invalidSeasonStartMonth;
+  };
+
+  public type GetRequirementError = { #associationNotFound; #notAuthorized };
+
+  let trainingRequirements : Map.Map<Text, TrainingRequirement> = Map.empty<Text, TrainingRequirement>();
+
+  /// Sets the association's requirement, or clears it with null.
+  /// Coordinator only.
+  public shared ({ caller }) func setTrainingRequirement(
+    associationId : Text, input : ?Training.RequirementInput,
+  ) : async Result.Result<?TrainingRequirement, SetRequirementError> {
+    let rec = switch (associations.get(Text.compare, associationId)) {
+      case (?r) r;
+      case null return #err(#associationNotFound);
+    };
+    if (rec.coordinator != caller) return #err(#notCoordinator);
+    switch input {
+      case null {
+        trainingRequirements.remove(Text.compare, associationId);
+        #ok(null)
+      };
+      case (?i) {
+        switch (Training.validateRequirement(i)) {
+          case (?#invalidHours) return #err(#invalidHours);
+          case (?#invalidSeasonStartMonth) return #err(#invalidSeasonStartMonth);
+          case null {};
+        };
+        let r : TrainingRequirement = { hoursPerSeason = i.hoursPerSeason; seasonStartMonth = i.seasonStartMonth; updatedAt = Time.now() };
+        trainingRequirements.add(Text.compare, associationId, r);
+        #ok(?r)
+      };
+    }
+  };
+
+  /// The association's requirement, for its coordinator and members. null
+  /// when none is set.
+  public shared query ({ caller }) func getTrainingRequirement(associationId : Text) : async Result.Result<?TrainingRequirement, GetRequirementError> {
+    let rec = switch (associations.get(Text.compare, associationId)) {
+      case (?r) r;
+      case null return #err(#associationNotFound);
+    };
+    if (rec.coordinator != caller and not isMember(associationId, caller)) return #err(#notAuthorized);
+    #ok(trainingRequirements.get(Text.compare, associationId))
+  };
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   public shared query ({ caller }) func getMyAssociations() : async [AssociationRec] {
@@ -304,6 +367,62 @@ persistent actor Association {
       };
     };
     false
+  };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// removes them from every association and its assignments, drops their
+  /// completions, and deletes the associations they coordinate (with their
+  /// assignments and everyone's completions of them). Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    for (key in Index.take(completionsByMember, Principal.compare, p).values()) {
+      Map.remove(completions, Text.compare, key);
+    };
+    let mine = switch (Map.take(myAssociations, Principal.compare, p)) { case (?a) a; case null [] };
+    for (id in mine.values()) {
+      let ms = switch (Map.get(members, Text.compare, id)) { case (?ms) ms; case null [] };
+      Map.add(members, Text.compare, id, Array.filter<Principal>(ms, func(m) { m != p }));
+    };
+    // Named in an assignment's target list.
+    for (aid in Map.keys(assignments)) {
+      switch (Map.get(assignments, Text.compare, aid)) {
+        case (?a) {
+          if (Array.find<Principal>(a.targetMembers, func(m) { m == p }) != null) {
+            Map.add(assignments, Text.compare, aid, { a with targetMembers = Array.filter<Principal>(a.targetMembers, func(m) { m != p }) });
+          };
+        };
+        case null {};
+      };
+    };
+    for (id in Index.take(associationsByCoordinator, Principal.compare, p).values()) {
+      switch (Map.take(associations, Text.compare, id)) {
+        case (?rec) Map.remove(joinCodeIndex, Text.compare, rec.joinCode);
+        case null {};
+      };
+      trainingRequirements.remove(Text.compare, id);
+      let ms = switch (Map.take(members, Text.compare, id)) { case (?ms) ms; case null [] };
+      for (m in ms.values()) {
+        switch (Map.get(myAssociations, Principal.compare, m)) {
+          case (?ids) Map.add(myAssociations, Principal.compare, m, Array.filter<Text>(ids, func(x) { x != id }));
+          case null {};
+        };
+      };
+      let aids = switch (Map.take(assignmentsByAssoc, Text.compare, id)) { case (?xs) xs; case null [] };
+      for (aid in aids.values()) {
+        Map.remove(assignments, Text.compare, aid);
+        let prefix = aid # "|";
+        let keys = List.empty<Text>();
+        label scan for ((key, c) in Map.entriesFrom(completions, Text.compare, prefix)) {
+          if (not Text.startsWith(key, #text prefix)) break scan;
+          List.add(keys, key);
+          Index.removeId(completionsByMember, Principal.compare, c.member, key);
+        };
+        for (key in List.values(keys)) Map.remove(completions, Text.compare, key);
+      };
+    };
+    #ok(())
   };
 
   public query func metrics() : async { associationCount : Nat; assignmentCount : Nat } {

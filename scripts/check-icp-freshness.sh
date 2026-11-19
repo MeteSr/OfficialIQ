@@ -7,7 +7,8 @@ set -uo pipefail
 #
 #   1. Motoko compiler pin (mops.toml [toolchain] moc) vs the latest moc release
 #   2. Motoko packages (mops.toml [dependencies]) via `mops outdated`
-#   3. icp-cli recipe pins in icp.yaml vs the latest dfinity/icp-cli-recipes tags
+#   3. icp-cli recipe pins in icp.yaml vs the latest dfinity/icp-cli-recipes tags,
+#      and the local network launcher pin vs the latest launcher release
 #   4. DFINITY's published ICP skills (skills.internetcomputer.org) vs the
 #      hashes recorded in .github/icp-skills.json at the last review
 #
@@ -88,6 +89,22 @@ for pin in $recipe_pins; do
     say "- \`@dfinity/$name\` v$ver is current."
   fi
 done
+say ""
+
+say "### Local network launcher (icp.yaml)"
+pinned_launcher=$(sed -n 's/^ *version: *\(v[0-9][^ ]*\).*/\1/p' icp.yaml | head -1)
+latest_launcher=$(git ls-remote --tags --refs https://github.com/dfinity/icp-cli-network-launcher 2>/dev/null \
+  | sed -n 's#.*refs/tags/\(v[0-9][0-9.]*-[0-9-]*\)$#\1#p' | sort -V | tail -1)
+if [[ -z "$pinned_launcher" ]]; then
+  say "- ⚠️ No launcher \`version\` pinned on the local network in icp.yaml."; failed=1
+elif [[ -z "$latest_launcher" ]]; then
+  say "- ⚠️ Couldn't read icp-cli-network-launcher releases."; failed=1
+elif [[ "$pinned_launcher" != "$latest_launcher" ]]; then
+  say "- Launcher **$pinned_launcher → $latest_launcher** available. Update \`version\` under the local network in icp.yaml."
+  outdated=1
+else
+  say "- Launcher $pinned_launcher is current."
+fi
 say ""
 
 # 4. ICP skills

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import { reportError } from "../lib/errorReporting";
 
 export type CanisterQuery<T> = {
   data: T | undefined;
@@ -30,7 +31,9 @@ export function useCanisterQuery<T>(fetch: () => Promise<T>, deps: DependencyLis
       (v) => { if (latest.current === id) { setData(v); setLoading(false); } },
       (e: unknown) => {
         if (latest.current !== id) return;
-        setError(e instanceof Error ? e : new Error(String(e)));
+        const err = e instanceof Error ? e : new Error(String(e));
+        reportError("load", err);
+        setError(err);
         setLoading(false);
       },
     );

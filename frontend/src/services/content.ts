@@ -1,9 +1,16 @@
 import { canisterId } from "../lib/icEnv";
+import { sportOffered } from "../lib/features";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/content";
 import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays, getCachedAudioBlob } from "../lib/offlineDb";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type RuleChange = {
+  id: string; sportId: string; season: string; articleId: string; citation: string;
+  title: string; oldText: string; newText: string; summary: string; source: string;
+  createdAt: bigint; updatedAt: bigint;
+};
 
 export type Article = {
   id:        string;
@@ -128,7 +135,9 @@ export const contentService = {
   async listSports(): Promise<Sport[]> {
     if (!CANISTER_ID) return MOCK_SPORTS;
     try {
-      const sports = await actor().listSports();
+      // Sports this build doesn't offer (no licensed content yet) stay
+      // hidden even though the content canister has them registered.
+      const sports = (await actor().listSports()).filter(s => sportOffered(s.id));
       return sports.length ? sports : MOCK_SPORTS;
     } catch {
       return MOCK_SPORTS;
@@ -192,6 +201,12 @@ export const contentService = {
       if (cached) return cached;
       throw e;
     }
+  },
+
+  /** A sport's rule changes for a season, with old and new wording (issue #68). */
+  async listRuleChanges(sportId: string, season: string): Promise<RuleChange[]> {
+    if (!CANISTER_ID) return [];
+    return actor().listRuleChanges(sportId, season);
   },
 
   async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {

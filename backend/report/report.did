@@ -58,6 +58,10 @@ type ArticleStat =
    title: text;
  };
 service : {
+  /// Called by the user canister when an official deletes their account:
+  /// deletes their report cards and every share of them, and the shares
+  /// other officials sent them as a coordinator. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_2);
   generateReport: (input: SnapshotInput) -> (Result_1);
   getMyReports: () -> (vec ReportSnapshot) query;
   getMyUnseenShareCount: () -> (nat) query;

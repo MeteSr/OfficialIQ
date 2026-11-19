@@ -6,6 +6,7 @@ import path from "path";
 import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { wellKnownFiles } from "./build-config/wellKnown";
+import { featuresFromEnv } from "./build-config/features";
 
 // Backend canisters the frontend calls (names as in icp.yaml).
 const CANISTER_NAMES = [
@@ -150,6 +151,9 @@ export default defineConfig(({ command }) => {
     // scripts/send-pending-push.mjs for the private key, which must never
     // be build-injected or committed).
     VITE_VAPID_PUBLIC_KEY: JSON.stringify(process.env.VAPID_PUBLIC_KEY      ?? ""),
+    // Builds only: `vite dev` and tests leave every feature on (src/lib/features.ts).
+    ...(command === "build" ? { __FEATURES__: JSON.stringify(featuresFromEnv(process.env)) } : {}),
+    __APP_RELEASE__: JSON.stringify(process.env.APP_RELEASE ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "dev"),
   },
   server: {
     port: 5173,

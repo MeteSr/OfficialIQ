@@ -55,6 +55,11 @@ service : {
   addAnnotation: (linkId: text, questionId: text, note: text) -> (Result_3);
   createMentorLink: (examId: text, sportId: text, score: nat, avgElapsedSec:
    opt nat, answers: vec AnswerSnapshot) -> (Result_1);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes the exam answers they shared (with the notes on them), and
+  /// for links they mentored, deletes their notes and closes the link
+  /// rather than leaving it open for someone else to claim. Safe to repeat.
+  forgetUser: (p: principal) -> (Result);
   getAnnotationsForLink: (linkId: text) -> (Result_2) query;
   getMentorDashboard: () -> (vec MentorLink) query;
   getMyAnnotations: () -> (vec Annotation) query;

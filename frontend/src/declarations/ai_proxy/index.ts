@@ -8,6 +8,9 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
 
+export type Access = { 'pro' : null } |
+  { 'free' : null } |
+  { 'paywallOff' : null };
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type Result = { 'ok' : null } |
   { 'err' : string };
@@ -23,9 +26,31 @@ export type Result_4 = { 'ok' : string } |
   { 'err' : string };
 export interface _SERVICE {
   'askRuleAssistant' : ActorMethod<[string, string], Result_4>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / drops their daily usage counter. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result>,
   'generatePersonalizedDrills' : ActorMethod<[string, bigint], Result_4>,
   'generateScenarios' : ActorMethod<[string, string, bigint], Result_4>,
   'getGlobalUsage' : ActorMethod<[], Result_3>,
+  /**
+   * / The caller's AI usage today and their cap, by tier (issue #71).
+   */
+  'getMyAiUsage' : ActorMethod<
+    [],
+    {
+      'access' : Access,
+      'used' : bigint,
+      'resetAt' : bigint,
+      'limitPerDay' : bigint,
+    }
+  >,
+  /**
+   * / Older clients' status call. A plain query can't ask the user canister,
+   * / so the cap is the one from the caller's last request; the app uses
+   * / getMyAiUsage instead.
+   */
   'getMyRateLimitStatus' : ActorMethod<
     [],
     { 'used' : bigint, 'resetAt' : bigint, 'limitPerDay' : bigint }
@@ -45,9 +70,15 @@ export interface _SERVICE {
   'setPromptTemplate' : ActorMethod<[string, string], Result>,
 }
 export const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const Result_3 = IDL.Variant({
   'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
   'err' : IDL.Text,
+});
+export const Access = IDL.Variant({
+  'pro' : IDL.Null,
+  'free' : IDL.Null,
+  'paywallOff' : IDL.Null,
 });
 export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
 export const Result_2 = IDL.Variant({
@@ -58,13 +89,25 @@ export const Result_1 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
   'err' : IDL.Text,
 });
-export const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
   'generatePersonalizedDrills' : IDL.Func([IDL.Text, IDL.Nat], [Result_4], []),
   'generateScenarios' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [Result_4], []),
   'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+  'getMyAiUsage' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'access' : Access,
+          'used' : IDL.Nat,
+          'resetAt' : IDL.Int,
+          'limitPerDay' : IDL.Nat,
+        }),
+      ],
+      ['composite_query'],
+    ),
   'getMyRateLimitStatus' : IDL.Func(
       [],
       [
@@ -100,9 +143,15 @@ export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const Result_4 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Result_3 = IDL.Variant({
     'ok' : IDL.Record({ 'usedToday' : IDL.Nat, 'limitPerDay' : IDL.Nat }),
     'err' : IDL.Text,
+  });
+  const Access = IDL.Variant({
+    'pro' : IDL.Null,
+    'free' : IDL.Null,
+    'paywallOff' : IDL.Null,
   });
   const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
   const Result_2 = IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat8), 'err' : IDL.Text });
@@ -110,10 +159,10 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'err' : IDL.Text,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
   return IDL.Service({
     'askRuleAssistant' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
     'generatePersonalizedDrills' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [Result_4],
@@ -125,6 +174,18 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [],
       ),
     'getGlobalUsage' : IDL.Func([], [Result_3], ['query']),
+    'getMyAiUsage' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'access' : Access,
+            'used' : IDL.Nat,
+            'resetAt' : IDL.Int,
+            'limitPerDay' : IDL.Nat,
+          }),
+        ],
+        ['composite_query'],
+      ),
     'getMyRateLimitStatus' : IDL.Func(
         [],
         [

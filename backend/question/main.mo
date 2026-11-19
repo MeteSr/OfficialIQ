@@ -13,6 +13,8 @@ import Random "mo:core/Random";
 import Set "mo:core/Set";
 import Env "../lib/Env";
 import Types "../lib/Types";
+import Billing "../lib/Billing";
+import Timer "mo:core/Timer";
 
 persistent actor Question {
 
@@ -150,6 +152,7 @@ persistent actor Question {
   /// the per-question totals, as recordAnswer did from the browser. Safe to
   /// repeat.
   public shared ({ caller }) func recordGradedAnswers(player : Principal, sessionId : Text, answers : [(Text, Bool)]) : async Result.Result<(), Text> {
+    refreshEnv<system>();
     if (not isExamCanister<system>(caller)) return #err("Exam canister only");
     if (answers.size() > 200) return #err("Too many answers");
     if (Set.contains(gradedAnswerSessions, Text.compare, sessionId)) return #ok(());
@@ -361,7 +364,35 @@ persistent actor Question {
   // Reads only the caller's slice of `history`: its keys are
   // "<principal>::<questionId>", so they sit together in key order.
   // Articles answered right every time are left out.
-  public shared query ({ caller }) func getMyWeakArticles(sportId : Text, limit : Nat) : async [(Text, Nat, Nat)] {
+  //
+  // This targeting is what makes the game-day refresher (#63) a Pro feature
+  // (#71): once the paywall is on, a free official gets #proOnly. The user
+  // canister says who is Pro; if it can't be asked, the refresher works.
+  public type WeakArticlesError = { #proOnly };
+
+  // A query can't read canister environment variables, so the user
+  // canister's id is copied here by a timer after install and each upgrade,
+  // and by update calls (as the exam canister does).
+  var USER_ID : ?Principal = null;
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("user")) { case (?id) USER_ID := ?id; case null {} };
+  };
+
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
+
+  type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
+
+  public shared composite query ({ caller }) func getMyWeakArticles(sportId : Text, limit : Nat) : async Result.Result<[(Text, Nat, Nat)], WeakArticlesError> {
+    let access : Billing.Access = switch USER_ID {
+      case (?id) {
+        try {
+          switch (await (actor (id.toText()) : UserAccess).accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff }
+        } catch (_) { #paywallOff }
+      };
+      case null #paywallOff;
+    };
+    if (access == #free) return #err(#proOnly);
     let prefix = Principal.toText(caller) # "::";
     let byArticle = Map.empty<Text, AnswerTotals>();
     label scan for ((key, h) in Map.entriesFrom(history, Text.compare, prefix)) {
@@ -386,7 +417,7 @@ persistent actor Question {
       if (wa > wb) #less else if (wa < wb) #greater
       else if (wa * tb > wb * ta) #less else if (wa * tb < wb * ta) #greater else #equal
     });
-    List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(Nat.min(limit, 20), List.size(sorted)))
+    #ok(List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(Nat.min(limit, 20), List.size(sorted))))
   };
 
   // ─── Graded exams (exam canister only) ──────────────────────────────────────
@@ -414,6 +445,39 @@ persistent actor Question {
     };
   };
 
+  // Question tags (issue #68): free-form labels an admin puts on questions
+  // so a quiz can draw from just those, e.g. "rule-change:2026-27" for the
+  // season's rule-changes quiz. Kept beside the questions rather than in
+  // the stored Question type, so adding them needs no migration.
+  public type TagError = { #notAdmin; #notFound; #tooMany };
+
+  let questionTags : Map.Map<Text, [Text]> = Map.empty<Text, [Text]>();
+  transient let MAX_TAGS : Nat = 10;
+  transient let MAX_TAG_CHARS : Nat = 100;
+
+  func hasTag(questionId : Text, tag : ?Text) : Bool {
+    switch tag {
+      case null true;
+      case (?t) switch (questionTags.get(Text.compare, questionId)) {
+        case (?tags) tags.find(func x = x == t) != null;
+        case null false;
+      };
+    }
+  };
+
+  /// Replaces a question's tags (an empty list removes them). Admin only.
+  public shared ({ caller }) func setQuestionTags(questionId : Text, tags : [Text]) : async Result.Result<(), TagError> {
+    if (not isAdmin(caller)) return #err(#notAdmin);
+    if (questions.get(Text.compare, questionId) == null) return #err(#notFound);
+    if (tags.size() > MAX_TAGS or tags.find(func t = t.size() > MAX_TAG_CHARS) != null) return #err(#tooMany);
+    if (tags.size() == 0) questionTags.remove(Text.compare, questionId) else questionTags.add(Text.compare, questionId, tags);
+    #ok(())
+  };
+
+  public query func getQuestionTags(questionId : Text) : async [Text] {
+    switch (questionTags.get(Text.compare, questionId)) { case (?t) t; case null [] }
+  };
+
   public shared ({ caller }) func pickForExam(sportId : Text, picks : [ExamPick], player : Principal) : async Result.Result<[Question], Text> {
     if (not isExamCanister<system>(caller)) return #err("Exam canister only");
     // Without shuffling, every official got the same first-N questions (in
@@ -427,7 +491,7 @@ persistent actor Question {
       let matches = List.empty<Question>();
       for ((_, q) in Map.entries(questions)) {
         // A question already taken by an earlier pick isn't repeated.
-        if (matchesFilter(q, filter) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
+        if (matchesFilter(q, filter) and hasTag(q.id, pick.tag) and List.find<Question>(out, func(x) { x.id == q.id }) == null) List.add(matches, q);
       };
       // Shuffled first in both modes: for adaptive picks the sort below is
       // stable, so ties (e.g. never-answered questions) stay in random order.
@@ -445,7 +509,120 @@ persistent actor Question {
     #ok(Array.filterMap<Text, Question>(ids, func(id) { Map.get(questions, Text.compare, id) }))
   };
 
-  public query func metrics() : async { questionCount : Nat } {
-    { questionCount = Map.size(questions) }
+  // ─── Question reports ──────────────────────────────────────────────────────
+  //
+  // Officials flag a question they think is wrong or unclear. Reports go to
+  // an admin queue (the app's moderation page); an admin fixes the question
+  // with addQuestion/content tools and closes the report. One open report
+  // per official per question.
+
+  public type ReportReason = { #WrongAnswer; #Unclear; #Outdated; #Typo; #Other };
+
+  public type QuestionReport = {
+    id         : Text;
+    questionId : Text;
+    reporter   : Principal;
+    reason     : ReportReason;
+    note       : Text;
+    createdAt  : Int;
+    resolved   : Bool;
+    resolution : Text;
+    resolvedAt : ?Int;
+  };
+
+  // "<questionId>|<reporter>" -> report.
+  var questionReports : Map.Map<Text, QuestionReport> = Map.empty<Text, QuestionReport>();
+  var openReportCount : Nat = 0;
+
+  let MAX_REPORT_NOTE_CHARS : Nat = 500;
+  let MAX_OPEN_REPORTS : Nat = 2_000;
+
+  func reportKey(questionId : Text, reporter : Principal) : Text {
+    questionId # "|" # Principal.toText(reporter)
+  };
+
+  public shared ({ caller }) func reportQuestion(questionId : Text, reason : ReportReason, note : Text) : async Result.Result<QuestionReport, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (Text.size(note) > MAX_REPORT_NOTE_CHARS) return #err("Note is too long");
+    if (Map.get(questions, Text.compare, questionId) == null) return #err("Question not found");
+    let key = reportKey(questionId, caller);
+    switch (Map.get(questionReports, Text.compare, key)) {
+      case (?r) { if (not r.resolved) return #err("You already reported this question") };
+      case null {};
+    };
+    if (openReportCount >= MAX_OPEN_REPORTS) return #err("The report queue is full, try again later");
+    let r : QuestionReport = {
+      id = key; questionId; reporter = caller; reason; note;
+      createdAt = Time.now(); resolved = false; resolution = ""; resolvedAt = null;
+    };
+    Map.add(questionReports, Text.compare, key, r);
+    openReportCount += 1;
+    #ok(r)
+  };
+
+  /// Admin queue. Open reports only, or every report when `includeResolved`.
+  public shared query ({ caller }) func listQuestionReports(includeResolved : Bool) : async Result.Result<[QuestionReport], Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    let out = List.empty<QuestionReport>();
+    for ((_, r) in Map.entries(questionReports)) {
+      if (includeResolved or not r.resolved) List.add(out, r);
+    };
+    #ok(List.toArray(out))
+  };
+
+  public shared ({ caller }) func resolveQuestionReport(id : Text, resolution : Text) : async Result.Result<QuestionReport, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    if (Text.size(resolution) > MAX_REPORT_NOTE_CHARS) return #err("Resolution is too long");
+    switch (Map.get(questionReports, Text.compare, id)) {
+      case null #err("Report not found");
+      case (?r) {
+        if (r.resolved) return #ok(r);
+        let updated = { r with resolved = true; resolution; resolvedAt = ?Time.now() };
+        Map.add(questionReports, Text.compare, id, updated);
+        if (openReportCount > 0) openReportCount -= 1;
+        #ok(updated)
+      };
+    }
+  };
+
+  /// Questions the caller has an open report on, so the app can show
+  /// "Reported" instead of the button.
+  public shared query ({ caller }) func myOpenReports(questionIds : [Text]) : async [Text] {
+    Array.filter<Text>(Array.sliceToArray<Text>(questionIds, 0, Nat.min(questionIds.size(), 200)), func(qid) {
+      switch (Map.get(questionReports, Text.compare, reportKey(qid, caller))) {
+        case (?r) not r.resolved;
+        case null false;
+      }
+    })
+  };
+
+  public shared query ({ caller }) func isAdminCaller() : async Bool { isAdmin(caller) };
+
+  // ─── Account deletion ──────────────────────────────────────────────────────
+
+  /// Called by the user canister when an official deletes their account:
+  /// drops their spaced-repetition history and their question reports. The
+  /// per-question answer totals stay: they are counts with no one's
+  /// identity in them. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    let prefix = Principal.toText(p) # "::";
+    let keys = List.empty<Text>();
+    label scan for ((k, _) in Map.entriesFrom(history, Text.compare, prefix)) {
+      if (not Text.startsWith(k, #text prefix)) break scan;
+      List.add(keys, k);
+    };
+    for (k in List.values(keys)) Map.remove(history, Text.compare, k);
+    let reports = List.empty<QuestionReport>();
+    for ((_, r) in Map.entries(questionReports)) { if (r.reporter == p) List.add(reports, r) };
+    for (r in List.values(reports)) {
+      Map.remove(questionReports, Text.compare, r.id);
+      if (not r.resolved and openReportCount > 0) openReportCount -= 1;
+    };
+    #ok(())
+  };
+
+  public query func metrics() : async { questionCount : Nat; openReports : Nat } {
+    { questionCount = Map.size(questions); openReports = openReportCount }
   };
 }

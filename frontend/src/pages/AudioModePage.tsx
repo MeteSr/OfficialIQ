@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { contentService, type Article } from "../services/content";
 import { useSport } from "../lib/sport";
+import { useStudyTimer } from "../hooks/useStudyTimer";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
@@ -19,6 +20,7 @@ export default function AudioModePage() {
   const [error, setError] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  useStudyTimer(isPlaying, { inBackground: true });
   const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {

@@ -70,6 +70,12 @@ canisters:
 networks:
   - name: local
     mode: managed
+    # Pinned: without it, every `icp network start` asks the GitHub API for
+    # the latest launcher release, which the shared CI runners hit the
+    # unauthenticated rate limit on ("403 rate limit exceeded"). A pinned
+    # tag is a plain release download. The weekly ICP freshness check flags
+    # newer launcher releases.
+    version: v16.1.0-2026-11-13-03-18
 
 environments:
   - name: staging

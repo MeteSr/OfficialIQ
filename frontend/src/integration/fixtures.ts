@@ -45,7 +45,7 @@ export function config(bank: Bank, count: number, mode: "Solo" | "Certification"
 }
 
 export function picks(bank: Bank, count: number, adaptive = false) {
-  return { Picks: [{ articleIds: [bank.art1], casebook: false, count: BigInt(count), difficulty: [], adaptive }] };
+  return { Picks: [{ articleIds: [bank.art1], casebook: false, count: BigInt(count), difficulty: [], adaptive, tag: [] }] };
 }
 
 export type Start = { session: { id: string; questionIds: string[] }; questions: Record<string, unknown>[] };

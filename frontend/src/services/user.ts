@@ -1,6 +1,7 @@
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/user";
+import type { ClaimError, MyEntitlement } from "../lib/plan";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
 
@@ -26,6 +27,18 @@ export type WeeklySchedule = { dueThisWeek: string[]; overdue: string[]; weekNum
 export type WeeklyQuizResult = { weekNumber: bigint; newScore: bigint; retentionScore: bigint; completedAt: bigint };
 export type MonthlyQuizResult = { month: bigint; score: bigint; articleScores: [string, bigint][]; completedAt: bigint };
 
+export type StudyDay = { day: bigint; seconds: bigint };
+export type TrainingActivity = { studyDays: StudyDay[]; weeklyQuizzes: WeeklyQuizResult[]; monthlyQuizzes: MonthlyQuizResult[] };
+
+export type { MyEntitlement } from "../lib/plan";
+
+/** A rejected claimWebSubscription; show it with claimErrorKey(reason). */
+export class ClaimFailed extends Error {
+  constructor(public readonly reason: ClaimError) {
+    super(Object.keys(reason)[0]);
+  }
+}
+
 export type LinkedAccount = { provider: string; externalId: string; linkedAt: bigint };
 export type UpcomingGame = { id: string; opponent: string; gameDate: bigint; sportId: string; levelId: string; notes: string; createdAt: bigint };
 // gameDate is JS milliseconds here (converted to nanoseconds on send).
@@ -36,6 +49,9 @@ export type UpcomingGameInput = { opponent: string; gameDate: number; sportId: s
 export type PushSubscriptionInput =
   | { WebPush: { endpoint: string; p256dh: string; auth: string } }
   | { Native: { token: string; platform: string } };
+
+export type ClientErrorInput = { kind: string; message: string; stack: string; route: string; release: string; platform: string };
+export type ClientError = ClientErrorInput & { seq: bigint; at: bigint; signedIn: boolean };
 
 // ─── Mock ─────────────────────────────────────────────────────────────────────
 
@@ -144,6 +160,39 @@ export const userService = {
     return actor().getMonthlyQuizHistory();
   },
 
+  /** Heartbeat while studying; the canister credits the time between beats (issue #67). */
+  async recordStudyBeat(): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().recordStudyBeat();
+  },
+
+  async getMyTrainingActivity(): Promise<TrainingActivity> {
+    if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
+    return actor().getMyTrainingActivity();
+  },
+
+  /** A member's study time and quiz history — coordinator of one of their associations only. */
+  async getMemberTrainingActivity(p: any): Promise<TrainingActivity> {
+    if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
+    const res = await actor().getMemberTrainingActivity(p);
+    if ("err" in res) throw new Error("Not authorized");
+    return res.ok;
+  },
+
+  /** The official's Pro entitlements and whether billing is switched on (issue #71). */
+  async getMyEntitlement(): Promise<MyEntitlement | null> {
+    if (!CANISTER_ID) return null;
+    return actor().getMyEntitlement();
+  },
+
+  /** Grants Pro from a finished Stripe Checkout. Throws ClaimFailed. */
+  async claimWebSubscription(sessionId: string): Promise<MyEntitlement> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const res = await actor().claimWebSubscription(sessionId);
+    if ("err" in res) throw new ClaimFailed(res.err);
+    return res.ok;
+  },
+
   async becomeCoordinator(): Promise<UserProfile> {
     if (!CANISTER_ID) return { ...MOCK_PROFILE, role: { Coordinator: null } };
     const res = await actor().becomeCoordinator();
@@ -207,5 +256,40 @@ export const userService = {
     if (!CANISTER_ID) return null;
     const res = await actor().getMyPushSubscription();
     return res.length ? res[0] : null;
+  },
+
+  /**
+   * Deletes the caller's account. The profile is gone when this returns;
+   * the other canisters forget them shortly after (getDeletionStatus).
+   */
+  async deleteAccount(): Promise<void> {
+    if (!CANISTER_ID) return;
+    const res = await actor().deleteAccount();
+    if ("err" in res) throw new Error(res.err);
+  },
+
+  /** How many canisters still hold the caller's data, or null when no deletion is running. */
+  async getDeletionStatus(): Promise<number | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getDeletionStatus();
+    return "InProgress" in res ? Number(res.InProgress.remaining) : null;
+  },
+
+  async logClientError(report: ClientErrorInput): Promise<void> {
+    if (!CANISTER_ID) return;
+    await actor().logClientError(report);
+  },
+
+  /** Admin only: the newest app errors. */
+  async listClientErrors(limit = 100): Promise<ClientError[]> {
+    if (!CANISTER_ID) return [];
+    const res = await actor().listClientErrors(BigInt(limit));
+    if ("err" in res) throw new Error(res.err);
+    return res.ok;
+  },
+
+  async isAdmin(): Promise<boolean> {
+    if (!CANISTER_ID) return false;
+    return actor().isAdminCaller();
   },
 };

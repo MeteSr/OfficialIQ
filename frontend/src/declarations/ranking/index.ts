@@ -133,6 +133,13 @@ export interface _SERVICE {
    */
   'claimExamResult' : ActorMethod<[string, string, string], Result_4>,
   'createGroup' : ActorMethod<[string, string, string, boolean], Result_2>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / drops their stats, history, streaks, friends and push events, takes
+   * / them off other people's friend lists and out of groups, and deletes the
+   * / groups they own. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result>,
   'getDailyStreak' : ActorMethod<[], DailyActivity>,
   'getFriendPrincipals' : ActorMethod<[], Array<Principal>>,
   'getFriends' : ActorMethod<
@@ -316,6 +323,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [Result_2],
       [],
     ),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
   'getDailyStreak' : IDL.Func([], [DailyActivity], ['query']),
   'getFriendPrincipals' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
   'getFriends' : IDL.Func(
@@ -515,6 +523,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [Result_2],
         [],
       ),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result], []),
     'getDailyStreak' : IDL.Func([], [DailyActivity], ['query']),
     'getFriendPrincipals' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getFriends' : IDL.Func(

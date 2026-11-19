@@ -1,37 +1,70 @@
-type Result_6 = 
+type TrainingRequirement = 
+ record {
+   hoursPerSeason: nat;
+   seasonStartMonth: nat;
+   updatedAt: int;
+ };
+type SetRequirementError = 
+ variant {
+   associationNotFound;
+   invalidHours;
+   invalidSeasonStartMonth;
+   notCoordinator;
+ };
+type Result_8 = 
  variant {
    err: text;
    ok: Assignment;
  };
-type Result_5 = 
+type Result_7 = 
  variant {
    err: text;
    ok: vec Completion;
  };
-type Result_4 = 
+type Result_6 = 
  variant {
    err: text;
    ok: vec Assignment;
  };
-type Result_3 = 
+type Result_5 = 
  variant {
    err: text;
    ok: vec principal;
  };
-type Result_2 = 
+type Result_4 = 
+ variant {
+   err: GetRequirementError;
+   ok: opt TrainingRequirement;
+ };
+type Result_3 = 
  variant {
    err: text;
    ok: AssociationRec;
  };
-type Result_1 = 
+type Result_2 = 
  variant {
    err: text;
    ok;
  };
-type Result = 
+type Result_1 = 
  variant {
    err: text;
    ok: Completion;
+ };
+type Result = 
+ variant {
+   err: SetRequirementError;
+   ok: opt TrainingRequirement;
+ };
+type RequirementInput = 
+ record {
+   hoursPerSeason: nat;
+   seasonStartMonth: nat;
+ };
+type GetRequirementError = 
+ variant {
+   associationNotFound;
+   notAuthorized;
  };
 type Completion = 
  record {
@@ -62,26 +95,38 @@ type Assignment =
  };
 service : {
   createAssignment: (associationId: text, title: text, articleIds: vec text,
-   casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_6);
-  createAssociation: (name: text, sport: text) -> (Result_2);
-  getAssignmentCompletions: (assignmentId: text) -> (Result_5) query;
+   casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_8);
+  createAssociation: (name: text, sport: text) -> (Result_3);
+  /// Called by the user canister when an official deletes their account:
+  /// removes them from every association and its assignments, drops their
+  /// completions, and deletes the associations they coordinate (with their
+  /// assignments and everyone's completions of them). Safe to repeat.
+  forgetUser: (p: principal) -> (Result_2);
+  getAssignmentCompletions: (assignmentId: text) -> (Result_7) query;
   getAssociation: (id: text) -> (opt AssociationRec) query;
-  getAssociationAssignments: (id: text) -> (Result_4) query;
-  getAssociationMembers: (id: text) -> (Result_3) query;
+  getAssociationAssignments: (id: text) -> (Result_6) query;
+  getAssociationMembers: (id: text) -> (Result_5) query;
   getMyAssignments: () -> (vec Assignment) query;
   getMyAssociations: () -> (vec AssociationRec) query;
   getMyCompletions: () -> (vec Completion) query;
   getMyCoordinatedAssociations: () -> (vec AssociationRec) query;
+  /// The association's requirement, for its coordinator and members. null
+  /// when none is set.
+  getTrainingRequirement: (associationId: text) -> (Result_4) query;
   isCoordinatorOf: (coordinator: principal, member: principal) ->
    (bool) query;
-  joinAssociation: (joinCode: text) -> (Result_2);
+  joinAssociation: (joinCode: text) -> (Result_3);
   metrics: () -> (record {
                     assignmentCount: nat;
                     associationCount: nat;
                   }) query;
-  recordCompletion: (_assignmentId: text, _score: nat) -> (Result_1);
+  recordCompletion: (_assignmentId: text, _score: nat) -> (Result_2);
   /// Records an assignment completion from a finished exam session graded by
   /// the exam canister, taken on the assignment's articles. Each session
   /// counts once; retaking replaces the earlier completion.
-  recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result);
+  recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result_1);
+  /// Sets the association's requirement, or clears it with null.
+  /// Coordinator only.
+  setTrainingRequirement: (associationId: text, input:
+   opt RequirementInput) -> (Result);
 }

@@ -85,6 +85,11 @@ type Challenge =
 service : {
   acceptChallenge: (id: text) -> (Result);
   createCrew: (input: CrewInput) -> (Result_1);
+  /// Called by the user canister when an official deletes their account:
+  /// deletes every challenge they sent or received, and takes them (and
+  /// their results) out of every crew; a crew left with no members is
+  /// deleted. Safe to repeat.
+  forgetUser: (p: principal) -> (Result_2);
   getChallenge: (id: text) -> (opt Challenge) query;
   /// Members only: the crew with everyone's results and misses.
   getCrew: (id: text) -> (opt Crew) query;

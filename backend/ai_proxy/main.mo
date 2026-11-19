@@ -8,7 +8,10 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Time "mo:core/Time";
 import Error "mo:core/Error";
+import Env "../lib/Env";
 import Array "mo:core/Array";
+import Timer "mo:core/Timer";
+import Billing "../lib/Billing";
 
 // HTTPS outcalls go through the `ic` mops package's builder, which selects
 // pricing version 2 and computes + attaches the cycles itself (https-outcalls
@@ -99,12 +102,35 @@ persistent actor AiProxy {
   let DEFAULT_SCENARIO_SYSTEM : Text = "You generate multiple-choice officiating exam questions for the OfficialIQ study app. Reply with ONLY a JSON array (no prose, no markdown fences) of objects shaped exactly as: {\"stem\": string, \"choices\": [{\"id\": string, \"text\": string}], \"correctId\": string, \"explanation\": string, \"citation\": string, \"difficulty\": \"Beginner\"|\"Intermediate\"|\"Advanced\"|\"Expert\"}. Each question must have exactly 4 choices with ids \"a\",\"b\",\"c\",\"d\", and correctId must match one of them. Ground every question in the supplied rulebook context and cite the specific article/section in the citation field.";
 
   // Server-side rate limit shared across all Claude-backed end-user actions
-  // (rule assistant + personalized drills). The issue asked for tiered
-  // Basic/Pro limits, but this app has no subscription/billing system at
-  // all — so this is a flat per-official daily cap instead, still fully
-  // enforced server-side. Tiered limits can layer on once billing exists.
-  let DAILY_LIMIT : Nat = 8;
+  // (rule assistant + personalized drills), per tier (issue #71): the
+  // user canister says whether the caller is free or Pro, and
+  // Billing.aiDailyLimit gives the cap. While the paywall is off everyone
+  // gets the cap from before tiers (Billing.PAYWALL_OFF_AI_PER_DAY).
+  let DAILY_LIMIT : Nat = 8; // unused since issue #71; kept for stable compatibility
   let DAY_NS : Int = 86_400_000_000_000;
+
+  // A query can't read canister environment variables, so the user
+  // canister's id is copied here by update calls and by a timer right after
+  // install and each upgrade (as the exam canister does).
+  var USER_ID : ?Principal = null;
+
+  func refreshEnv<system>() {
+    switch (Env.canisterId<system>("user")) { case (?id) USER_ID := ?id; case null {} };
+  };
+
+  transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
+
+  type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
+
+  // If the user canister can't say (not configured, or the call fails), the
+  // caller gets the paywall-off cap: the global budget below still bounds
+  // spend, and a Pro official isn't cut to the free cap by an outage.
+  func accessOf(caller : Principal) : async* Billing.Access {
+    let id = switch USER_ID { case (?id) id; case null return #paywallOff };
+    try {
+      switch (await (actor (id.toText()) : UserAccess).accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff }
+    } catch (_) { #paywallOff }
+  };
 
   type RateLimitEntry = { dayBucket : Int; count : Nat };
   var rateLimits : Map.Map<Principal, RateLimitEntry> = Map.empty<Principal, RateLimitEntry>();
@@ -130,11 +156,17 @@ persistent actor AiProxy {
   let MAX_QUESTION_CHARS : Nat = 2_000;
   let MAX_CONTEXT_CHARS : Nat = 6_000;
 
-  func checkAndConsume(caller : Principal) : Result.Result<(), Text> {
+  // No await between the check and the count, so concurrent calls can't
+  // both pass a cap that only one fits under.
+  func checkAndConsume(caller : Principal, access : Billing.Access) : Result.Result<(), Text> {
     let today = Time.now() / DAY_NS;
     let count = usedToday(caller);
-    if (count >= DAILY_LIMIT) {
-      return #err("Daily question limit reached (" # Nat.toText(DAILY_LIMIT) # "/day). Try again tomorrow.");
+    let limit = Billing.aiDailyLimit(access);
+    if (count >= limit) {
+      return #err(switch access {
+        case (#free) "Free daily limit reached (" # limit.toText() # "/day). Pro gets " # Billing.PRO_AI_PER_DAY.toText() # " a day, or try again tomorrow.";
+        case (#pro or #paywallOff) "Daily question limit reached (" # limit.toText() # "/day). Try again tomorrow.";
+      });
     };
     let globalCount = if (globalUsage.dayBucket == today) globalUsage.count else 0;
     if (globalCount >= globalDailyLimit) {
@@ -157,9 +189,32 @@ persistent actor AiProxy {
     #ok({ usedToday = if (globalUsage.dayBucket == today) globalUsage.count else 0; limitPerDay = globalDailyLimit })
   };
 
+  // The tier each caller had at their last AI request, for the plain query
+  // below. Transient: it's only a hint for older clients.
+  transient let lastAccess : Map.Map<Principal, Billing.Access> = Map.empty<Principal, Billing.Access>();
+
+  /// Older clients' status call. A plain query can't ask the user canister,
+  /// so the cap is the one from the caller's last request; the app uses
+  /// getMyAiUsage instead.
   public shared query ({ caller }) func getMyRateLimitStatus() : async { used : Nat; limitPerDay : Nat; resetAt : Int } {
     let today = Time.now() / DAY_NS;
-    { used = usedToday(caller); limitPerDay = DAILY_LIMIT; resetAt = (today + 1) * DAY_NS };
+    let access = switch (lastAccess.get(Principal.compare, caller)) { case (?a) a; case null #paywallOff };
+    { used = usedToday(caller); limitPerDay = Billing.aiDailyLimit(access); resetAt = (today + 1) * DAY_NS };
+  };
+
+  /// The caller's AI usage today and their cap, by tier (issue #71).
+  public shared composite query ({ caller }) func getMyAiUsage() : async { used : Nat; limitPerDay : Nat; resetAt : Int; access : Billing.Access } {
+    let today = Time.now() / DAY_NS;
+    // Composite queries can't call the async* helper (M0187).
+    let access : Billing.Access = switch USER_ID {
+      case (?id) {
+        try {
+          switch (await (actor (id.toText()) : UserAccess).accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff }
+        } catch (_) { #paywallOff }
+      };
+      case null #paywallOff;
+    };
+    { used = usedToday(caller); limitPerDay = Billing.aiDailyLimit(access); resetAt = (today + 1) * DAY_NS; access };
   };
 
   public query func isConfigured() : async Bool { anthropicApiKey != null };
@@ -316,7 +371,10 @@ persistent actor AiProxy {
     if (Principal.isAnonymous(caller)) return #err("Sign in to ask the rule assistant");
     if (Text.size(question) > MAX_QUESTION_CHARS) return #err("Question is too long");
     if (Text.size(context) > MAX_CONTEXT_CHARS) return #err("Rulebook context is too long");
-    switch (checkAndConsume(caller)) {
+    refreshEnv<system>();
+    let access = await* accessOf(caller);
+    lastAccess.add(Principal.compare, caller, access);
+    switch (checkAndConsume(caller, access)) {
       case (#err(e)) return #err(e);
       case (#ok()) {};
     };
@@ -334,7 +392,10 @@ persistent actor AiProxy {
     if (Principal.isAnonymous(caller)) return #err("Sign in to generate practice questions");
     if (Text.size(weakAreasContext) > MAX_CONTEXT_CHARS) return #err("Context is too long");
     if (count == 0 or count > 10) return #err("count must be between 1 and 10");
-    switch (checkAndConsume(caller)) {
+    refreshEnv<system>();
+    let access = await* accessOf(caller);
+    lastAccess.add(Principal.compare, caller, access);
+    switch (checkAndConsume(caller, access)) {
       case (#err(e)) return #err(e);
       case (#ok()) {};
     };
@@ -352,6 +413,14 @@ persistent actor AiProxy {
     let sysPrompt = getTemplate("scenario_generator_system", DEFAULT_SCENARIO_SYSTEM);
     let userMsg = "Generate exactly " # Nat.toText(count) # " questions.\nInstructions: " # instructions # "\n\nRulebook context:\n" # articleContext;
     await callClaude(sysPrompt, userMsg, 3000)
+  };
+
+  /// Called by the user canister when an official deletes their account:
+  /// drops their daily usage counter. Safe to repeat.
+  public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
+    if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    Map.remove(rateLimits, Principal.compare, p);
+    #ok(())
   };
 
   public query func metrics() : async { ok : Bool; aiConfigured : Bool } {

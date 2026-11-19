@@ -169,6 +169,14 @@ export default function AssociationDetailPage() {
             📈 {t("assocDetail.viewAnalytics")}
           </button>
         )}
+        {isCoordinator && (
+          <button
+            onClick={() => navigate(`/association/${assoc.id}/training`)}
+            style={{ width: "100%", padding: "12px 14px", background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 16 }}
+          >
+            ⏱️ {t("assocDetail.viewTrainingHours")}
+          </button>
+        )}
         {/* Roster / leaderboard — visible to coordinator and all members */}
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
           {t("assocDetail.membersCount", { count: roster.length })}

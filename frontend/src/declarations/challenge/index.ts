@@ -77,6 +77,13 @@ export type Result_2 = { 'ok' : null } |
 export interface _SERVICE {
   'acceptChallenge' : ActorMethod<[string], Result>,
   'createCrew' : ActorMethod<[CrewInput], Result_1>,
+  /**
+   * / Called by the user canister when an official deletes their account:
+   * / deletes every challenge they sent or received, and takes them (and
+   * / their results) out of every crew; a crew left with no members is
+   * / deleted. Safe to repeat.
+   */
+  'forgetUser' : ActorMethod<[Principal], Result_2>,
   'getChallenge' : ActorMethod<[string], [] | [Challenge]>,
   /**
    * / Members only: the crew with everyone's results and misses.
@@ -162,6 +169,7 @@ export const Crew = IDL.Record({
   'questionIds' : IDL.Vec(IDL.Text),
 });
 export const Result_1 = IDL.Variant({ 'ok' : Crew, 'err' : IDL.Text });
+export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const CrewPreview = IDL.Record({
   'id' : IDL.Text,
   'expiresAt' : IDL.Int,
@@ -172,11 +180,11 @@ export const CrewPreview = IDL.Record({
   'gameDate' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
-export const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
   'createCrew' : IDL.Func([CrewInput], [Result_1], []),
+  'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
   'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
   'getCrew' : IDL.Func([IDL.Text], [IDL.Opt(Crew)], ['query']),
   'getCrewPreview' : IDL.Func([IDL.Text], [IDL.Opt(CrewPreview)], ['query']),
@@ -256,6 +264,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'questionIds' : IDL.Vec(IDL.Text),
   });
   const Result_1 = IDL.Variant({ 'ok' : Crew, 'err' : IDL.Text });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const CrewPreview = IDL.Record({
     'id' : IDL.Text,
     'expiresAt' : IDL.Int,
@@ -266,11 +275,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'gameDate' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   
   return IDL.Service({
     'acceptChallenge' : IDL.Func([IDL.Text], [Result], []),
     'createCrew' : IDL.Func([CrewInput], [Result_1], []),
+    'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
     'getChallenge' : IDL.Func([IDL.Text], [IDL.Opt(Challenge)], ['query']),
     'getCrew' : IDL.Func([IDL.Text], [IDL.Opt(Crew)], ['query']),
     'getCrewPreview' : IDL.Func([IDL.Text], [IDL.Opt(CrewPreview)], ['query']),
