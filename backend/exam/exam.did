@@ -187,7 +187,13 @@ service : {
   /// session's owner and the ranking/challenge/association canisters.
   gradedResult: (sessionId: text) -> (opt GradedResult) query;
   listExamTemplates: (sportId: text) -> (vec ExamTemplate) query;
-  metrics: () -> (record {sessionCount: nat;}) query;
+  metrics: () ->
+   (record {
+      answerKeys: nat;
+      droppedPushes: nat;
+      pendingPushes: nat;
+      sessionCount: nat;
+    }) query;
   setAdmin: (p: principal) -> (Result_4);
   startGradedSession: (config: ExamConfig, source: QuestionSource) ->
    (Result_3);

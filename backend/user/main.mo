@@ -8,6 +8,8 @@ import Result "mo:core/Result";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
+import Set "mo:core/Set";
+import Env "../lib/Env";
 
 persistent actor User {
 
@@ -239,6 +241,17 @@ persistent actor User {
           createdAt         = existing.createdAt;
         };
         Map.add(profiles, Principal.compare, caller, updated);
+        // The leaderboards copy name and state; tell ranking (fire and
+        // forget: it also re-reads them at the next exam).
+        if (updated.displayName != existing.displayName or updated.state != existing.state) {
+          switch (Env.canisterId<system>("ranking")) {
+            case (?id) {
+              let ranking = actor (Principal.toText(id)) : actor { profileChanged : shared (Principal, Text, Text) -> async () };
+              ignore ranking.profileChanged(caller, updated.displayName, updated.state);
+            };
+            case null {};
+          };
+        };
         #ok(updated)
       };
     }
@@ -264,6 +277,30 @@ persistent actor User {
   public shared ({ caller }) func recordArticleStudied(articleId : Text, score : Nat) : async () {
     if (Principal.isAnonymous(caller)) Runtime.trap("Must be authenticated");
     if (score > 100) Runtime.trap("Score must be 0-100");
+    studied(caller, articleId, score);
+  };
+
+  // Graded sessions the exam canister has pushed, so a retry counts once.
+  var gradedStudySessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Called by the exam canister when a quiz or exam finishes: each article
+  /// in it counts as studied, scored by its accuracy in that session. Safe
+  /// to repeat.
+  public shared ({ caller }) func recordGradedStudy(player : Principal, sessionId : Text, articleScores : [(Text, Nat)]) : async Result.Result<(), Text> {
+    switch (Env.canisterId<system>("exam")) {
+      case (?id) { if (caller != id) return #err("Exam canister only") };
+      case null return #err("Exam canister not configured");
+    };
+    if (articleScores.size() > 200) return #err("Too many articles");
+    if (Set.contains(gradedStudySessions, Text.compare, sessionId)) return #ok(());
+    Set.add(gradedStudySessions, Text.compare, sessionId);
+    for ((articleId, score) in articleScores.values()) {
+      if (score <= 100) studied(player, articleId, score);
+    };
+    #ok(())
+  };
+
+  func studied(caller : Principal, articleId : Text, score : Nat) {
     let existing = switch (Map.get(progress, Principal.compare, caller)) { case (?p) p; case null [] };
     let now = Time.now();
     var found = false;

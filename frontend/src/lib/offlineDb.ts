@@ -34,6 +34,10 @@ export type PendingAction =
   | {
       id: string; kind: "claimExamResult"; createdAt: number;
       sessionId: string; displayName: string; state: string;
+    }
+  | {
+      id: string; kind: "recordGradedCompletion"; createdAt: number;
+      assignmentId: string; sessionId: string;
     };
 
 export type AudioBlobRecord = { id: string; bytes: Uint8Array; sizeBytes: number; downloadedAt: number };

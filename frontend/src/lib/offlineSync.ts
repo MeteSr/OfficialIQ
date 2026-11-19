@@ -1,7 +1,8 @@
 import { contentService } from "../services/content";
 import { questionService } from "../services/question";
 import { userService } from "../services/user";
-import { rankingService, ClaimRefused } from "../services/ranking";
+import { rankingService } from "../services/ranking";
+import { associationService } from "../services/association";
 import {
   cacheArticles, cachePlays, cacheQuestions,
   enqueuePendingAction, getPendingActions, removePendingAction, type PendingAction,
@@ -40,32 +41,42 @@ async function replay(action: PendingAction): Promise<void> {
     case "recordAnswer":
       await questionService.recordAnswer(action.questionId, action.isCorrect);
       return;
+    // Queued by older versions of the app; the exam canister now pushes
+    // results to ranking itself, which counts each session once.
     case "claimExamResult":
-      try {
-        await rankingService.claimExamResult(action.sessionId, action.displayName, action.state);
-      } catch (e) {
-        // Already counted (or not countable): done with this entry.
-        if (e instanceof ClaimRefused) return;
-        throw e;
-      }
+      await rankingService.claimExamResult(action.sessionId, action.displayName, action.state);
+      return;
+    case "recordGradedCompletion":
+      await associationService.recordGradedCompletion(action.assignmentId, action.sessionId);
       return;
   }
 }
 
 /**
- * Counts a finished ranked session toward the leaderboard. A ranked result
- * used to be lost if this one call failed (a dropped connection right after
- * the last question); now a failed call is queued and replayed like other
- * offline actions. The ranking canister counts each session once, so a
- * replay of a claim that did land is refused and dropped.
+ * Counts a finished graded session toward a coordinator's assignment. A
+ * failed call is queued and replayed like other offline actions; the
+ * association canister uses each session once, so a replay of a call that
+ * did land is refused and dropped.
  */
-export async function claimRankedResult(sessionId: string, displayName: string, state: string): Promise<void> {
+export async function recordAssignmentCompletion(assignmentId: string, sessionId: string): Promise<void> {
   try {
-    await rankingService.claimExamResult(sessionId, displayName, state);
+    await associationService.recordGradedCompletion(assignmentId, sessionId);
   } catch (e) {
-    if (e instanceof ClaimRefused) return;
-    await enqueuePendingAction({ kind: "claimExamResult", sessionId, displayName, state }).catch(() => {});
+    if (!isTransient(e)) return;
+    await enqueuePendingAction({ kind: "recordGradedCompletion", assignmentId, sessionId }).catch(() => {});
   }
+}
+
+/**
+ * Whether a failed call is worth retrying: no network, or the request
+ * never got an answer. A canister that answered with a refusal or a trap
+ * will answer the same way next time.
+ */
+export function isTransient(e: unknown): boolean {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  if (e instanceof TypeError) return true;
+  const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+  return /fetch|network|timeout|timed out|transport|offline|ECONN|status (?:429|5\d\d)/i.test(msg);
 }
 
 let flushing = false;
@@ -83,12 +94,15 @@ export async function flushPendingActions(): Promise<void> {
     for (const action of actions) {
       try {
         await replay(action);
-        await removePendingAction(action.id);
-      } catch {
-        // Still offline, or the call failed again — stop here and retry
-        // the remainder next time rather than reordering the queue.
-        break;
+      } catch (e) {
+        // Still offline, or no answer: stop here and retry the remainder
+        // next time rather than reordering the queue.
+        if (isTransient(e)) break;
+        // The canister refused it (already counted, no longer valid ...).
+        // Retrying can't help, and keeping it would block everything
+        // queued after it forever.
       }
+      await removePendingAction(action.id);
     }
   } finally {
     flushing = false;

@@ -10,6 +10,7 @@ import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
+import Set "mo:core/Set";
 import Env "../lib/Env";
 import Types "../lib/Types";
 
@@ -138,6 +139,26 @@ persistent actor Question {
   // consecutive correct answers grow the interval by the easiness factor,
   // per the classic SM-2 schedule (1 day, 6 days, then interval * EF).
   public shared ({ caller }) func recordAnswer(questionId : Text, isCorrect : Bool) : async () {
+    recordFor(caller, questionId, isCorrect);
+  };
+
+  // Graded sessions the exam canister has pushed, so a retry counts once.
+  var gradedAnswerSessions : Set.Set<Text> = Set.empty<Text>();
+
+  /// Called by the exam canister when a quiz or exam finishes, with the
+  /// player's graded answers: updates their spaced-repetition history and
+  /// the per-question totals, as recordAnswer did from the browser. Safe to
+  /// repeat.
+  public shared ({ caller }) func recordGradedAnswers(player : Principal, sessionId : Text, answers : [(Text, Bool)]) : async Result.Result<(), Text> {
+    if (not isExamCanister<system>(caller)) return #err("Exam canister only");
+    if (answers.size() > 200) return #err("Too many answers");
+    if (Set.contains(gradedAnswerSessions, Text.compare, sessionId)) return #ok(());
+    Set.add(gradedAnswerSessions, Text.compare, sessionId);
+    for ((questionId, isCorrect) in answers.values()) recordFor(player, questionId, isCorrect);
+    #ok(())
+  };
+
+  func recordFor(caller : Principal, questionId : Text, isCorrect : Bool) {
     let key = Principal.toText(caller) # "::" # questionId;
     let now = Time.now();
     let prev = Map.get(history, Text.compare, key);

@@ -105,6 +105,15 @@ service : {
    (Result_1);
   questionsForExam: (ids: vec text) -> (Result_1);
   recordAnswer: (questionId: text, isCorrect: bool) -> ();
+  /// Called by the exam canister when a quiz or exam finishes, with the
+  /// player's graded answers: updates their spaced-repetition history and
+  /// the per-question totals, as recordAnswer did from the browser. Safe to
+  /// repeat.
+  recordGradedAnswers: (player: principal, sessionId: text, answers:
+   vec record {
+         text;
+         bool;
+       }) -> (Result);
   sampleQuiz: (filter: QuizFilter) -> (vec Question) query;
   setAdmin: (p: principal) -> (Result);
 }

@@ -151,7 +151,15 @@ export interface _SERVICE {
    */
   'gradedResult' : ActorMethod<[string], [] | [GradedResult]>,
   'listExamTemplates' : ActorMethod<[string], Array<ExamTemplate>>,
-  'metrics' : ActorMethod<[], { 'sessionCount' : bigint }>,
+  'metrics' : ActorMethod<
+    [],
+    {
+      'droppedPushes' : bigint,
+      'pendingPushes' : bigint,
+      'answerKeys' : bigint,
+      'sessionCount' : bigint,
+    }
+  >,
   'setAdmin' : ActorMethod<[Principal], Result_4>,
   'startGradedSession' : ActorMethod<[ExamConfig, QuestionSource], Result_3>,
   'submitExam' : ActorMethod<[string, Array<AnswerRecord>], Result_2>,
@@ -313,7 +321,14 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'metrics' : IDL.Func(
       [],
-      [IDL.Record({ 'sessionCount' : IDL.Nat })],
+      [
+        IDL.Record({
+          'droppedPushes' : IDL.Nat,
+          'pendingPushes' : IDL.Nat,
+          'answerKeys' : IDL.Nat,
+          'sessionCount' : IDL.Nat,
+        }),
+      ],
       ['query'],
     ),
   'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),
@@ -483,7 +498,14 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'metrics' : IDL.Func(
         [],
-        [IDL.Record({ 'sessionCount' : IDL.Nat })],
+        [
+          IDL.Record({
+            'droppedPushes' : IDL.Nat,
+            'pendingPushes' : IDL.Nat,
+            'answerKeys' : IDL.Nat,
+            'sessionCount' : IDL.Nat,
+          }),
+        ],
         ['query'],
       ),
     'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),

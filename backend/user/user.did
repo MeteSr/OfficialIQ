@@ -148,6 +148,14 @@ service : {
   linkExternalAccount: (provider: text, externalId: text) -> (Result_1);
   metrics: () -> (record {userCount: nat;}) query;
   recordArticleStudied: (articleId: text, score: nat) -> ();
+  /// Called by the exam canister when a quiz or exam finishes: each article
+  /// in it counts as studied, scored by its accuracy in that session. Safe
+  /// to repeat.
+  recordGradedStudy: (player: principal, sessionId: text, articleScores:
+   vec record {
+         text;
+         nat;
+       }) -> (Result_1);
   recordMonthlyQuizResult: (month: nat, score: nat, articleScores:
    vec record {
          text;

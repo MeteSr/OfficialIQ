@@ -13,9 +13,8 @@ import { useQuizStore, selectCurrentQuestion, selectScore } from "../store/quizS
 import { useAuthStore } from "../store/authStore";
 import type { ExamConfig } from "../services/exam";
 import { enqueuePendingAction } from "../lib/offlineDb";
-import { claimRankedResult } from "../lib/offlineSync";
+import { recordAssignmentCompletion } from "../lib/offlineSync";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
-import { associationService } from "../services/association";
 import { useSport } from "../lib/sport";
 
 const DEFAULT_SECONDS_PER_Q = 45;
@@ -223,7 +222,9 @@ export default function QuizPage() {
 
     recordAnswer({ questionId: currentQ.id, chosenId: choiceId, isCorrect, elapsedSec: BigInt(elapsed) });
 
-    if (principal) {
+    // A graded answer is already recorded by the exam canister, which passes
+    // it on to the question and ranking canisters when the session finishes.
+    if (principal && !graded) {
       const questionId = currentQ.id;
       questionService.recordAnswer(questionId, isCorrect).catch(() =>
         enqueuePendingAction({ kind: "recordAnswer", questionId, isCorrect }),
@@ -250,20 +251,16 @@ export default function QuizPage() {
 
     if (graded && sessionId) {
       try {
-        // The canister computes the score; ranking and assignments read it
-        // from there.
+        // The canister computes the score and passes the result on to
+        // ranking (ELO, streak, skill counters), question (spaced-repetition
+        // history) and user (article progress) itself.
         const done = await examService.finishSession(sessionId);
         setServerScore(done.session.score.length ? Number(done.session.score[0]) : 0);
-        if (profile) {
-          // No state on the profile means national boards only, not Texas.
-          await claimRankedResult(sessionId, profile.displayName, profile.state);
-        }
-        if (assignmentId) {
-          await associationService.recordGradedCompletion(assignmentId, sessionId).catch(() => {});
-        }
+        if (assignmentId) await recordAssignmentCompletion(assignmentId, sessionId);
       } catch {
         // Leave the local tally on screen; the session can be finished again later.
       }
+      return;
     }
 
     if (profile) {

@@ -98,6 +98,28 @@ type Group =
    sport: text;
    state: text;
  };
+type GradedResult = 
+ record {
+   answered: nat;
+   articleIds: vec text;
+   avgElapsedSec: nat;
+   correct: nat;
+   finishedAt: int;
+   id: text;
+   mode: ExamMode;
+   owner: principal;
+   questionCount: nat;
+   questionIds: vec text;
+   score: nat;
+   sportId: text;
+ };
+type ExamMode = 
+ variant {
+   Certification;
+   ShareLink;
+   Solo;
+   Timed;
+ };
 type EloSnapshot = 
  record {
    accuracy: float64;
@@ -112,12 +134,21 @@ type DailyActivity =
    lastQualifyingDay: int;
    longestStreak: nat;
  };
+type AnswerSignal = 
+ record {
+   elapsedSec: nat;
+   isCasebook: bool;
+   isCorrect: bool;
+ };
 service : {
   ackPushEvent: (p: principal, milestone: nat) -> (Result);
   addFriend: (friend: principal) -> (Result);
   /// Counts a finished, canister-graded exam session toward the caller's
   /// ELO, accuracy and streak. The score comes from the exam canister, never
-  /// from the browser; each session counts once.
+  /// from the browser; each session counts once. The exam canister now
+  /// pushes results itself (recordGradedSession), so the app no longer calls
+  /// this; kept for older apps. displayName and state are taken from the
+  /// user canister, and the arguments only stand in when it has no profile.
   claimExamResult: (sessionId: text, displayName: text, state: text) ->
    (Result_4);
   createGroup: (name: text, sport: text, state: text, isPrivate: bool) ->
@@ -146,10 +177,19 @@ service : {
   metrics: () -> (record {userCount: nat;}) query;
   postGroupChallenge: (groupId: text, title: text, deadline: int) ->
    (Result_1);
+  /// Called by the user canister when an official renames themself or
+  /// changes state, so the leaderboards don't keep showing the old values
+  /// until their next exam.
+  profileChanged: (p: principal, displayName: text, state: text) -> ();
   recordAnswerSignal: (isCorrect: bool, elapsedSec: nat, isCasebook: 
    bool) -> ();
   recordExamResult: (_score: nat, _questionCount: nat, _displayName: 
    text, _sport: text, _state: text, _avgElapsedSec: nat) -> ();
+  /// Called by the exam canister when a quiz or exam finishes: counts it
+  /// toward ELO (as claimExamResult, once per session and only with enough
+  /// questions), the daily streak and the skill counters. Safe to repeat.
+  recordGradedSession: (r: GradedResult, answers: vec AnswerSignal) ->
+   (Result);
   recordQuestionsAnswered: (count: nat) -> (DailyActivity);
   removeFriend: (friend: principal) -> (Result);
   setAdmin: (p: principal) -> (Result);

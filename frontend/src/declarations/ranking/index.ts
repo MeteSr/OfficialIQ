@@ -8,6 +8,11 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
 
+export interface AnswerSignal {
+  'elapsedSec' : bigint,
+  'isCorrect' : boolean,
+  'isCasebook' : boolean,
+}
 export interface DailyActivity {
   'lastQualifyingDay' : bigint,
   'activityDay' : bigint,
@@ -19,6 +24,24 @@ export interface EloSnapshot {
   'elo' : number,
   'timestamp' : bigint,
   'accuracy' : number,
+}
+export type ExamMode = { 'Solo' : null } |
+  { 'ShareLink' : null } |
+  { 'Timed' : null } |
+  { 'Certification' : null };
+export interface GradedResult {
+  'id' : string,
+  'owner' : Principal,
+  'mode' : ExamMode,
+  'answered' : bigint,
+  'correct' : bigint,
+  'score' : bigint,
+  'avgElapsedSec' : bigint,
+  'sportId' : string,
+  'questionIds' : Array<string>,
+  'articleIds' : Array<string>,
+  'finishedAt' : bigint,
+  'questionCount' : bigint,
 }
 export interface Group {
   'id' : string,
@@ -98,7 +121,10 @@ export interface _SERVICE {
   /**
    * / Counts a finished, canister-graded exam session toward the caller's
    * / ELO, accuracy and streak. The score comes from the exam canister, never
-   * / from the browser; each session counts once.
+   * / from the browser; each session counts once. The exam canister now
+   * / pushes results itself (recordGradedSession), so the app no longer calls
+   * / this; kept for older apps. displayName and state are taken from the
+   * / user canister, and the arguments only stand in when it has no profile.
    */
   'claimExamResult' : ActorMethod<[string, string, string], Result_4>,
   'createGroup' : ActorMethod<[string, string, string, boolean], Result_2>,
@@ -131,10 +157,25 @@ export interface _SERVICE {
   'listPublicGroups' : ActorMethod<[string], Array<Group>>,
   'metrics' : ActorMethod<[], { 'userCount' : bigint }>,
   'postGroupChallenge' : ActorMethod<[string, string, bigint], Result_1>,
+  /**
+   * / Called by the user canister when an official renames themself or
+   * / changes state, so the leaderboards don't keep showing the old values
+   * / until their next exam.
+   */
+  'profileChanged' : ActorMethod<[Principal, string, string], undefined>,
   'recordAnswerSignal' : ActorMethod<[boolean, bigint, boolean], undefined>,
   'recordExamResult' : ActorMethod<
     [bigint, bigint, string, string, string, bigint],
     undefined
+  >,
+  /**
+   * / Called by the exam canister when a quiz or exam finishes: counts it
+   * / toward ELO (as claimExamResult, once per session and only with enough
+   * / questions), the daily streak and the skill counters. Safe to repeat.
+   */
+  'recordGradedSession' : ActorMethod<
+    [GradedResult, Array<AnswerSignal>],
+    Result
   >,
   'recordQuestionsAnswered' : ActorMethod<[bigint], DailyActivity>,
   'removeFriend' : ActorMethod<[Principal], Result>,
@@ -228,6 +269,31 @@ export const Result_1 = IDL.Variant({
   'ok' : GroupChallenge,
   'err' : IDL.Text,
 });
+export const ExamMode = IDL.Variant({
+  'Solo' : IDL.Null,
+  'ShareLink' : IDL.Null,
+  'Timed' : IDL.Null,
+  'Certification' : IDL.Null,
+});
+export const GradedResult = IDL.Record({
+  'id' : IDL.Text,
+  'owner' : IDL.Principal,
+  'mode' : ExamMode,
+  'answered' : IDL.Nat,
+  'correct' : IDL.Nat,
+  'score' : IDL.Nat,
+  'avgElapsedSec' : IDL.Nat,
+  'sportId' : IDL.Text,
+  'questionIds' : IDL.Vec(IDL.Text),
+  'articleIds' : IDL.Vec(IDL.Text),
+  'finishedAt' : IDL.Int,
+  'questionCount' : IDL.Nat,
+});
+export const AnswerSignal = IDL.Record({
+  'elapsedSec' : IDL.Nat,
+  'isCorrect' : IDL.Bool,
+  'isCasebook' : IDL.Bool,
+});
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'ackPushEvent' : IDL.Func([IDL.Principal, IDL.Nat], [Result], []),
@@ -286,10 +352,16 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [Result_1],
       [],
     ),
+  'profileChanged' : IDL.Func([IDL.Principal, IDL.Text, IDL.Text], [], []),
   'recordAnswerSignal' : IDL.Func([IDL.Bool, IDL.Nat, IDL.Bool], [], []),
   'recordExamResult' : IDL.Func(
       [IDL.Nat, IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
       [],
+      [],
+    ),
+  'recordGradedSession' : IDL.Func(
+      [GradedResult, IDL.Vec(AnswerSignal)],
+      [Result],
       [],
     ),
   'recordQuestionsAnswered' : IDL.Func([IDL.Nat], [DailyActivity], []),
@@ -385,6 +457,31 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'casebookCorrect' : IDL.Nat,
   });
   const Result_1 = IDL.Variant({ 'ok' : GroupChallenge, 'err' : IDL.Text });
+  const ExamMode = IDL.Variant({
+    'Solo' : IDL.Null,
+    'ShareLink' : IDL.Null,
+    'Timed' : IDL.Null,
+    'Certification' : IDL.Null,
+  });
+  const GradedResult = IDL.Record({
+    'id' : IDL.Text,
+    'owner' : IDL.Principal,
+    'mode' : ExamMode,
+    'answered' : IDL.Nat,
+    'correct' : IDL.Nat,
+    'score' : IDL.Nat,
+    'avgElapsedSec' : IDL.Nat,
+    'sportId' : IDL.Text,
+    'questionIds' : IDL.Vec(IDL.Text),
+    'articleIds' : IDL.Vec(IDL.Text),
+    'finishedAt' : IDL.Int,
+    'questionCount' : IDL.Nat,
+  });
+  const AnswerSignal = IDL.Record({
+    'elapsedSec' : IDL.Nat,
+    'isCorrect' : IDL.Bool,
+    'isCasebook' : IDL.Bool,
+  });
   
   return IDL.Service({
     'ackPushEvent' : IDL.Func([IDL.Principal, IDL.Nat], [Result], []),
@@ -451,10 +548,16 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
+    'profileChanged' : IDL.Func([IDL.Principal, IDL.Text, IDL.Text], [], []),
     'recordAnswerSignal' : IDL.Func([IDL.Bool, IDL.Nat, IDL.Bool], [], []),
     'recordExamResult' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
         [],
+        [],
+      ),
+    'recordGradedSession' : IDL.Func(
+        [GradedResult, IDL.Vec(AnswerSignal)],
+        [Result],
         [],
       ),
     'recordQuestionsAnswered' : IDL.Func([IDL.Nat], [DailyActivity], []),

@@ -115,6 +115,15 @@ export interface _SERVICE {
   'linkExternalAccount' : ActorMethod<[string, string], Result_1>,
   'metrics' : ActorMethod<[], { 'userCount' : bigint }>,
   'recordArticleStudied' : ActorMethod<[string, bigint], undefined>,
+  /**
+   * / Called by the exam canister when a quiz or exam finishes: each article
+   * / in it counts as studied, scored by its accuracy in that session. Safe
+   * / to repeat.
+   */
+  'recordGradedStudy' : ActorMethod<
+    [Principal, string, Array<[string, bigint]>],
+    Result_1
+  >,
   'recordMonthlyQuizResult' : ActorMethod<
     [bigint, bigint, Array<[string, bigint]>],
     undefined
@@ -261,6 +270,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'linkExternalAccount' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'metrics' : IDL.Func([], [IDL.Record({ 'userCount' : IDL.Nat })], ['query']),
   'recordArticleStudied' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+  'recordGradedStudy' : IDL.Func(
+      [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
+      [Result_1],
+      [],
+    ),
   'recordMonthlyQuizResult' : IDL.Func(
       [IDL.Nat, IDL.Nat, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
       [],
@@ -420,6 +434,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'recordArticleStudied' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+    'recordGradedStudy' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
+        [Result_1],
+        [],
+      ),
     'recordMonthlyQuizResult' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat))],
         [],

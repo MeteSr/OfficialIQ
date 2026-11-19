@@ -59,6 +59,10 @@ module {
     finishedAt    : Int;
   };
 
+  /// One answer of a finished session, as exam pushes it to ranking for
+  /// the skill counters (speed streak, casebook accuracy).
+  public type AnswerSignal = { isCorrect : Bool; elapsedSec : Nat; isCasebook : Bool };
+
   /// The part of the exam canister that ranking, challenge and association
   /// call.
   public type ExamResults = actor {

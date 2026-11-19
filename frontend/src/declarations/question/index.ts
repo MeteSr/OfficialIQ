@@ -90,6 +90,16 @@ export interface _SERVICE {
   'pickForExam' : ActorMethod<[string, Array<ExamPick>, Principal], Result_1>,
   'questionsForExam' : ActorMethod<[Array<string>], Result_1>,
   'recordAnswer' : ActorMethod<[string, boolean], undefined>,
+  /**
+   * / Called by the exam canister when a quiz or exam finishes, with the
+   * / player's graded answers: updates their spaced-repetition history and
+   * / the per-question totals, as recordAnswer did from the browser. Safe to
+   * / repeat.
+   */
+  'recordGradedAnswers' : ActorMethod<
+    [Principal, string, Array<[string, boolean]>],
+    Result
+  >,
   'sampleQuiz' : ActorMethod<[QuizFilter], Array<Question>>,
   'setAdmin' : ActorMethod<[Principal], Result>,
 }
@@ -193,6 +203,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
     ),
   'questionsForExam' : IDL.Func([IDL.Vec(IDL.Text)], [Result_1], []),
   'recordAnswer' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+  'recordGradedAnswers' : IDL.Func(
+      [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool))],
+      [Result],
+      [],
+    ),
   'sampleQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
   'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
 });
@@ -297,6 +312,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
       ),
     'questionsForExam' : IDL.Func([IDL.Vec(IDL.Text)], [Result_1], []),
     'recordAnswer' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+    'recordGradedAnswers' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Vec(IDL.Tuple(IDL.Text, IDL.Bool))],
+        [Result],
+        [],
+      ),
     'sampleQuiz' : IDL.Func([QuizFilter], [IDL.Vec(Question)], ['query']),
     'setAdmin' : IDL.Func([IDL.Principal], [Result], []),
   });
