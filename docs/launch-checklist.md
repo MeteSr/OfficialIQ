@@ -59,7 +59,6 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | Weekly ICP freshness workflow can open PRs: Settings, Actions, "Allow GitHub Actions to create and approve pull requests" | Not ready (the workflow has never run) | Mete |
 | Seeding content and setting the AI key from GitHub: Admin task `seed-content` and `set-ai-config` (needs the `ANTHROPIC_API_KEY` environment secret) | Ready in code; run after the first deploy | Mete (run), Claude (built) |
 | Open Dependabot PRs (#37 to #39, #41 to #46, #48, #52), including majors for TypeScript 7, vitest 5, i18next 27, web-push 4 | Not ready: triage before launch, majors need checking | Claude |
-| `.gitlab-ci.yml` duplicates the pipeline (review finding 11) | Not ready: delete unless a GitLab move is planned | Claude |
 
 **Note on secrets:** icp-cli has no cycles wallet, so there is no wallet ID secret to set. Deploys spend from the identity's cycles-ledger balance.
 
@@ -91,18 +90,18 @@ From the engineering review ([doc](https://claude.ai/artifact/G4rXTTcTA2JB9Cd5eg
 | # | Finding | Status | Before launch? | Owner |
 |---|---|---|---|---|
 | 1 | No canister tests | Ready: integration tests in CI (#53) | Done | Claude |
-| 2 | Per-user queries scan whole tables; nothing is pruned | Indexes added in #53; session and answer-key pruning still open | Pruning can wait for growth | Claude |
+| 2 | Per-user queries scan whole tables; nothing is pruned | Ready: indexes (#53), answer keys dropped 7 days after a session finishes (#61), exam sessions kept 12 months (Mete, 2026-11-19) | Done | Claude |
 | 3 | Same cert exam on every attempt | Ready: fixed in #53 | Done | Claude |
-| 4 | Client chains multi-canister writes | Claims retried since #53; server-side push from `exam` still open | Recommended | Claude |
-| 5 | 3 update calls per answered question (1 to 2 s reveal latency on mainnet) | Not ready | Recommended: users feel it | Claude |
-| 6 | Hand-written IDLs, no drift check; shared types copied into 4 canisters | Not ready | Recommended | Claude |
-| 7 | API types double as stored types; ranking trusts client name/state | Not ready | After launch | Claude |
-| 8 | 114 silent `.catch(() => …)`, no error boundary | Error boundary added (per screen and app-wide); silent catches and the stuck offline queue still open | Boundary done; rest recommended | Claude |
-| 9 | One 958 kB bundle, no code splitting; N+1 offline sync | Not ready | Recommended for a mobile PWA | Claude |
-| 10 | Badges UI dropped; "ELO" is a fixed ±16 | Badges coming back (Mete, 2026-11-18); rating formula still open | Badges yes; rating after launch | Claude |
-| 11 | Large page components, `.gitlab-ci.yml` drift | Not ready | After launch (GitLab file in §3) | Claude |
+| 4 | Client chains multi-canister writes | Ready: `exam` pushes finished results to ranking, question and user with retries (#61) | Done | Claude |
+| 5 | 3 update calls per answered question (1 to 2 s reveal latency on mainnet) | Ready: one call per answer (#61) | Done | Claude |
+| 6 | Hand-written IDLs, no drift check; shared types copied into 4 canisters | Ready: generated Candid and bindings with a CI drift check, `backend/lib/Types.mo` (#61) | Done | Claude |
+| 7 | API types double as stored types; ranking trusts client name/state | Ready: ranking reads the user canister (#61); stored types split from API types for sessions, profiles and stats (Mete chose before launch, 2026-11-19) | Done | Claude |
+| 8 | 114 silent `.catch(() => …)`, no error boundary | Error boundary (#54), offline queue no longer sticks, `useCanisterQuery` + `LoadError` (#61); 76 silent catches left to convert as pages are touched | Done for launch | Claude |
+| 9 | One 958 kB bundle, no code splitting; N+1 offline sync | Ready: route splitting (527 kB main bundle), one-call plays sync, paged question sync (#61) | Done | Claude |
+| 10 | Badges UI dropped; "ELO" is a fixed ±16 | Badges back (#54); rating weighted by question difficulty (Mete, 2026-11-19) | Done | Claude |
+| 11 | Large page components, `.gitlab-ci.yml` drift | GitLab file deleted (Mete, 2026-11-19); `with` updates (#61); split pages as they are touched | After launch for page splits | Claude |
 
-Known gaps from the security audit (#51) that Mete accepted: practice mode still shows answers, players can abandon a bad ranked quiz, and streak and badge counters are client-reported.
+Known gaps from the security audit (#51) that Mete accepted: practice mode still shows answers, players can abandon a bad ranked quiz, and practice-mode streak and badge counters are client-reported (graded sessions are counted by the exam canister since #61).
 
 ## 7. Mobile (Android and iOS are part of the launch)
 

@@ -338,7 +338,6 @@ self-host CI, avoid GitHub Actions specifically, or just deploy by hand.
 | I want to... | Use |
 |---|---|
 | Deploy once, right now, from my own machine | The manual path below — no extra tooling |
-| Run CI on GitLab instead of GitHub | `.gitlab-ci.yml` (repo root) |
 | Run CI/deploys identically on any Docker-capable host | `docker/deploy.Dockerfile` |
 | Run the push relay on a self-hosted box, no CI at all | `deploy/systemd/officialiq-push-relay.{service,timer}` |
 
@@ -383,21 +382,6 @@ The image bakes in the source present at `docker build` time — rebuild it
 (or bind-mount a fresh checkout over `/app`) before deploying newer code.
 Point any CI system's "run a Docker image" step at this and you have a
 working pipeline without writing provider-specific YAML at all.
-
-### GitLab CI
-
-`.gitlab-ci.yml` at the repo root mirrors the two GitHub workflows
-(`deploy-staging` on push to `main`, `deploy-production` manually-gated on
-a version tag; the GitHub workflows have since moved production to a manual
-run on `main` and added the upgrade gate, smoke test and cycle checks, which
-the GitLab file doesn't mirror yet) plus a `push-relay` job meant to run off a GitLab **Scheduled
-Pipeline** (CI/CD → Schedules in the GitLab UI — GitLab doesn't read cron
-syntax from the YAML itself the way GitHub Actions does). Set the same
-`ICP_IDENTITY_PEM`/`VAPID_*` values as masked, protected CI/CD variables
-instead of GitHub Secrets. This file is only useful if the repo is mirrored
-to or migrated onto GitLab — its real purpose is proving (and documenting)
-that the pipeline isn't GitHub-locked, not adding a second CI system to
-maintain in parallel for no reason.
 
 ### Self-hosted push relay (systemd)
 

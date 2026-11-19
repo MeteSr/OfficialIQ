@@ -71,7 +71,7 @@ canister-upgrade safety notes.
 None of this is tied to GitHub specifically — `scripts/*.sh` hold all the
 actual logic, and the GitHub Actions workflows are thin wrappers around
 them. See [docs/DEPLOYMENT.md § Deploying without GitHub](docs/DEPLOYMENT.md#deploying-without-github)
-for a Docker image, a GitLab CI example, and self-hosted systemd units that
+for a Docker image and self-hosted systemd units that
 do the same thing with no GitHub involvement at all.
 
 ## Repo layout
