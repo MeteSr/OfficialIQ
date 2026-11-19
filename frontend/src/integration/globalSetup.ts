@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import type { TestProject } from "vitest/node";
 import { adminIdentity } from "./identities";
 
-const CANISTERS = ["user", "content", "question", "exam", "ranking", "challenge", "mentorship", "association", "report"] as const;
+const CANISTERS = ["user", "content", "question", "exam", "ranking", "challenge", "mentorship", "association", "report", "ai_proxy"] as const;
 
 function icp(args: string[]): string {
   return execFileSync("icp", args, { encoding: "utf8", cwd: new URL("../../..", import.meta.url).pathname }).trim();
@@ -29,7 +29,7 @@ export default function setup(project: TestProject) {
     if (!ids[c]) throw new Error(`Canister ${c} isn't deployed on ${env}. Run: icp network start -d && icp deploy`);
   }
   const admin = adminIdentity().getPrincipal().toText();
-  for (const c of ["question", "user", "exam", "ranking"]) {
+  for (const c of ["question", "user", "exam", "ranking", "content", "ai_proxy"]) {
     const out = icp(["canister", "call", c, "setAdmin", `(principal "${admin}")`, "-e", env]);
     // A re-run against the same network finds the admin already set.
     if (!out.includes("ok") && !out.includes("Unauthorized")) throw new Error(`${c}.setAdmin: ${out}`);

@@ -92,7 +92,8 @@
     "terms": "Términos de uso",
     "deleteAccount": "Eliminar cuenta",
     "moderationQueue": "Cola de moderación",
-    "trainingTranscript": "Historial de Capacitación"
+    "trainingTranscript": "Historial de Capacitación",
+    "ruleChanges": "Qué cambió esta temporada"
   },
   "common": {
     "loading": "Cargando…",
@@ -903,13 +904,13 @@
       "rookie": {
         "tag": "NOVATO",
         "price": "Gratis",
-        "desc": "El cuestionario semanal, tu racha y tu progreso por artículo. Todo lo que necesitas para seguir el calendario de tu asociación.",
+        "desc": "Cuestionarios diarios, semanales y mensuales, rachas, clasificaciones y desafíos, estudio por artículo y casebook, 3 preguntas al día al asistente de reglas y tus exámenes de los últimos 30 días.",
         "cta": "Crear una cuenta"
       },
       "varsity": {
         "tag": "VARSITY",
-        "price": "$8",
-        "desc": "Agrega el simulador de examen, ejercicios de repetición espaciada, revisión de clips de video, resúmenes previos al partido y modo audio para el camino.",
+        "price": "$7.99",
+        "desc": "Todo lo de Rookie, más el asistente de reglas con 50 preguntas al día y tu historial completo de exámenes de 12 meses. La puntuación de preparación para la certificación y el repaso para el día del partido llegarán pronto. O $49.99 al año.",
         "cta": "14 días gratis"
       },
       "association": {
@@ -1152,5 +1153,55 @@
     "no": "No",
     "errNotCoordinator": "Solo el coordinador de la asociación puede cambiar el requisito.",
     "errInvalidMonth": "Elige el mes en que empieza la temporada."
+  },
+  "plan": {
+    "upgradeTitle": "Hazte Pro",
+    "whyAi": "Ya usaste las preguntas gratuitas de hoy al asistente de reglas.",
+    "whyHistory": "El plan gratuito muestra exámenes de los últimos {{days}} días. Pro muestra todo lo de los últimos 12 meses.",
+    "whyFeature": "Esto forma parte de OfficialIQ Pro.",
+    "perkAi": "Asistente de reglas: 50 preguntas al día",
+    "perkHistory": "Historial completo de exámenes (12 meses)",
+    "perkReadiness": "Puntuación de preparación para la certificación (próximamente)",
+    "perkRefresher": "Repaso para el día del partido (próximamente)",
+    "trial": "Prueba gratis de {{days}} días, cancela cuando quieras",
+    "yearly": "{{price}} / año",
+    "monthly": "{{price}} / mes",
+    "notNow": "Ahora no",
+    "rowTitle": "Plan",
+    "rowFree": "Gratis",
+    "rowPro": "Pro",
+    "rowProUntil": "Pro · se renueva o termina el {{date}}",
+    "upgrade": "Mejorar",
+    "manage": "Gestionar suscripción",
+    "historyNote": "Mostrando los últimos {{days}} días.",
+    "seeAll": "Ver todo con Pro",
+    "returnTitle": "Completando tu mejora",
+    "returnWorking": "Confirmando tu suscripción con Stripe…",
+    "returnDone": "Ya tienes Pro. Gracias por apoyar a OfficialIQ.",
+    "returnContinue": "Continuar",
+    "returnMissing": "Esta página necesita el enlace con el que Stripe te devuelve.",
+    "errNotYours": "Ese pago pertenece a otra cuenta. Inicia sesión con la cuenta que mejoraste.",
+    "errNotComplete": "El pago aún no está completo. Si lo terminaste, inténtalo de nuevo en un minuto.",
+    "errAlreadyClaimed": "Esa suscripción ya está vinculada a otra cuenta.",
+    "errInvalid": "Ese enlace de pago no es válido.",
+    "errSignIn": "Inicia sesión para completar tu mejora.",
+    "errTryAgain": "No se pudo conectar con Stripe. Inténtalo de nuevo en un minuto.",
+    "retry": "Reintentar",
+    "deleteSubscriptionNote": "Tienes una suscripción Pro activa. Eliminar tu cuenta no la cancela: cancélala primero en Gestionar suscripción (o en los ajustes de App Store / Google Play), o se te seguirá cobrando."
+  },
+  "ruleChanges": {
+    "title": "Qué cambió esta temporada",
+    "subtitle_one": "{{count}} cambio de reglas para {{season}}",
+    "subtitle_other": "{{count}} cambios de reglas para {{season}}",
+    "old": "Antes",
+    "new": "Ahora",
+    "newRule": "Regla nueva",
+    "source": "Fuente: {{source}}",
+    "quiz": "Hazme un cuestionario sobre los cambios",
+    "none": "Aún no se han publicado cambios de reglas para {{season}}.",
+    "homeTitle": "Nuevo esta temporada",
+    "homeBody_one": "{{count}} cambio de reglas para {{season}}. Lee qué es diferente y haz el cuestionario.",
+    "homeBody_other": "{{count}} cambios de reglas para {{season}}. Lee qué es diferente y haz el cuestionario.",
+    "homeCta": "Ver los cambios"
   }
 }

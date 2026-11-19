@@ -17,6 +17,8 @@ declare const __FEATURES__: {
   ai: boolean;
   webPush: boolean;
   nativePush: boolean;
+  paywall: boolean;
+  checkout: { monthly: string; yearly: string; portal: string };
 };
 // Release tag sent with error reports (src/lib/errorReporting.ts).
 declare const __APP_RELEASE__: string;

@@ -93,6 +93,7 @@ export interface GradedStart {
   'questions' : Array<QuestionView>,
 }
 export interface Pick {
+  'tag' : [] | [string],
   'casebook' : boolean,
   'difficulty' : [] | [Difficulty],
   'count' : bigint,
@@ -171,6 +172,17 @@ export interface _SERVICE {
    * / they belong to (same check as getMemberExams).
    */
   'getMemberTraining' : ActorMethod<[Principal], Result_5>,
+  /**
+   * / The caller's exam history (issue #71): the last 30 days for a free
+   * / official, everything kept (12 months) for Pro or while the paywall is
+   * / off. Older sessions stay stored, so upgrading shows them at once.
+   */
+  'getMyExamHistory' : ActorMethod<[], Array<ExamSession>>,
+  /**
+   * / Older clients' history call. A plain query can't ask the user canister
+   * / who is Pro, so while the paywall is on it returns the free window to
+   * / everyone; the app uses getMyExamHistory instead.
+   */
   'getMyExams' : ActorMethod<[], Array<ExamSession>>,
   /**
    * / The caller's finished graded sessions with the training time each is
@@ -194,6 +206,7 @@ export interface _SERVICE {
     }
   >,
   'setAdmin' : ActorMethod<[Principal], Result_4>,
+  'setPaywallFlag' : ActorMethod<[boolean], Result_4>,
   'startGradedSession' : ActorMethod<[ExamConfig, QuestionSource], Result_3>,
   'submitExam' : ActorMethod<[string, Array<AnswerRecord>], Result_2>,
   /**
@@ -257,6 +270,7 @@ export const Difficulty = IDL.Variant({
   'Expert' : IDL.Null,
 });
 export const Pick = IDL.Record({
+  'tag' : IDL.Opt(IDL.Text),
   'casebook' : IDL.Bool,
   'difficulty' : IDL.Opt(Difficulty),
   'count' : IDL.Nat,
@@ -368,6 +382,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [Result_5],
       ['composite_query'],
     ),
+  'getMyExamHistory' : IDL.Func(
+      [],
+      [IDL.Vec(ExamSession)],
+      ['composite_query'],
+    ),
   'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
   'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
   'gradedResult' : IDL.Func([IDL.Text], [IDL.Opt(GradedResult)], ['query']),
@@ -390,6 +409,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),
+  'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_4], []),
   'startGradedSession' : IDL.Func([ExamConfig, QuestionSource], [Result_3], []),
   'submitExam' : IDL.Func([IDL.Text, IDL.Vec(AnswerRecord)], [Result_2], []),
   'submitGradedAnswers' : IDL.Func(
@@ -451,6 +471,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'Expert' : IDL.Null,
   });
   const Pick = IDL.Record({
+    'tag' : IDL.Opt(IDL.Text),
     'casebook' : IDL.Bool,
     'difficulty' : IDL.Opt(Difficulty),
     'count' : IDL.Nat,
@@ -570,6 +591,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [Result_5],
         ['composite_query'],
       ),
+    'getMyExamHistory' : IDL.Func(
+        [],
+        [IDL.Vec(ExamSession)],
+        ['composite_query'],
+      ),
     'getMyExams' : IDL.Func([], [IDL.Vec(ExamSession)], ['query']),
     'getMyTraining' : IDL.Func([], [IDL.Vec(TrainingSession)], ['query']),
     'gradedResult' : IDL.Func([IDL.Text], [IDL.Opt(GradedResult)], ['query']),
@@ -592,6 +618,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'setAdmin' : IDL.Func([IDL.Principal], [Result_4], []),
+    'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_4], []),
     'startGradedSession' : IDL.Func(
         [ExamConfig, QuestionSource],
         [Result_3],

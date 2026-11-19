@@ -3,7 +3,11 @@ export type Features = typeof __FEATURES__;
 // What this build has switched on (build-config/features.ts sets it). Tests and
 // `vite dev` without the define get everything on, so nothing is hidden
 // while developing.
-const ALL_ON: Features = { sports: [], audio: true, clipSubmissions: true, ai: true, webPush: true, nativePush: true };
+// The paywall stays off there, since switching it on hides things.
+const ALL_ON: Features = {
+  sports: [], audio: true, clipSubmissions: true, ai: true, webPush: true, nativePush: true,
+  paywall: false, checkout: { monthly: "", yearly: "", portal: "" },
+};
 
 export const features: Features = typeof __FEATURES__ !== "undefined" ? __FEATURES__ : ALL_ON;
 

@@ -123,8 +123,8 @@ export default function CertExamPage() {
       // The exam canister picks the questions (per article, rules and
       // casebook) and keeps their answers until the exam is submitted.
       const picks: Pick[] = template.articleWeights.flatMap(([articleId]) => [
-        { articleIds: [articleId], casebook: false, count: BigInt(rulesByArticle[articleId] ?? 0), difficulty: [], adaptive: false },
-        { articleIds: [articleId], casebook: true,  count: BigInt(caseByArticle[articleId] ?? 0),  difficulty: [], adaptive: false },
+        { articleIds: [articleId], casebook: false, count: BigInt(rulesByArticle[articleId] ?? 0), difficulty: [], adaptive: false, tag: [] },
+        { articleIds: [articleId], casebook: true,  count: BigInt(caseByArticle[articleId] ?? 0),  difficulty: [], adaptive: false, tag: [] },
       ] as Pick[]).filter(p => p.count > 0n);
       const start = await examService.startGradedSession({
         sportId: SPORT_ID, articleIds: template.articleWeights.map(([id]) => id), casebook: true,

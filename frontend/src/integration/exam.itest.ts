@@ -76,7 +76,7 @@ describe("graded sessions", () => {
     const a = newIdentity();
     const exam = await canister("exam", a);
     const s = ok(await exam.startGradedSession(config(bank, 5, "Certification"),
-      { Picks: [{ articleIds: [bank.art1], casebook: false, count: 5n, difficulty: [], adaptive: false }] })) as
+      { Picks: [{ articleIds: [bank.art1], casebook: false, count: 5n, difficulty: [], adaptive: false, tag: [] }] })) as
       { session: { id: string; questionIds: string[] } };
     const ids = s.session.questionIds;
     const batch: [string, string, bigint][] = ids.map(id => [id, bank.answer.get(id)!, 10n]);

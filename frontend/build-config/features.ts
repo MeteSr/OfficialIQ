@@ -20,6 +20,14 @@ export type Features = {
   webPush: boolean;
   /** Streak push notifications in the Android and iOS apps (needs Firebase and an APNs key). */
   nativePush: boolean;
+  /**
+   * The Pro tier (issue #71): upgrade prompts, the plan row and checkout.
+   * Off, everyone is treated as Pro, as before billing existed. Needs at
+   * least one Stripe Payment Link, so it can't be on with nothing to buy.
+   */
+  paywall: boolean;
+  /** Stripe Payment Links for Pro, and the customer portal login link. */
+  checkout: { monthly: string; yearly: string; portal: string };
 };
 
 export const DEFAULT_SPORTS = ["ncaa_basketball"];
@@ -31,6 +39,11 @@ function flag(value: string | undefined, fallback: boolean): boolean {
 
 export function featuresFromEnv(env: Record<string, string | undefined>): Features {
   const sports = (env.LAUNCH_SPORTS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const checkout = {
+    monthly: env.STRIPE_LINK_MONTHLY?.trim() ?? "",
+    yearly: env.STRIPE_LINK_YEARLY?.trim() ?? "",
+    portal: env.STRIPE_PORTAL_URL?.trim() ?? "",
+  };
   return {
     sports: sports.length > 0 ? sports : DEFAULT_SPORTS,
     audio: flag(env.FEATURE_AUDIO, false),
@@ -40,5 +53,7 @@ export function featuresFromEnv(env: Record<string, string | undefined>): Featur
     // thing the website needs.
     webPush: flag(env.FEATURE_WEB_PUSH, !!env.VAPID_PUBLIC_KEY?.trim()),
     nativePush: flag(env.FEATURE_NATIVE_PUSH, false),
+    paywall: flag(env.FEATURE_PAYWALL, false) && !!(checkout.monthly || checkout.yearly),
+    checkout,
   };
 }

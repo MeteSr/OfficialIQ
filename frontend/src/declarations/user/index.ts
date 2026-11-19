@@ -8,12 +8,26 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { Principal } from '@icp-sdk/core/principal';
 import { IDL } from '@icp-sdk/core/candid';
 
+export type Access = { 'pro' : null } |
+  { 'free' : null } |
+  { 'paywallOff' : null };
+export type AdminError = { 'notAdmin' : null };
 export interface ArticleProgress {
   'masteryScore' : bigint,
   'lastStudied' : bigint,
   'articleId' : string,
   'timesStudied' : bigint,
 }
+export type ClaimError = { 'malformed' : null } |
+  { 'notSubscription' : null } |
+  { 'invalidSession' : null } |
+  { 'notConfigured' : null } |
+  { 'notYours' : null } |
+  { 'notActive' : null } |
+  { 'stripeUnavailable' : null } |
+  { 'notComplete' : null } |
+  { 'notSignedIn' : null } |
+  { 'alreadyClaimed' : null };
 export interface ClientError {
   'at' : bigint,
   'seq' : bigint,
@@ -35,6 +49,23 @@ export interface ClientErrorInput {
 }
 export type DeletionStatus = { 'NotRequested' : null } |
   { 'InProgress' : { 'remaining' : bigint } };
+export interface Entitlement {
+  'expiresAt' : bigint,
+  'source' : EntitlementSource,
+  'tier' : { 'pro' : null },
+  'updatedAt' : bigint,
+}
+export type EntitlementSource = { 'web' : string } |
+  { 'comp' : null } |
+  { 'playStore' : null } |
+  { 'appStore' : null } |
+  { 'association' : string };
+export interface HttpHeader { 'value' : string, 'name' : string }
+export interface HttpRequestResult {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<HttpHeader>,
+}
 export interface LinkedAccount {
   'linkedAt' : bigint,
   'provider' : string,
@@ -46,6 +77,14 @@ export interface MonthlyQuizResult {
   'score' : bigint,
   'articleScores' : Array<[string, bigint]>,
 }
+export interface MyEntitlement {
+  'tier' : { 'pro' : null } |
+    { 'free' : null },
+  'entitlements' : Array<Entitlement>,
+  'paywallEnabled' : boolean,
+}
+export type PaywallError = { 'examNotUpdated' : null } |
+  { 'notAdmin' : null };
 export interface Profile {
   'principal' : Principal,
   'preferredLanguage' : string,
@@ -78,20 +117,31 @@ export type Result = { 'ok' : Profile } |
   { 'err' : string };
 export type Result_1 = { 'ok' : null } |
   { 'err' : string };
+export type Result_10 = { 'ok' : UpcomingGame } |
+  { 'err' : string };
+export type Result_11 = { 'ok' : Access } |
+  { 'err' : SiblingError };
 export type Result_2 = { 'ok' : StudyPace } |
   { 'err' : string };
-export type Result_3 = { 'ok' : Array<ClientError> } |
+export type Result_3 = { 'ok' : null } |
+  { 'err' : AdminError };
+export type Result_4 = { 'ok' : null } |
+  { 'err' : PaywallError };
+export type Result_5 = { 'ok' : Array<ClientError> } |
   { 'err' : string };
-export type Result_4 = { 'ok' : [] | [PushSubscription] } |
+export type Result_6 = { 'ok' : boolean } |
+  { 'err' : SiblingError };
+export type Result_7 = { 'ok' : [] | [PushSubscription] } |
   { 'err' : string };
-export type Result_5 = { 'ok' : TrainingActivity } |
+export type Result_8 = { 'ok' : TrainingActivity } |
   { 'err' : TrainingAccessError };
-export type Result_6 = { 'ok' : UpcomingGame } |
-  { 'err' : string };
+export type Result_9 = { 'ok' : MyEntitlement } |
+  { 'err' : ClaimError };
 export type Role = { 'Assessor' : null } |
   { 'Admin' : null } |
   { 'Official' : null } |
   { 'Coordinator' : null };
+export type SiblingError = { 'notSibling' : null };
 export interface StudyDay { 'day' : bigint, 'seconds' : bigint }
 export interface StudyPace { 'articlesPerWeek' : bigint, 'startDate' : bigint }
 export type TrainingAccessError = { 'notAuthorized' : null };
@@ -128,8 +178,19 @@ export interface WeeklySchedule {
   'overdue' : Array<string>,
 }
 export interface _SERVICE {
-  'addUpcomingGame' : ActorMethod<[UpcomingGameInput], Result_6>,
+  /**
+   * / For sibling canisters (ai_proxy, exam, and later #63/#65): what `p`
+   * / gets. #paywallOff while billing is switched off.
+   */
+  'accessFor' : ActorMethod<[Principal], Result_11>,
+  'addUpcomingGame' : ActorMethod<[UpcomingGameInput], Result_10>,
   'becomeCoordinator' : ActorMethod<[], Result>,
+  /**
+   * / Grants Pro from a finished Stripe Checkout: the session must name the
+   * / caller as its client_reference_id, be complete, and have started a
+   * / subscription that is active or trialing.
+   */
+  'claimWebSubscription' : ActorMethod<[string], Result_9>,
   'createProfile' : ActorMethod<[ProfileUpdate], Result>,
   'deleteAccount' : ActorMethod<[], Result_1>,
   'getDeletionStatus' : ActorMethod<[], DeletionStatus>,
@@ -137,8 +198,9 @@ export interface _SERVICE {
    * / A member's training activity, for the coordinator of an association
    * / they belong to.
    */
-  'getMemberTrainingActivity' : ActorMethod<[Principal], Result_5>,
+  'getMemberTrainingActivity' : ActorMethod<[Principal], Result_8>,
   'getMonthlyQuizHistory' : ActorMethod<[], Array<MonthlyQuizResult>>,
+  'getMyEntitlement' : ActorMethod<[], MyEntitlement>,
   'getMyLinkedAccounts' : ActorMethod<[], Array<LinkedAccount>>,
   'getMyProfile' : ActorMethod<[], [] | [Profile]>,
   'getMyProgress' : ActorMethod<[], Array<ArticleProgress>>,
@@ -148,22 +210,34 @@ export interface _SERVICE {
   'getMyUpcomingGames' : ActorMethod<[], Array<UpcomingGame>>,
   'getProfile' : ActorMethod<[Principal], [] | [Profile]>,
   'getPublicProfile' : ActorMethod<[Principal], [] | [PublicProfile]>,
-  'getSubscriptionFor' : ActorMethod<[Principal], Result_4>,
+  'getSubscriptionFor' : ActorMethod<[Principal], Result_7>,
   'getWeeklyQuizHistory' : ActorMethod<[], Array<WeeklyQuizResult>>,
   'getWeeklySchedule' : ActorMethod<[Array<string>], WeeklySchedule>,
+  /**
+   * / Pro for support cases, reviewers and the App Store review account,
+   * / until `until` (nanoseconds). Replaces an earlier comp.
+   */
+  'grantComp' : ActorMethod<[Principal, bigint], Result_3>,
   'isAdminCaller' : ActorMethod<[], boolean>,
   'isCoordinator' : ActorMethod<[Principal], boolean>,
+  /**
+   * / For sibling canisters: whether `p` gets Pro features. True for
+   * / everyone while the paywall is off.
+   */
+  'isPro' : ActorMethod<[Principal], Result_6>,
   'linkExternalAccount' : ActorMethod<[string, string], Result_1>,
   /**
    * / Newest first, at most `limit`.
    */
-  'listClientErrors' : ActorMethod<[bigint], Result_3>,
+  'listClientErrors' : ActorMethod<[bigint], Result_5>,
   'logClientError' : ActorMethod<[ClientErrorInput], undefined>,
   'metrics' : ActorMethod<
     [],
     {
       'pendingDeletions' : bigint,
+      'proBySource' : Array<[string, bigint]>,
       'clientErrors' : bigint,
+      'paywallEnabled' : boolean,
       'completedDeletions' : bigint,
       'userCount' : bigint,
     }
@@ -186,14 +260,33 @@ export interface _SERVICE {
   'recordWeeklyQuizResult' : ActorMethod<[bigint, bigint, bigint], undefined>,
   'registerPushSubscription' : ActorMethod<[PushSubscription], Result_1>,
   'removeUpcomingGame' : ActorMethod<[string], Result_1>,
+  'revokeComp' : ActorMethod<[Principal], Result_3>,
   'setAdmin' : ActorMethod<[Principal], Result_1>,
+  /**
+   * / Switches billing on or off. The exam canister keeps a copy for its
+   * / plain-query history methods; if it can't be told, the switch still
+   * / changes here and the call reports #examNotUpdated, so try again.
+   */
+  'setPaywallEnabled' : ActorMethod<[boolean], Result_4>,
   'setPushRelay' : ActorMethod<[[] | [Principal]], Result_1>,
   'setRole' : ActorMethod<[Principal, Role], Result>,
+  'setStripeKey' : ActorMethod<[[] | [string]], Result_3>,
   'setStudyPace' : ActorMethod<[bigint], Result_2>,
+  'transformStripe' : ActorMethod<
+    [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
+    HttpRequestResult
+  >,
   'unlinkExternalAccount' : ActorMethod<[string], Result_1>,
   'unregisterPushSubscription' : ActorMethod<[], Result_1>,
   'updateProfile' : ActorMethod<[ProfileUpdate], Result>,
 }
+export const Access = IDL.Variant({
+  'pro' : IDL.Null,
+  'free' : IDL.Null,
+  'paywallOff' : IDL.Null,
+});
+export const SiblingError = IDL.Variant({ 'notSibling' : IDL.Null });
+export const Result_11 = IDL.Variant({ 'ok' : Access, 'err' : SiblingError });
 export const UpcomingGameInput = IDL.Record({
   'levelId' : IDL.Text,
   'notes' : IDL.Text,
@@ -210,7 +303,7 @@ export const UpcomingGame = IDL.Record({
   'gameDate' : IDL.Int,
   'opponent' : IDL.Text,
 });
-export const Result_6 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
+export const Result_10 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
 export const Role = IDL.Variant({
   'Assessor' : IDL.Null,
   'Admin' : IDL.Null,
@@ -228,6 +321,40 @@ export const Profile = IDL.Record({
   'state' : IDL.Text,
 });
 export const Result = IDL.Variant({ 'ok' : Profile, 'err' : IDL.Text });
+export const EntitlementSource = IDL.Variant({
+  'web' : IDL.Text,
+  'comp' : IDL.Null,
+  'playStore' : IDL.Null,
+  'appStore' : IDL.Null,
+  'association' : IDL.Text,
+});
+export const Entitlement = IDL.Record({
+  'expiresAt' : IDL.Int,
+  'source' : EntitlementSource,
+  'tier' : IDL.Variant({ 'pro' : IDL.Null }),
+  'updatedAt' : IDL.Int,
+});
+export const MyEntitlement = IDL.Record({
+  'tier' : IDL.Variant({ 'pro' : IDL.Null, 'free' : IDL.Null }),
+  'entitlements' : IDL.Vec(Entitlement),
+  'paywallEnabled' : IDL.Bool,
+});
+export const ClaimError = IDL.Variant({
+  'malformed' : IDL.Null,
+  'notSubscription' : IDL.Null,
+  'invalidSession' : IDL.Null,
+  'notConfigured' : IDL.Null,
+  'notYours' : IDL.Null,
+  'notActive' : IDL.Null,
+  'stripeUnavailable' : IDL.Null,
+  'notComplete' : IDL.Null,
+  'notSignedIn' : IDL.Null,
+  'alreadyClaimed' : IDL.Null,
+});
+export const Result_9 = IDL.Variant({
+  'ok' : MyEntitlement,
+  'err' : ClaimError,
+});
 export const ProfileUpdate = IDL.Record({
   'preferredLanguage' : IDL.Text,
   'displayName' : IDL.Text,
@@ -259,7 +386,7 @@ export const TrainingActivity = IDL.Record({
   'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
 });
 export const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
-export const Result_5 = IDL.Variant({
+export const Result_8 = IDL.Variant({
   'ok' : TrainingActivity,
   'err' : TrainingAccessError,
 });
@@ -293,7 +420,7 @@ export const PublicProfile = IDL.Record({
   'sport' : IDL.Text,
   'state' : IDL.Text,
 });
-export const Result_4 = IDL.Variant({
+export const Result_7 = IDL.Variant({
   'ok' : IDL.Opt(PushSubscription),
   'err' : IDL.Text,
 });
@@ -302,6 +429,9 @@ export const WeeklySchedule = IDL.Record({
   'dueThisWeek' : IDL.Vec(IDL.Text),
   'overdue' : IDL.Vec(IDL.Text),
 });
+export const AdminError = IDL.Variant({ 'notAdmin' : IDL.Null });
+export const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : AdminError });
+export const Result_6 = IDL.Variant({ 'ok' : IDL.Bool, 'err' : SiblingError });
 export const ClientError = IDL.Record({
   'at' : IDL.Int,
   'seq' : IDL.Nat,
@@ -313,7 +443,7 @@ export const ClientError = IDL.Record({
   'message' : IDL.Text,
   'route' : IDL.Text,
 });
-export const Result_3 = IDL.Variant({
+export const Result_5 = IDL.Variant({
   'ok' : IDL.Vec(ClientError),
   'err' : IDL.Text,
 });
@@ -325,17 +455,30 @@ export const ClientErrorInput = IDL.Record({
   'message' : IDL.Text,
   'route' : IDL.Text,
 });
+export const PaywallError = IDL.Variant({
+  'examNotUpdated' : IDL.Null,
+  'notAdmin' : IDL.Null,
+});
+export const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : PaywallError });
 export const Result_2 = IDL.Variant({ 'ok' : StudyPace, 'err' : IDL.Text });
+export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+export const HttpRequestResult = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(HttpHeader),
+});
 
 export const idlService: IDL.ServiceClass = IDL.Service({
-  'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_6], []),
+  'accessFor' : IDL.Func([IDL.Principal], [Result_11], ['query']),
+  'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_10], []),
   'becomeCoordinator' : IDL.Func([], [Result], []),
+  'claimWebSubscription' : IDL.Func([IDL.Text], [Result_9], []),
   'createProfile' : IDL.Func([ProfileUpdate], [Result], []),
   'deleteAccount' : IDL.Func([], [Result_1], []),
   'getDeletionStatus' : IDL.Func([], [DeletionStatus], ['query']),
   'getMemberTrainingActivity' : IDL.Func(
       [IDL.Principal],
-      [Result_5],
+      [Result_8],
       ['composite_query'],
     ),
   'getMonthlyQuizHistory' : IDL.Func(
@@ -343,6 +486,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(MonthlyQuizResult)],
       ['query'],
     ),
+  'getMyEntitlement' : IDL.Func([], [MyEntitlement], ['query']),
   'getMyLinkedAccounts' : IDL.Func([], [IDL.Vec(LinkedAccount)], ['query']),
   'getMyProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
   'getMyProgress' : IDL.Func([], [IDL.Vec(ArticleProgress)], ['query']),
@@ -360,24 +504,28 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Opt(PublicProfile)],
       ['query'],
     ),
-  'getSubscriptionFor' : IDL.Func([IDL.Principal], [Result_4], ['query']),
+  'getSubscriptionFor' : IDL.Func([IDL.Principal], [Result_7], ['query']),
   'getWeeklyQuizHistory' : IDL.Func([], [IDL.Vec(WeeklyQuizResult)], ['query']),
   'getWeeklySchedule' : IDL.Func(
       [IDL.Vec(IDL.Text)],
       [WeeklySchedule],
       ['query'],
     ),
+  'grantComp' : IDL.Func([IDL.Principal, IDL.Int], [Result_3], []),
   'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
   'isCoordinator' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+  'isPro' : IDL.Func([IDL.Principal], [Result_6], ['query']),
   'linkExternalAccount' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
-  'listClientErrors' : IDL.Func([IDL.Nat], [Result_3], ['query']),
+  'listClientErrors' : IDL.Func([IDL.Nat], [Result_5], ['query']),
   'logClientError' : IDL.Func([ClientErrorInput], [], []),
   'metrics' : IDL.Func(
       [],
       [
         IDL.Record({
           'pendingDeletions' : IDL.Nat,
+          'proBySource' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
           'clientErrors' : IDL.Nat,
+          'paywallEnabled' : IDL.Bool,
           'completedDeletions' : IDL.Nat,
           'userCount' : IDL.Nat,
         }),
@@ -399,10 +547,23 @@ export const idlService: IDL.ServiceClass = IDL.Service({
   'recordWeeklyQuizResult' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
   'registerPushSubscription' : IDL.Func([PushSubscription], [Result_1], []),
   'removeUpcomingGame' : IDL.Func([IDL.Text], [Result_1], []),
+  'revokeComp' : IDL.Func([IDL.Principal], [Result_3], []),
   'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
+  'setPaywallEnabled' : IDL.Func([IDL.Bool], [Result_4], []),
   'setPushRelay' : IDL.Func([IDL.Opt(IDL.Principal)], [Result_1], []),
   'setRole' : IDL.Func([IDL.Principal, Role], [Result], []),
+  'setStripeKey' : IDL.Func([IDL.Opt(IDL.Text)], [Result_3], []),
   'setStudyPace' : IDL.Func([IDL.Nat], [Result_2], []),
+  'transformStripe' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : HttpRequestResult,
+        }),
+      ],
+      [HttpRequestResult],
+      ['query'],
+    ),
   'unlinkExternalAccount' : IDL.Func([IDL.Text], [Result_1], []),
   'unregisterPushSubscription' : IDL.Func([], [Result_1], []),
   'updateProfile' : IDL.Func([ProfileUpdate], [Result], []),
@@ -411,6 +572,13 @@ export const idlService: IDL.ServiceClass = IDL.Service({
 export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
+  const Access = IDL.Variant({
+    'pro' : IDL.Null,
+    'free' : IDL.Null,
+    'paywallOff' : IDL.Null,
+  });
+  const SiblingError = IDL.Variant({ 'notSibling' : IDL.Null });
+  const Result_11 = IDL.Variant({ 'ok' : Access, 'err' : SiblingError });
   const UpcomingGameInput = IDL.Record({
     'levelId' : IDL.Text,
     'notes' : IDL.Text,
@@ -427,7 +595,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'gameDate' : IDL.Int,
     'opponent' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
+  const Result_10 = IDL.Variant({ 'ok' : UpcomingGame, 'err' : IDL.Text });
   const Role = IDL.Variant({
     'Assessor' : IDL.Null,
     'Admin' : IDL.Null,
@@ -445,6 +613,37 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'state' : IDL.Text,
   });
   const Result = IDL.Variant({ 'ok' : Profile, 'err' : IDL.Text });
+  const EntitlementSource = IDL.Variant({
+    'web' : IDL.Text,
+    'comp' : IDL.Null,
+    'playStore' : IDL.Null,
+    'appStore' : IDL.Null,
+    'association' : IDL.Text,
+  });
+  const Entitlement = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'source' : EntitlementSource,
+    'tier' : IDL.Variant({ 'pro' : IDL.Null }),
+    'updatedAt' : IDL.Int,
+  });
+  const MyEntitlement = IDL.Record({
+    'tier' : IDL.Variant({ 'pro' : IDL.Null, 'free' : IDL.Null }),
+    'entitlements' : IDL.Vec(Entitlement),
+    'paywallEnabled' : IDL.Bool,
+  });
+  const ClaimError = IDL.Variant({
+    'malformed' : IDL.Null,
+    'notSubscription' : IDL.Null,
+    'invalidSession' : IDL.Null,
+    'notConfigured' : IDL.Null,
+    'notYours' : IDL.Null,
+    'notActive' : IDL.Null,
+    'stripeUnavailable' : IDL.Null,
+    'notComplete' : IDL.Null,
+    'notSignedIn' : IDL.Null,
+    'alreadyClaimed' : IDL.Null,
+  });
+  const Result_9 = IDL.Variant({ 'ok' : MyEntitlement, 'err' : ClaimError });
   const ProfileUpdate = IDL.Record({
     'preferredLanguage' : IDL.Text,
     'displayName' : IDL.Text,
@@ -476,7 +675,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'monthlyQuizzes' : IDL.Vec(MonthlyQuizResult),
   });
   const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
-  const Result_5 = IDL.Variant({
+  const Result_8 = IDL.Variant({
     'ok' : TrainingActivity,
     'err' : TrainingAccessError,
   });
@@ -510,7 +709,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'sport' : IDL.Text,
     'state' : IDL.Text,
   });
-  const Result_4 = IDL.Variant({
+  const Result_7 = IDL.Variant({
     'ok' : IDL.Opt(PushSubscription),
     'err' : IDL.Text,
   });
@@ -519,6 +718,9 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'dueThisWeek' : IDL.Vec(IDL.Text),
     'overdue' : IDL.Vec(IDL.Text),
   });
+  const AdminError = IDL.Variant({ 'notAdmin' : IDL.Null });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : AdminError });
+  const Result_6 = IDL.Variant({ 'ok' : IDL.Bool, 'err' : SiblingError });
   const ClientError = IDL.Record({
     'at' : IDL.Int,
     'seq' : IDL.Nat,
@@ -530,7 +732,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'message' : IDL.Text,
     'route' : IDL.Text,
   });
-  const Result_3 = IDL.Variant({
+  const Result_5 = IDL.Variant({
     'ok' : IDL.Vec(ClientError),
     'err' : IDL.Text,
   });
@@ -542,17 +744,30 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'message' : IDL.Text,
     'route' : IDL.Text,
   });
+  const PaywallError = IDL.Variant({
+    'examNotUpdated' : IDL.Null,
+    'notAdmin' : IDL.Null,
+  });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : PaywallError });
   const Result_2 = IDL.Variant({ 'ok' : StudyPace, 'err' : IDL.Text });
+  const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const HttpRequestResult = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
   
   return IDL.Service({
-    'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_6], []),
+    'accessFor' : IDL.Func([IDL.Principal], [Result_11], ['query']),
+    'addUpcomingGame' : IDL.Func([UpcomingGameInput], [Result_10], []),
     'becomeCoordinator' : IDL.Func([], [Result], []),
+    'claimWebSubscription' : IDL.Func([IDL.Text], [Result_9], []),
     'createProfile' : IDL.Func([ProfileUpdate], [Result], []),
     'deleteAccount' : IDL.Func([], [Result_1], []),
     'getDeletionStatus' : IDL.Func([], [DeletionStatus], ['query']),
     'getMemberTrainingActivity' : IDL.Func(
         [IDL.Principal],
-        [Result_5],
+        [Result_8],
         ['composite_query'],
       ),
     'getMonthlyQuizHistory' : IDL.Func(
@@ -560,6 +775,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(MonthlyQuizResult)],
         ['query'],
       ),
+    'getMyEntitlement' : IDL.Func([], [MyEntitlement], ['query']),
     'getMyLinkedAccounts' : IDL.Func([], [IDL.Vec(LinkedAccount)], ['query']),
     'getMyProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getMyProgress' : IDL.Func([], [IDL.Vec(ArticleProgress)], ['query']),
@@ -577,7 +793,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Opt(PublicProfile)],
         ['query'],
       ),
-    'getSubscriptionFor' : IDL.Func([IDL.Principal], [Result_4], ['query']),
+    'getSubscriptionFor' : IDL.Func([IDL.Principal], [Result_7], ['query']),
     'getWeeklyQuizHistory' : IDL.Func(
         [],
         [IDL.Vec(WeeklyQuizResult)],
@@ -588,17 +804,21 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [WeeklySchedule],
         ['query'],
       ),
+    'grantComp' : IDL.Func([IDL.Principal, IDL.Int], [Result_3], []),
     'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
     'isCoordinator' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+    'isPro' : IDL.Func([IDL.Principal], [Result_6], ['query']),
     'linkExternalAccount' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
-    'listClientErrors' : IDL.Func([IDL.Nat], [Result_3], ['query']),
+    'listClientErrors' : IDL.Func([IDL.Nat], [Result_5], ['query']),
     'logClientError' : IDL.Func([ClientErrorInput], [], []),
     'metrics' : IDL.Func(
         [],
         [
           IDL.Record({
             'pendingDeletions' : IDL.Nat,
+            'proBySource' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
             'clientErrors' : IDL.Nat,
+            'paywallEnabled' : IDL.Bool,
             'completedDeletions' : IDL.Nat,
             'userCount' : IDL.Nat,
           }),
@@ -620,10 +840,23 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'recordWeeklyQuizResult' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
     'registerPushSubscription' : IDL.Func([PushSubscription], [Result_1], []),
     'removeUpcomingGame' : IDL.Func([IDL.Text], [Result_1], []),
+    'revokeComp' : IDL.Func([IDL.Principal], [Result_3], []),
     'setAdmin' : IDL.Func([IDL.Principal], [Result_1], []),
+    'setPaywallEnabled' : IDL.Func([IDL.Bool], [Result_4], []),
     'setPushRelay' : IDL.Func([IDL.Opt(IDL.Principal)], [Result_1], []),
     'setRole' : IDL.Func([IDL.Principal, Role], [Result], []),
+    'setStripeKey' : IDL.Func([IDL.Opt(IDL.Text)], [Result_3], []),
     'setStudyPace' : IDL.Func([IDL.Nat], [Result_2], []),
+    'transformStripe' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : HttpRequestResult,
+          }),
+        ],
+        [HttpRequestResult],
+        ['query'],
+      ),
     'unlinkExternalAccount' : IDL.Func([IDL.Text], [Result_1], []),
     'unregisterPushSubscription' : IDL.Func([], [Result_1], []),
     'updateProfile' : IDL.Func([ProfileUpdate], [Result], []),

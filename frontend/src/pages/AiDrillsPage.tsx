@@ -1,3 +1,4 @@
+import UpgradeSheet from "../components/UpgradeSheet";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -41,6 +42,7 @@ export default function AiDrillsPage() {
   const [weakest, setWeakest] = useState<{ articleId: string; title: string; citation: string; mastery: number }[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [upsell, setUpsell] = useState(false);
   const [questions, setQuestions] = useState<DrillQuestion[] | null>(null);
   const [index, setIndex] = useState(0);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -86,6 +88,10 @@ export default function AiDrillsPage() {
       setCorrectCount(0);
     } catch (e: any) {
       setError(e?.message ?? t("aiDrills.generateFailed"));
+      // At the free cap: offer Pro (issue #71).
+      aiProxyService.getRateLimitStatus()
+        .then(r => { if (r.free && r.used >= r.limitPerDay) setUpsell(true); })
+        .catch(() => {});
     } finally {
       setGenerating(false);
     }
@@ -104,6 +110,7 @@ export default function AiDrillsPage() {
 
   return (
     <div style={{ background: T.bg, minHeight: "100dvh", fontFamily: T.font, display: "flex", flexDirection: "column", paddingBottom: 24 }}>
+      <UpgradeSheet open={upsell} reason="ai" onClose={() => setUpsell(false)} />
       {/* Header */}
       <div style={{ background: T.panelAlt, padding: "56px 20px 18px", borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>

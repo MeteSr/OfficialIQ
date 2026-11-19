@@ -6,6 +6,12 @@ import { cacheArticles, cachePlays, getCachedArticles, getCachedPlays, getCached
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type RuleChange = {
+  id: string; sportId: string; season: string; articleId: string; citation: string;
+  title: string; oldText: string; newText: string; summary: string; source: string;
+  createdAt: bigint; updatedAt: bigint;
+};
+
 export type Article = {
   id:        string;
   sportId:   string;
@@ -195,6 +201,12 @@ export const contentService = {
       if (cached) return cached;
       throw e;
     }
+  },
+
+  /** A sport's rule changes for a season, with old and new wording (issue #68). */
+  async listRuleChanges(sportId: string, season: string): Promise<RuleChange[]> {
+    if (!CANISTER_ID) return [];
+    return actor().listRuleChanges(sportId, season);
   },
 
   async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {

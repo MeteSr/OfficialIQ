@@ -19,6 +19,7 @@ import { syncAllContent } from "../lib/offlineSync";
 import { aiProxyService } from "../services/aiProxy";
 import { enablePush, disablePush, isPushConfigured, isPushAvailable } from "../lib/pushNotifications";
 import { features } from "../lib/features";
+import PlanRow from "../components/PlanRow";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
 
@@ -555,7 +556,9 @@ export default function MePage() {
           <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
             {t("me.groupTraining")}
           </div>
+          <PlanRow />
           <NavRow label={t("me.viewFullProgress")} path="/progress" />
+          <NavRow label={t("me.ruleChanges")} path="/rule-changes" />
           <NavRow label={t("me.trainingTranscript")} path="/transcript" />
           {features.ai && <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />}
           {features.ai && isAiAdmin && <NavRow label={t("me.aiScenarioGenerator")} tag="AI" tagColor={fill.accent} path="/ai-scenarios" />}

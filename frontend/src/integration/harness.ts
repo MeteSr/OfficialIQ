@@ -6,6 +6,8 @@ import { idlFactory as rankingIdl } from "../declarations/ranking";
 import { idlFactory as challengeIdl } from "../declarations/challenge";
 import { idlFactory as associationIdl } from "../declarations/association";
 import { idlFactory as userIdl } from "../declarations/user";
+import { idlFactory as aiProxyIdl } from "../declarations/ai_proxy";
+import { idlFactory as contentIdl } from "../declarations/content";
 import { adminIdentity } from "./identities";
 
 // Calls go through the IDL the app uses (src/declarations, generated from
@@ -15,6 +17,7 @@ import { adminIdentity } from "./identities";
 const appIdl = {
   exam: examIdl, question: questionIdl, ranking: rankingIdl,
   challenge: challengeIdl, association: associationIdl, user: userIdl,
+  ai_proxy: aiProxyIdl, content: contentIdl,
 };
 
 const agents = new Map<Identity, Promise<HttpAgent>>();
@@ -37,7 +40,7 @@ export async function canister(name: keyof typeof appIdl, identity: Identity): P
   return Actor.createActor(appIdl[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
 }
 
-export async function adminCall(name: "question" | "user", identity: Identity = adminIdentity()): Promise<AnyActor> {
+export async function adminCall(name: "question" | "user" | "content" | "ai_proxy", identity: Identity = adminIdentity()): Promise<AnyActor> {
   return Actor.createActor(appIdl[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import UpgradeSheet from "../components/UpgradeSheet";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
@@ -70,9 +71,13 @@ export default function RuleAssistantPage() {
   }
 
   const outOfQuestions = !!rateLimit && rateLimit.used >= rateLimit.limitPerDay;
+  // A free official who reaches the free cap is offered Pro (issue #71).
+  const [upsell, setUpsell] = useState(false);
+  useEffect(() => { if (outOfQuestions && rateLimit?.free) setUpsell(true); }, [outOfQuestions, rateLimit?.free]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: T.bg, fontFamily: T.font }}>
+      <UpgradeSheet open={upsell} reason="ai" onClose={() => setUpsell(false)} />
       {/* Header */}
       <div style={{ background: T.panelAlt, padding: "56px 20px 18px", borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
