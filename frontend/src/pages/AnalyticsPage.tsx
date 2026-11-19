@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
@@ -164,6 +164,9 @@ export default function AnalyticsPage() {
           <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>
             {t("analytics.readinessDesc", { count: Math.min(chronoScores.length, 5), threshold: passThreshold })}
           </div>
+          <Link to="/readiness" style={{ display: "inline-block", fontSize: 12, fontWeight: 700, color: T.accent, marginTop: 8 }}>
+            {t("analytics.readinessBySection")}
+          </Link>
         </div>
 
         {/* 12-month trend */}

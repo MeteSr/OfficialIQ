@@ -500,6 +500,42 @@ persistent actor User {
     #ok(())
   };
 
+  // ─── Certification goal (issue #65) ────────────────────────────────────────
+  //
+  // The date of the official's certification exam, and optionally which
+  // exam template it follows, for the readiness score and its countdown
+  // study plan. Kept beside the profile rather than in the stored Profile
+  // type, so it needs no migration.
+
+  public type CertGoal = { examDate : Int; templateId : ?Text; updatedAt : Int };
+  public type CertGoalInput = { examDate : Int; templateId : ?Text };
+  public type CertGoalError = { #notSignedIn; #inPast; #tooFar; #invalidTemplate };
+
+  let certGoals : Map.Map<Principal, CertGoal> = Map.empty<Principal, CertGoal>();
+
+  /// Sets the caller's exam date (and template), or clears it with null.
+  public shared ({ caller }) func setCertGoal(input : ?CertGoalInput) : async Result.Result<?CertGoal, CertGoalError> {
+    if (caller.isAnonymous()) return #err(#notSignedIn);
+    switch input {
+      case null { certGoals.remove(Principal.compare, caller); #ok(null) };
+      case (?i) {
+        switch (Training.validateExamDate(i.examDate, Time.now())) {
+          case (?#inPast) return #err(#inPast);
+          case (?#tooFar) return #err(#tooFar);
+          case null {};
+        };
+        switch (i.templateId) { case (?t) { if (t.size() == 0 or t.size() > 64) return #err(#invalidTemplate) }; case null {} };
+        let g : CertGoal = { examDate = i.examDate; templateId = i.templateId; updatedAt = Time.now() };
+        certGoals.add(Principal.compare, caller, g);
+        #ok(?g)
+      };
+    }
+  };
+
+  public shared query ({ caller }) func getMyCertGoal() : async ?CertGoal {
+    certGoals.get(Principal.compare, caller)
+  };
+
   // ─── Pro entitlements (issue #71) ──────────────────────────────────────────
   //
   // Who has Pro, and until when. One official can hold several entitlements
@@ -806,6 +842,7 @@ persistent actor User {
     // This does not cancel a store or Stripe subscription: the app tells the
     // official to cancel it first.
     forgetEntitlements(caller);
+    certGoals.remove(Principal.compare, caller);
     if (Map.get(erasures, Principal.compare, caller) == null) {
       Map.add(erasures, Principal.compare, caller, { pending = ERASE_TARGETS; attempts = 0; nextTry = 0; requestedAt = Time.now() });
     };

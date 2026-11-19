@@ -154,6 +154,10 @@ service : {
           nat;
           nat;
         }) query;
+  /// The caller's (articleId, correct, answered) for every article of a
+  /// sport they've answered, for the certification readiness score (#65).
+  /// Pro once the paywall is on (#71).
+  getMyArticleAccuracy: (sportId: text) -> (Result_5) composite_query;
   getMyHistoryBatch: (questionIds: vec text) ->
    (vec opt UserQuestionHistory) query;
   getMyWeakArticles: (sportId: text, limit: nat) ->

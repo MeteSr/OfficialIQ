@@ -117,6 +117,12 @@ export interface _SERVICE {
     [string, bigint],
     Array<[string, bigint, bigint]>
   >,
+  /**
+   * / The caller's (articleId, correct, answered) for every article of a
+   * / sport they've answered, for the certification readiness score (#65).
+   * / Pro once the paywall is on (#71).
+   */
+  'getMyArticleAccuracy' : ActorMethod<[string], Result_5>,
   'getMyHistoryBatch' : ActorMethod<
     [Array<string>],
     Array<[] | [UserQuestionHistory]>
@@ -211,6 +217,11 @@ export const QuizFilter = IDL.Record({
   'sportId' : IDL.Text,
   'articleIds' : IDL.Vec(IDL.Text),
 });
+export const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
+export const Result_5 = IDL.Variant({
+  'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
+  'err' : WeakArticlesError,
+});
 export const UserQuestionHistory = IDL.Record({
   'easiness' : IDL.Float64,
   'timesAnswered' : IDL.Nat,
@@ -220,11 +231,6 @@ export const UserQuestionHistory = IDL.Record({
   'questionId' : IDL.Text,
   'lastAnswered' : IDL.Int,
   'repetitions' : IDL.Nat,
-});
-export const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
-export const Result_5 = IDL.Variant({
-  'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
-  'err' : WeakArticlesError,
 });
 export const ReportReason = IDL.Variant({
   'Unclear' : IDL.Null,
@@ -289,6 +295,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Text, IDL.Nat],
       [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat))],
       ['query'],
+    ),
+  'getMyArticleAccuracy' : IDL.Func(
+      [IDL.Text],
+      [Result_5],
+      ['composite_query'],
     ),
   'getMyHistoryBatch' : IDL.Func(
       [IDL.Vec(IDL.Text)],
@@ -392,6 +403,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'sportId' : IDL.Text,
     'articleIds' : IDL.Vec(IDL.Text),
   });
+  const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
+  const Result_5 = IDL.Variant({
+    'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
+    'err' : WeakArticlesError,
+  });
   const UserQuestionHistory = IDL.Record({
     'easiness' : IDL.Float64,
     'timesAnswered' : IDL.Nat,
@@ -401,11 +417,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'questionId' : IDL.Text,
     'lastAnswered' : IDL.Int,
     'repetitions' : IDL.Nat,
-  });
-  const WeakArticlesError = IDL.Variant({ 'proOnly' : IDL.Null });
-  const Result_5 = IDL.Variant({
-    'ok' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat)),
-    'err' : WeakArticlesError,
   });
   const ReportReason = IDL.Variant({
     'Unclear' : IDL.Null,
@@ -464,6 +475,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Text, IDL.Nat],
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat, IDL.Nat))],
         ['query'],
+      ),
+    'getMyArticleAccuracy' : IDL.Func(
+        [IDL.Text],
+        [Result_5],
+        ['composite_query'],
       ),
     'getMyHistoryBatch' : IDL.Func(
         [IDL.Vec(IDL.Text)],

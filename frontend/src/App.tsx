@@ -50,6 +50,7 @@ const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const UpgradeReturnPage = lazy(() => import("./pages/UpgradeReturnPage"));
 const RuleChangesPage = lazy(() => import("./pages/RuleChangesPage"));
+const ReadinessPage = lazy(() => import("./pages/ReadinessPage"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage"));
 const AssociationTrainingPage = lazy(() => import("./pages/AssociationTrainingPage"));
 
@@ -128,6 +129,7 @@ function AppShell() {
           <Route path="/account/delete" element={<DeleteAccountPage />} />
           <Route path="/upgrade/return" element={<UpgradeReturnPage />} />
           <Route path="/rule-changes" element={<RuleChangesPage />} />
+          <Route path="/readiness" element={<ReadinessPage />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>

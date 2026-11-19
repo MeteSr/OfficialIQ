@@ -32,6 +32,16 @@ export type TrainingActivity = { studyDays: StudyDay[]; weeklyQuizzes: WeeklyQui
 
 export type { MyEntitlement } from "../lib/plan";
 
+export type CertGoal = { examDate: bigint; templateId: [] | [string]; updatedAt: bigint };
+export type CertGoalError = { notSignedIn: null } | { inPast: null } | { tooFar: null } | { invalidTemplate: null };
+
+/** A rejected setCertGoal. */
+export class CertGoalFailed extends Error {
+  constructor(public readonly reason: CertGoalError) {
+    super(Object.keys(reason)[0]);
+  }
+}
+
 /** A rejected claimWebSubscription; show it with claimErrorKey(reason). */
 export class ClaimFailed extends Error {
   constructor(public readonly reason: ClaimError) {
@@ -177,6 +187,24 @@ export const userService = {
     const res = await actor().getMemberTrainingActivity(p);
     if ("err" in res) throw new Error("Not authorized");
     return res.ok;
+  },
+
+  /** The official's certification exam date and template (issue #65). */
+  async getMyCertGoal(): Promise<CertGoal | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getMyCertGoal();
+    return res.length ? res[0] : null;
+  },
+
+  /** Sets the exam date (ms) and template, or clears it with null. Throws CertGoalFailed. */
+  async setCertGoal(goal: { examDateMs: number; templateId: string | null } | null): Promise<CertGoal | null> {
+    if (!CANISTER_ID) throw new Error("User canister not deployed");
+    const input: [] | [{ examDate: bigint; templateId: [] | [string] }] = goal
+      ? [{ examDate: BigInt(Math.round(goal.examDateMs)) * 1_000_000n, templateId: goal.templateId ? [goal.templateId] : [] }]
+      : [];
+    const res = await actor().setCertGoal(input);
+    if ("err" in res) throw new CertGoalFailed(res.err);
+    return res.ok.length ? res.ok[0] : null;
   },
 
   /** The official's Pro entitlements and whether billing is switched on (issue #71). */

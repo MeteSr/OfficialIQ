@@ -93,7 +93,8 @@
     "deleteAccount": "Eliminar cuenta",
     "moderationQueue": "Cola de moderación",
     "trainingTranscript": "Historial de Capacitación",
-    "ruleChanges": "Qué cambió esta temporada"
+    "ruleChanges": "Qué cambió esta temporada",
+    "readiness": "Preparación para la certificación"
   },
   "common": {
     "loading": "Cargando…",
@@ -427,7 +428,8 @@
     "drillDownTitle": "Detalle por Artículo (más débiles primero)",
     "noStudiedArticles": "Aún no hay artículos estudiados.",
     "trendPoints_one": "{{count}} pto",
-    "trendPoints_other": "{{count}} ptos"
+    "trendPoints_other": "{{count}} ptos",
+    "readinessBySection": "Por sección, con un plan hasta tu examen →"
   },
   "scenarioGen": {
     "checkingAccess": "Verificando acceso…",
@@ -918,7 +920,7 @@
       "varsity": {
         "tag": "VARSITY",
         "price": "$7.99",
-        "desc": "Todo lo de Rookie, más el asistente de reglas con 50 preguntas al día y tu historial completo de exámenes de 12 meses. Incluye el repaso para el día del partido; la puntuación de preparación para la certificación llegará pronto. O $49.99 al año.",
+        "desc": "Todo lo de Rookie, más el asistente de reglas con 50 preguntas al día y tu historial completo de exámenes de 12 meses. Incluye el repaso para el día del partido y la puntuación de preparación para la certificación con un plan de estudio hasta tu examen. O $49.99 al año.",
         "cta": "14 días gratis"
       },
       "association": {
@@ -1169,7 +1171,7 @@
     "whyFeature": "Esto forma parte de OfficialIQ Pro.",
     "perkAi": "Asistente de reglas: 50 preguntas al día",
     "perkHistory": "Historial completo de exámenes (12 meses)",
-    "perkReadiness": "Puntuación de preparación para la certificación (próximamente)",
+    "perkReadiness": "Puntuación de preparación para la certificación",
     "perkRefresher": "Repaso para el día del partido",
     "trial": "Prueba gratis de {{days}} días, cancela cuando quieras",
     "yearly": "{{price}} / año",
@@ -1259,5 +1261,32 @@
     "joining": "Uniéndote…",
     "signInToJoin": "Inicia sesión para unirte",
     "proOnly": "El repaso para el día del partido es parte de OfficialIQ Pro: un cuestionario de 5 minutos sobre las reglas que más fallas, dos horas antes de cada partido."
+  },
+  "readiness": {
+    "title": "Preparación para la certificación",
+    "likelyPass": "Hoy probablemente aprobarías: {{score}}%",
+    "notYet": "Aún no: {{score}}% frente a una nota mínima de {{threshold}}%",
+    "notEnough": "Aún no hay práctica suficiente para saberlo ({{coverage}}% del examen cubierto)",
+    "howEstimated": "Una estimación a partir de tus propias respuestas, no una predicción: la precisión de cada sección, ponderada según cuánto pesa en el examen, frente a la nota mínima de {{threshold}}%. Las secciones que no has practicado cuentan como lanzar una moneda.",
+    "bySection": "Por sección",
+    "answered_one": "{{count}} respuesta",
+    "answered_other": "{{count}} respuestas",
+    "examDate": "Fecha del examen",
+    "save": "Guardar",
+    "clear": "Borrar",
+    "dateHint": "Añade la fecha de tu examen para tener un plan día a día.",
+    "errInPast": "Elige una fecha a partir de hoy.",
+    "errTooFar": "Elige una fecha dentro de los próximos dos años.",
+    "errSave": "No se pudo guardar la fecha. Inténtalo de nuevo.",
+    "daysLeft_one": "{{count}} día para tu examen",
+    "daysLeft_other": "{{count}} días para tu examen",
+    "examToday": "Tu examen es hoy. Mucha suerte.",
+    "planLabel": "Plan de estudio",
+    "practiceExam": "Examen de práctica completo",
+    "studyDay": "Estudiar {{title}}",
+    "restDay": "Repasa lo que quieras",
+    "planMore_one": "{{count}} día más en el plan.",
+    "planMore_other": "{{count}} días más en el plan.",
+    "proOnly": "La preparación para la certificación es parte de OfficialIQ Pro: tu nota probable por sección y un plan de estudio hasta la fecha de tu examen."
   }
 }
