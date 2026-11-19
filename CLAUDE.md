@@ -62,6 +62,11 @@ No border-radius above 12px.
 
 Routes: `/home`, `/study`, `/exam`, `/ranks`, `/me`, `/quiz/:articleId`
 
+Pages other than the bottom-nav tabs are lazy-loaded in `App.tsx`. Load page
+data with `useCanisterQuery` (`src/hooks`) and show `<LoadError>` on failure
+rather than `useEffect` + `.catch(() => {})`, which turns an outage into an
+empty screen; convert older pages as you touch them.
+
 ### Canister IDs
 
 `icp deploy` injects `PUBLIC_CANISTER_ID:<name>` into every canister; the
