@@ -383,6 +383,28 @@ persistent actor Question {
 
   type UserAccess = actor { accessFor : shared query Principal -> async Result.Result<Billing.Access, { #notSibling }> };
 
+  // The caller's correct and wrong answers per article for a sport, from
+  // their own slice of `history` (keys are "<principal>::<questionId>", so
+  // they sit together in key order).
+  func articleTotals(caller : Principal, sportId : Text) : Map.Map<Text, AnswerTotals> {
+    let prefix = caller.toText() # "::";
+    let byArticle = Map.empty<Text, AnswerTotals>();
+    label scan for ((key, h) in history.entriesFrom(Text.compare, prefix)) {
+      if (not key.startsWith(#text prefix)) break scan;
+      switch (questions.get(Text.compare, h.questionId)) {
+        case (?q) {
+          if (q.sportId == sportId) {
+            let wrong = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
+            let prev = switch (byArticle.get(Text.compare, q.articleId)) { case (?t) t; case null ({ answered = 0; wrong = 0 }) };
+            byArticle.add(Text.compare, q.articleId, { answered = prev.answered + h.timesAnswered; wrong = prev.wrong + wrong });
+          };
+        };
+        case null {};
+      };
+    };
+    byArticle
+  };
+
   public shared composite query ({ caller }) func getMyWeakArticles(sportId : Text, limit : Nat) : async Result.Result<[(Text, Nat, Nat)], WeakArticlesError> {
     let access : Billing.Access = switch USER_ID {
       case (?id) {
@@ -393,31 +415,37 @@ persistent actor Question {
       case null #paywallOff;
     };
     if (access == #free) return #err(#proOnly);
-    let prefix = Principal.toText(caller) # "::";
-    let byArticle = Map.empty<Text, AnswerTotals>();
-    label scan for ((key, h) in Map.entriesFrom(history, Text.compare, prefix)) {
-      if (not Text.startsWith(key, #text prefix)) break scan;
-      switch (Map.get(questions, Text.compare, h.questionId)) {
-        case (?q) {
-          if (q.sportId == sportId) {
-            let wrong = if (h.timesAnswered >= h.timesCorrect) h.timesAnswered - h.timesCorrect else 0;
-            let prev = switch (Map.get(byArticle, Text.compare, q.articleId)) { case (?t) t; case null ({ answered = 0; wrong = 0 }) };
-            Map.add(byArticle, Text.compare, q.articleId, { answered = prev.answered + h.timesAnswered; wrong = prev.wrong + wrong });
-          };
-        };
-        case null {};
-      };
-    };
     let entries = List.empty<(Text, Nat, Nat)>();
-    for ((articleId, t) in Map.entries(byArticle)) {
-      if (t.wrong > 0) List.add(entries, (articleId, t.wrong, t.answered));
+    for ((articleId, t) in articleTotals(caller, sportId).entries()) {
+      if (t.wrong > 0) entries.add((articleId, t.wrong, t.answered));
     };
     // Most misses first, then the worse miss rate.
-    let sorted = List.sort<(Text, Nat, Nat)>(entries, func((_, wa, ta), (_, wb, tb)) {
+    let sorted = entries.sort(func((_, wa, ta), (_, wb, tb)) {
       if (wa > wb) #less else if (wa < wb) #greater
       else if (wa * tb > wb * ta) #less else if (wa * tb < wb * ta) #greater else #equal
     });
-    #ok(List.sliceToArray<(Text, Nat, Nat)>(sorted, 0, Nat.min(Nat.min(limit, 20), List.size(sorted))))
+    #ok(sorted.sliceToArray(0, Nat.min(Nat.min(limit, 20), sorted.size())))
+  };
+
+  /// The caller's (articleId, correct, answered) for every article of a
+  /// sport they've answered, for the certification readiness score (#65).
+  /// Pro once the paywall is on (#71).
+  public shared composite query ({ caller }) func getMyArticleAccuracy(sportId : Text) : async Result.Result<[(Text, Nat, Nat)], WeakArticlesError> {
+    let access : Billing.Access = switch USER_ID {
+      case (?id) {
+        try {
+          switch (await (actor (id.toText()) : UserAccess).accessFor(caller)) { case (#ok(a)) a; case (#err(_)) #paywallOff }
+        } catch (_) { #paywallOff }
+      };
+      case null #paywallOff;
+    };
+    if (access == #free) return #err(#proOnly);
+    let out = List.empty<(Text, Nat, Nat)>();
+    for ((articleId, t) in articleTotals(caller, sportId).entries()) {
+      let correct : Nat = if (t.answered >= t.wrong) t.answered - t.wrong else 0;
+      out.add((articleId, correct, t.answered));
+    };
+    #ok(out.toArray())
   };
 
   // ─── Graded exams (exam canister only) ──────────────────────────────────────

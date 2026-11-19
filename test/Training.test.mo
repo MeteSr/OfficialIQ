@@ -76,3 +76,18 @@ suite("validateRequirement", func() {
     expect.bool(Training.validateRequirement({ hoursPerSeason = Training.MAX_HOURS_PER_SEASON + 1; seasonStartMonth = 8 }) == ?#invalidHours).isTrue();
   });
 });
+
+suite("validateExamDate", func() {
+  let NOW : Int = 1_800_000_000 * SEC;
+  test("accepts today through two years ahead", func() {
+    expect.bool(Training.validateExamDate(NOW, NOW) == null).isTrue();
+    expect.bool(Training.validateExamDate(NOW - 12 * 3600 * SEC, NOW) == null).isTrue();
+    expect.bool(Training.validateExamDate(NOW + 730 * DAY, NOW) == null).isTrue();
+  });
+  test("rejects a date that has passed", func() {
+    expect.bool(Training.validateExamDate(NOW - 2 * DAY, NOW) == ?#inPast).isTrue();
+  });
+  test("rejects one more than two years away", func() {
+    expect.bool(Training.validateExamDate(NOW + 731 * DAY, NOW) == ?#tooFar).isTrue();
+  });
+});

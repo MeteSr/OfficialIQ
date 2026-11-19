@@ -93,7 +93,8 @@
     "deleteAccount": "Delete account",
     "moderationQueue": "Moderation Queue",
     "trainingTranscript": "Training Transcript",
-    "ruleChanges": "What changed this season"
+    "ruleChanges": "What changed this season",
+    "readiness": "Certification readiness"
   },
   "common": {
     "loading": "Loading…",
@@ -427,7 +428,8 @@
     "drillDownTitle": "Article Drill-Down (weakest first)",
     "noStudiedArticles": "No studied articles yet.",
     "trendPoints_one": "{{count}} pt",
-    "trendPoints_other": "{{count}} pts"
+    "trendPoints_other": "{{count}} pts",
+    "readinessBySection": "By section, with a plan to your exam date →"
   },
   "scenarioGen": {
     "checkingAccess": "Checking access…",
@@ -918,7 +920,7 @@
       "varsity": {
         "tag": "VARSITY",
         "price": "$7.99",
-        "desc": "Everything in Rookie, plus the rule assistant at 50 questions a day and your full 12-month exam history. The game-day refresher is included; the certification readiness score is coming soon. Or $49.99 a year.",
+        "desc": "Everything in Rookie, plus the rule assistant at 50 questions a day and your full 12-month exam history. Includes the game-day refresher and the certification readiness score with a study plan to your exam date. Or $49.99 a year.",
         "cta": "Start free for 14 days"
       },
       "association": {
@@ -1169,7 +1171,7 @@
     "whyFeature": "This is part of OfficialIQ Pro.",
     "perkAi": "Rule assistant: 50 questions a day",
     "perkHistory": "Full exam history (12 months)",
-    "perkReadiness": "Certification readiness score (coming soon)",
+    "perkReadiness": "Certification readiness score",
     "perkRefresher": "Game-day refresher",
     "trial": "{{days}}-day free trial, cancel any time",
     "yearly": "{{price}} / year",
@@ -1259,5 +1261,32 @@
     "joining": "Joining…",
     "signInToJoin": "Sign in to join",
     "proOnly": "The game-day refresher is part of OfficialIQ Pro: a 5-minute quiz on the rules you miss most, two hours before each game."
+  },
+  "readiness": {
+    "title": "Certification readiness",
+    "likelyPass": "You'd likely pass today: {{score}}%",
+    "notYet": "Not there yet: {{score}}% against a pass mark of {{threshold}}%",
+    "notEnough": "Not enough practice yet to say ({{coverage}}% of the exam covered)",
+    "howEstimated": "An estimate from your own answers, not a prediction: each section's accuracy, weighted by how much of the exam it is, against the {{threshold}}% pass mark. Sections you haven't practised count as a coin flip.",
+    "bySection": "By section",
+    "answered_one": "{{count}} answer",
+    "answered_other": "{{count}} answers",
+    "examDate": "Exam date",
+    "save": "Save",
+    "clear": "Clear",
+    "dateHint": "Add your exam date for a day-by-day plan to it.",
+    "errInPast": "Pick a date from today on.",
+    "errTooFar": "Pick a date within the next two years.",
+    "errSave": "Couldn't save the date. Try again.",
+    "daysLeft_one": "{{count}} day to your exam",
+    "daysLeft_other": "{{count}} days to your exam",
+    "examToday": "Your exam is today. Good luck.",
+    "planLabel": "Study plan",
+    "practiceExam": "Full practice exam",
+    "studyDay": "Study {{title}}",
+    "restDay": "Review anything you like",
+    "planMore_one": "{{count}} more day in the plan.",
+    "planMore_other": "{{count}} more days in the plan.",
+    "proOnly": "Certification readiness is part of OfficialIQ Pro: your likely score by rule section and a study plan to your exam date."
   }
 }

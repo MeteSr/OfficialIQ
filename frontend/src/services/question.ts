@@ -229,6 +229,17 @@ export const questionService = {
     return { proOnly: false, rows: res.ok.map(([articleId, wrong, answered]) => ({ articleId, wrong: Number(wrong), answered: Number(answered) })) };
   },
 
+  /**
+   * The caller's correct and answered counts per article, for the
+   * certification readiness score (#65). Pro once the paywall is on (#71).
+   */
+  async getMyArticleAccuracy(sportId: string): Promise<{ proOnly: boolean; accuracy: Map<string, { correct: number; answered: number }> }> {
+    if (!CANISTER_ID) return { proOnly: false, accuracy: new Map() };
+    const res = await actor().getMyArticleAccuracy(sportId);
+    if ("err" in res) return { proOnly: true, accuracy: new Map() };
+    return { proOnly: false, accuracy: new Map(res.ok.map(([id, correct, answered]) => [id, { correct: Number(correct), answered: Number(answered) }])) };
+  },
+
   async getAnswerRates(questionIds: string[]): Promise<Map<string, { wrongCount: number; totalCount: number }>> {
     const out = new Map<string, { wrongCount: number; totalCount: number }>();
     if (!CANISTER_ID || questionIds.length === 0) return out;

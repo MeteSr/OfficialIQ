@@ -558,6 +558,7 @@ export default function MePage() {
           </div>
           <PlanRow />
           <NavRow label={t("me.viewFullProgress")} path="/progress" />
+          <NavRow label={t("me.readiness")} path="/readiness" />
           <NavRow label={t("me.ruleChanges")} path="/rule-changes" />
           <NavRow label={t("me.trainingTranscript")} path="/transcript" />
           {features.ai && <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />}

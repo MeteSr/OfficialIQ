@@ -69,4 +69,16 @@ module {
     if (r.hoursPerSeason == 0 or r.hoursPerSeason > MAX_HOURS_PER_SEASON) return ?#invalidHours;
     null
   };
+
+  // ─── Certification exam date (issue #65) ───────────────────────────────────
+
+  public type ExamDateInvalid = { #inPast; #tooFar };
+
+  /// An exam date can be set from earlier today (an exam this morning still
+  /// counts) up to two years ahead.
+  public func validateExamDate(examDate : Int, now : Int) : ?ExamDateInvalid {
+    if (examDate < now - DAY_NS) return ?#inPast;
+    if (examDate > now + 730 * DAY_NS) return ?#tooFar;
+    null
+  };
 }
