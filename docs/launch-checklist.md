@@ -44,7 +44,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | Monthly quiz "days left" was hardcoded to 4 (and said 25 questions instead of 50) | Now counted from the date (`lib/monthlyWindow.ts`) | Ready | Claude |
 | Weekly quiz "agree %" was hardcoded to 68% | Now real, from `question.getAnswerRates`; hidden until a question has 10 answers | Ready | Claude |
 | Services fall back to stub data when a canister ID is missing | `frontend/src/lib/icEnv.ts` | Ready (only affects dev builds; staging smoke test confirms) | Claude |
-| Case-play video clips | Player and moderation queue built, no clips (issue #29) | Ready for launch: submissions hidden until `FEATURE_CLIP_SUBMISSIONS` is set | Mete |
+| Game clips (issue #29) | Film room, uploads to Cloudflare Stream, per-association clips, rights statement, review, "you make the call" built; no clips yet | Ready for launch hidden: set up video hosting (DEPLOYMENT.md, "Video hosting"), find footage, then set `FEATURE_CLIP_SUBMISSIONS` | Mete |
 | Badges UI | Dropped in the design handoff; back on the Me page (Mete's call, 2026-11-18) | Ready | Claude |
 | Assigning-platform schedule sync | Manual entry works; no ArbiterSports/RefTown API (issue #30) | Ready for launch with manual entry | Mete |
 | French / Portuguese | Intentionally not offered | Ready (out of scope for launch) | Mete |

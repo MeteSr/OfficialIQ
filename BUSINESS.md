@@ -15,7 +15,7 @@ The entire product is a rules study tool, so this is the most fundamental gap.
 
 ## 2. Case-play video clips
 
-The video playback system (player, watch-through gating, community submission, moderation queue) is fully built, but **no actual video clips are loaded** — there's nothing to license or produce yet.
+The clip library is built: officials upload clips to Cloudflare Stream, tie them to a rule section or ruling, add a "you make the call" stop and question, and share them with everyone or only their association, after confirming they may share the footage; admins and association coordinators review them. **No clips are loaded yet**, and hosting needs a Cloudflare account (docs/DEPLOYMENT.md, "Video hosting").
 
 **Ask:** either (a) license 20+ short game-footage clips with confirmed usage rights, (b) film/produce practice scenarios with proper releases, or (c) find a vendor who can supply pre-cleared clips. Once clips exist, hosting and wiring them in is a small engineering task. *(Issue #29)*
 

@@ -35,7 +35,9 @@ const MentorReportPage = lazy(() => import("./pages/MentorReportPage"));
 const AssociationPage = lazy(() => import("./pages/AssociationPage"));
 const AssociationDetailPage = lazy(() => import("./pages/AssociationDetailPage"));
 const MechanicsScenarioPage = lazy(() => import("./pages/MechanicsScenarioPage"));
-const VideoSubmissionPage = lazy(() => import("./pages/VideoSubmissionPage"));
+const FilmRoomPage = lazy(() => import("./pages/FilmRoomPage"));
+const ClipUploadPage = lazy(() => import("./pages/ClipUploadPage"));
+const ClipPage = lazy(() => import("./pages/ClipPage"));
 const ModerationQueuePage = lazy(() => import("./pages/ModerationQueuePage"));
 const ReportCardPage = lazy(() => import("./pages/ReportCardPage"));
 const PublicReportPage = lazy(() => import("./pages/PublicReportPage"));
@@ -108,7 +110,11 @@ function AppShell() {
           <Route path="/association" element={<AssociationPage />} />
           <Route path="/association/:id" element={<AssociationDetailPage />} />
           <Route path="/mechanics/:scenarioId" element={<MechanicsScenarioPage />} />
-          <Route path="/submit-clip" element={<Gate on={features.clipSubmissions}><VideoSubmissionPage /></Gate>} />
+          <Route path="/clips" element={<Gate on={features.clipSubmissions}><FilmRoomPage /></Gate>} />
+          <Route path="/clips/new" element={<Gate on={features.clipSubmissions}><ClipUploadPage /></Gate>} />
+          <Route path="/clips/:id" element={<Gate on={features.clipSubmissions}><ClipPage /></Gate>} />
+          {/* Clips are uploaded, not linked, now (issue #29). */}
+          <Route path="/submit-clip" element={<Navigate to="/clips/new" replace />} />
           <Route path="/moderation" element={<ModerationQueuePage />} />
           <Route path="/reports" element={<ReportCardPage />} />
           <Route path="/reports/shared" element={<SharedReportsPage />} />

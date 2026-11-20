@@ -94,6 +94,8 @@ type Assignment =
    title: text;
  };
 service : {
+  /// For other canisters: the associations `p` coordinates.
+  coordinatedBy: (p: principal) -> (vec text) query;
   createAssignment: (associationId: text, title: text, articleIds: vec text,
    casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_8);
   createAssociation: (name: text, sport: text) -> (Result_3);
@@ -116,6 +118,14 @@ service : {
   isCoordinatorOf: (coordinator: principal, member: principal) ->
    (bool) query;
   joinAssociation: (joinCode: text) -> (Result_3);
+  /// For other canisters (content's clip library): an official's place in
+  /// an association.
+  membershipOf: (associationId: text, p: principal) ->
+   (variant {
+      coordinator;
+      member;
+      none;
+    }) query;
   metrics: () -> (record {
                     assignmentCount: nat;
                     associationCount: nat;

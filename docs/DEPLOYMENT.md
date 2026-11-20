@@ -156,6 +156,34 @@ spend limit, used for nothing else, so a leaked key can cost at most that
 limit. Rotate it by re-running `set-ai-config` with the new key, then
 delete the old one in the Console.
 
+### Video hosting (game clips, issue #29)
+
+Game clips are uploaded to and played from **Cloudflare Stream**. Officials'
+browsers send the video straight to Cloudflare with a one-time link, and
+every clip plays only through a signed link (valid for an hour) that the
+content canister gives a viewer after checking they may see it: everyone,
+for a clip approved for everyone; members of the association, for an
+association's clip. Playback is the MP4 rendition, which the canister turns
+on when a clip is approved.
+
+1. In Cloudflare, enable Stream on the account and create an API token with
+   **Stream: Edit** on that account only. Note the account id and the
+   customer code (the `customer-<code>` part of the Stream playback host).
+2. On the environment, add the `CLOUDFLARE_STREAM_TOKEN` secret and the
+   `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_STREAM_CUSTOMER_CODE` variables.
+3. Run the **Admin task** `set-video-config`. Re-run it to rotate the token.
+4. Set `FEATURE_CLIP_SUBMISSIONS=true` and redeploy to show the film room.
+
+Like the Anthropic key, the token is in canister memory that the subnet's
+node operators could read, so keep it to Stream on that one account.
+Cloudflare bills by minutes stored and minutes delivered; each official can
+start 10 uploads a day, of at most 3 minutes each.
+
+Uploaders confirm they filmed the footage or may share it (the statement in
+`backend/lib/Clips.mo`), and every clip is reviewed before anyone else sees
+it: admins review clips for everyone, an association's coordinator reviews
+its clips, in the film room's "To review" list.
+
 ### 8. What the app shows (feature switches)
 
 Repository variables decide which parts of the app a build turns on
@@ -168,7 +196,7 @@ change one and redeploy (or re-run Mobile release) to apply it.
 |---|---|---|
 | `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app (`ncaa_basketball,ncaa_football` once both are imported) |
 | `FEATURE_AUDIO` | off | Narrated articles (after `generate-audio.sh` has run) |
-| `FEATURE_CLIP_SUBMISSIONS` | off | Officials submitting casebook video clips |
+| `FEATURE_CLIP_SUBMISSIONS` | off | Game clips: the film room, uploads and "you make the call" (after `set-video-config`) |
 | `FEATURE_AI` | on | Rule assistant and AI drills (needs the key from step 7) |
 | `FEATURE_WEB_PUSH` | on when the `VAPID_PUBLIC_KEY` secret exists | Streak notifications on the website |
 | `FEATURE_NATIVE_PUSH` | off | Streak notifications in the apps (docs/MOBILE.md, "Push notifications") |
@@ -230,8 +258,8 @@ season the page says so and Home shows nothing.
 Admins see a **Moderation Queue** row on the Me tab. It has the question
 reports officials send from a quiz ("Report a problem with this
 question"), the app's error log (crashes and failed loads, with nothing
-identifying the official), and, when clip submissions are on, clips
-waiting for review. Fix a reported question with the content tools, then
+identifying the official), and older clip-link submissions waiting for
+review. Uploaded game clips are reviewed in the film room instead. Fix a reported question with the content tools, then
 mark the report resolved.
 
 ## Day-to-day usage

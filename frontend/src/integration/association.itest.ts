@@ -102,4 +102,18 @@ describe("associations", () => {
     ok(await (await canister("user", coord)).getMemberTrainingActivity(member.getPrincipal()));
     expect(err(await (await canister("user", stranger)).getMemberTrainingActivity(member.getPrincipal()))).toEqual({ notAuthorized: null });
   });
+
+  it("tells other canisters an official's place in an association", async () => {
+    const coord = await makeCoordinator();
+    const member = newIdentity();
+    const assocC = await canister("association", coord);
+    const assoc = ok(await assocC.createAssociation("Clip Assoc", bank.sportId)) as { id: string; joinCode: string };
+    ok(await (await canister("association", member)).joinAssociation(assoc.joinCode));
+    const anyone = await canister("association", newIdentity());
+    expect(await anyone.membershipOf(assoc.id, coord.getPrincipal())).toEqual({ coordinator: null });
+    expect(await anyone.membershipOf(assoc.id, member.getPrincipal())).toEqual({ member: null });
+    expect(await anyone.membershipOf(assoc.id, newIdentity().getPrincipal())).toEqual({ none: null });
+    expect(await anyone.coordinatedBy(coord.getPrincipal())).toEqual([assoc.id]);
+    expect(await anyone.coordinatedBy(member.getPrincipal())).toEqual([]);
+  });
 });

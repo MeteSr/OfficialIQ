@@ -1,6 +1,6 @@
 import ReviewQueue from "../components/ReviewQueue";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
 import { contentService, type Article, type PointOfEmphasis, type MechanicsScenario } from "../services/content";
@@ -11,6 +11,7 @@ import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/of
 import { associationService, type Assignment } from "../services/association";
 import { levelLabel, useSport, useSportDisplayName } from "../lib/sport";
 import { currentSeason } from "../lib/ruleChanges";
+import { features } from "../lib/features";
 
 type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
@@ -196,6 +197,11 @@ export default function StudyPage() {
             {label}
           </button>
         ))}
+        {features.clipSubmissions && (
+          <Link to="/clips" style={{ flex: 1, minHeight: 44, borderRadius: 8, background: T.surface, color: T.text, border: `1px solid ${T.border}`, fontFamily: T.font, fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+            {t("clips.filmRoom")}
+          </Link>
+        )}
       </div>
 
       <audio ref={audioRef} onEnded={() => setPlayingPoeId(null)} style={{ display: "none" }} />

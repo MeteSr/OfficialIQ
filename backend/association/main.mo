@@ -369,6 +369,22 @@ persistent actor Association {
     false
   };
 
+  /// For other canisters (content's clip library): an official's place in
+  /// an association.
+  public query func membershipOf(associationId : Text, p : Principal) : async { #none; #member; #coordinator } {
+    switch (Map.get(associations, Text.compare, associationId)) {
+      case (?rec) { if (rec.coordinator == p) #coordinator else if (isMember(associationId, p)) #member else #none };
+      case null #none;
+    }
+  };
+
+  /// For other canisters: the associations `p` coordinates.
+  public query func coordinatedBy(p : Principal) : async [Text] {
+    let out = List.empty<Text>();
+    for ((id, rec) in Map.entries(associations)) { if (rec.coordinator == p) List.add(out, id) };
+    List.toArray(out)
+  };
+
   // ─── Account deletion ──────────────────────────────────────────────────────
 
   /// Called by the user canister when an official deletes their account:
