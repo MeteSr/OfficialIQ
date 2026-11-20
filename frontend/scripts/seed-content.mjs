@@ -1,7 +1,14 @@
-// Seeds the content and question canisters with practice NCAA Men's Basketball
-// officiating data (see seedData.mjs). Run after `icp deploy`.
+// Seeds the sport registry and the officiating mechanics (questions and
+// court scenarios, original content) into the content and question
+// canisters. Run after `icp deploy`. The NCAA rule books themselves come
+// from scripts/seed-ncaa.mjs.
 //
-// Usage: node scripts/seed-content.mjs [environment]   (local | staging | ic; default local)
+// --practice also loads the practice NCAA Men's Basketball articles, plays,
+// questions and points of emphasis in seedData.mjs (written from scratch,
+// not rulebook text) for local development. It is refused on staging and
+// ic, and would overwrite imported rules, so don't use it after seed-ncaa.
+//
+// Usage: node scripts/seed-content.mjs [environment] [--practice]   (local | staging | ic; default local)
 // Runs as the active icp identity (or ICP_IDENTITY) — see scripts/lib/icp.mjs.
 
 import { Actor } from "@icp-sdk/core/agent";
@@ -10,6 +17,11 @@ import { IDL } from "@icp-sdk/core/candid";
 import { ARTICLES, SPORT_ID, LEVEL_ID, POINTS_OF_EMPHASIS, MECHANICS_ARTICLE_ID, MECHANICS_QUESTIONS, MECHANICS_SCENARIOS, SPORTS } from "./seedData.mjs";
 
 const NETWORK = environmentFromArgs();
+const PRACTICE = process.argv.includes("--practice");
+if (PRACTICE && NETWORK !== "local") {
+  console.error(`--practice loads made-up NCAA content and is only for the local network, not "${NETWORK}".`);
+  process.exit(1);
+}
 
 const contentIdlFactory = ({ IDL: I }) => {
   const ArticleInput = I.Record({ sportId: I.Text, levelId: I.Text, number: I.Nat, title: I.Text, body: I.Text, language: I.Text });
@@ -150,7 +162,7 @@ async function main() {
     }
   }
 
-  for (const article of ARTICLES) {
+  for (const article of PRACTICE ? ARTICLES : []) {
     const articleRes = await content.upsertArticle({
       sportId: SPORT_ID, levelId: LEVEL_ID, number: BigInt(article.number),
       title: article.title, body: article.body, language: "en",
@@ -206,7 +218,7 @@ async function main() {
   let poeCount = 0;
   const existingPoes = await content.listPointsOfEmphasis(POINTS_OF_EMPHASIS[0]?.season ?? "");
   const existingTitles = new Set(existingPoes.map(p => p.title));
-  for (const poe of POINTS_OF_EMPHASIS) {
+  for (const poe of PRACTICE ? POINTS_OF_EMPHASIS : []) {
     if (existingTitles.has(poe.title)) {
       console.log(`  · POE "${poe.title}" already seeded — skipping`);
       poeCount++;
@@ -270,7 +282,7 @@ async function main() {
   }
 
   let examTemplateCount = 0;
-  if (exam) {
+  if (exam && PRACTICE) {
     // upsertExamTemplate also mints a fresh id each call — skip if a
     // template with this name already exists for the sport.
     const existingTemplates = await exam.listExamTemplates(SPORT_ID);

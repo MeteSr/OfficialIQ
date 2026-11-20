@@ -55,6 +55,11 @@ export interface DiagramPlayer {
   'role' : string,
   'shortLabel' : string,
 }
+export interface ImportResult {
+  'added' : bigint,
+  'updated' : bigint,
+  'removed' : bigint,
+}
 export interface MechanicsScenario {
   'id' : string,
   'title' : string,
@@ -99,6 +104,8 @@ export type Result = { 'ok' : Sport } |
   { 'err' : string };
 export type Result_1 = { 'ok' : RuleChange } |
   { 'err' : RuleChangeError };
+export type Result_10 = { 'ok' : null } |
+  { 'err' : RuleChangeError };
 export type Result_2 = { 'ok' : PointOfEmphasis } |
   { 'err' : string };
 export type Result_3 = { 'ok' : CasebookPlay } |
@@ -111,10 +118,10 @@ export type Result_6 = { 'ok' : VideoSubmission } |
   { 'err' : string };
 export type Result_7 = { 'ok' : null } |
   { 'err' : string };
-export type Result_8 = { 'ok' : Array<VideoSubmission> } |
+export type Result_8 = { 'ok' : ImportResult } |
   { 'err' : string };
-export type Result_9 = { 'ok' : null } |
-  { 'err' : RuleChangeError };
+export type Result_9 = { 'ok' : Array<VideoSubmission> } |
+  { 'err' : string };
 export interface RuleChange {
   'id' : string,
   'oldText' : string,
@@ -178,7 +185,7 @@ export interface VideoSubmission {
 }
 export interface _SERVICE {
   'approveSubmission' : ActorMethod<[string, string], Result_6>,
-  'deleteRuleChange' : ActorMethod<[string], Result_9>,
+  'deleteRuleChange' : ActorMethod<[string], Result_10>,
   /**
    * / Called by the user canister when an official deletes their account:
    * / deletes their clip submissions that weren't used. An approved clip is
@@ -193,7 +200,7 @@ export interface _SERVICE {
   'isAdminCaller' : ActorMethod<[], boolean>,
   'listArticles' : ActorMethod<[string, string, string], Array<Article>>,
   'listMechanicsScenarios' : ActorMethod<[], Array<MechanicsScenario>>,
-  'listPendingSubmissions' : ActorMethod<[], Result_8>,
+  'listPendingSubmissions' : ActorMethod<[], Result_9>,
   'listPlays' : ActorMethod<[ArticleId], Array<CasebookPlay>>,
   /**
    * / The plays of several articles in one call (offline sync used to make
@@ -205,12 +212,37 @@ export interface _SERVICE {
    * / A sport's rule changes for a season (e.g. "2026-27"), oldest first.
    */
   'listRuleChanges' : ActorMethod<[string, string], Array<RuleChange>>,
+  /**
+   * / A sport's points of emphasis for a season, oldest first (those
+   * / imported for it with replacePointsOfEmphasis).
+   */
+  'listSportPointsOfEmphasis' : ActorMethod<
+    [string, string],
+    Array<PointOfEmphasis>
+  >,
   'listSports' : ActorMethod<[], Array<Sport>>,
   'metrics' : ActorMethod<
     [],
     { 'playCount' : bigint, 'articleCount' : bigint }
   >,
   'rejectSubmission' : ActorMethod<[string], Result_6>,
+  /**
+   * / Replaces an article's approved rulings with `items` (a rulebook
+   * / import). A play whose citation is in `items` keeps its id, audio and
+   * / video and takes the new wording; the article's other plays are
+   * / removed. Running the same import twice changes nothing. Admin only.
+   */
+  'replacePlays' : ActorMethod<[ArticleId, Array<PlayInput>], Result_8>,
+  /**
+   * / Replaces a sport's points of emphasis for a season with `items` (a
+   * / rulebook import), matching by title: a match keeps its id and audio
+   * / and takes the new wording; the sport's others for the season are
+   * / removed. Admin only.
+   */
+  'replacePointsOfEmphasis' : ActorMethod<
+    [string, string, Array<PoeInput>],
+    Result_8
+  >,
   'setAdmin' : ActorMethod<[Principal], Result_7>,
   'setArticleAudio' : ActorMethod<[ArticleId, Uint8Array], Result_7>,
   'setPlayVideo' : ActorMethod<[string, string], Result_3>,
@@ -250,7 +282,7 @@ export const RuleChangeError = IDL.Variant({
   'notFound' : IDL.Null,
   'notAdmin' : IDL.Null,
 });
-export const Result_9 = IDL.Variant({
+export const Result_10 = IDL.Variant({
   'ok' : IDL.Null,
   'err' : RuleChangeError,
 });
@@ -292,7 +324,7 @@ export const MechanicsScenario = IDL.Record({
   'players' : IDL.Vec(DiagramPlayer),
   'crewSize' : IDL.Nat,
 });
-export const Result_8 = IDL.Variant({
+export const Result_9 = IDL.Variant({
   'ok' : IDL.Vec(VideoSubmission),
   'err' : IDL.Text,
 });
@@ -349,6 +381,25 @@ export const Sport = IDL.Record({
   'levels' : IDL.Vec(SportLevel),
   'rulebookYear' : IDL.Text,
 });
+export const PlayInput = IDL.Record({
+  'ruling' : IDL.Text,
+  'diagram' : IDL.Opt(CourtDiagram),
+  'articleId' : ArticleId,
+  'citation' : IDL.Text,
+  'scenario' : IDL.Text,
+});
+export const ImportResult = IDL.Record({
+  'added' : IDL.Nat,
+  'updated' : IDL.Nat,
+  'removed' : IDL.Nat,
+});
+export const Result_8 = IDL.Variant({ 'ok' : ImportResult, 'err' : IDL.Text });
+export const PoeInput = IDL.Record({
+  'title' : IDL.Text,
+  'body' : IDL.Text,
+  'season' : IDL.Text,
+  'linkedArticleIds' : IDL.Vec(IDL.Text),
+});
 export const Result_3 = IDL.Variant({ 'ok' : CasebookPlay, 'err' : IDL.Text });
 export const ArticleInput = IDL.Record({
   'title' : IDL.Text,
@@ -369,19 +420,6 @@ export const ScenarioInput = IDL.Record({
 export const Result_4 = IDL.Variant({
   'ok' : MechanicsScenario,
   'err' : IDL.Text,
-});
-export const PlayInput = IDL.Record({
-  'ruling' : IDL.Text,
-  'diagram' : IDL.Opt(CourtDiagram),
-  'articleId' : ArticleId,
-  'citation' : IDL.Text,
-  'scenario' : IDL.Text,
-});
-export const PoeInput = IDL.Record({
-  'title' : IDL.Text,
-  'body' : IDL.Text,
-  'season' : IDL.Text,
-  'linkedArticleIds' : IDL.Vec(IDL.Text),
 });
 export const Result_2 = IDL.Variant({
   'ok' : PointOfEmphasis,
@@ -412,7 +450,7 @@ export const Result = IDL.Variant({ 'ok' : Sport, 'err' : IDL.Text });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
   'approveSubmission' : IDL.Func([IDL.Text, IDL.Text], [Result_6], []),
-  'deleteRuleChange' : IDL.Func([IDL.Text], [Result_9], []),
+  'deleteRuleChange' : IDL.Func([IDL.Text], [Result_10], []),
   'forgetUser' : IDL.Func([IDL.Principal], [Result_7], []),
   'getArticle' : IDL.Func([ArticleId], [IDL.Opt(Article)], ['query']),
   'getArticleAudio' : IDL.Func(
@@ -437,7 +475,7 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(MechanicsScenario)],
       ['query'],
     ),
-  'listPendingSubmissions' : IDL.Func([], [Result_8], ['query']),
+  'listPendingSubmissions' : IDL.Func([], [Result_9], ['query']),
   'listPlays' : IDL.Func([ArticleId], [IDL.Vec(CasebookPlay)], ['query']),
   'listPlaysFor' : IDL.Func(
       [IDL.Vec(ArticleId)],
@@ -454,6 +492,11 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(RuleChange)],
       ['query'],
     ),
+  'listSportPointsOfEmphasis' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(PointOfEmphasis)],
+      ['query'],
+    ),
   'listSports' : IDL.Func([], [IDL.Vec(Sport)], ['query']),
   'metrics' : IDL.Func(
       [],
@@ -461,6 +504,12 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'rejectSubmission' : IDL.Func([IDL.Text], [Result_6], []),
+  'replacePlays' : IDL.Func([ArticleId, IDL.Vec(PlayInput)], [Result_8], []),
+  'replacePointsOfEmphasis' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Vec(PoeInput)],
+      [Result_8],
+      [],
+    ),
   'setAdmin' : IDL.Func([IDL.Principal], [Result_7], []),
   'setArticleAudio' : IDL.Func([ArticleId, IDL.Vec(IDL.Nat8)], [Result_7], []),
   'setPlayVideo' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
@@ -502,7 +551,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'notFound' : IDL.Null,
     'notAdmin' : IDL.Null,
   });
-  const Result_9 = IDL.Variant({ 'ok' : IDL.Null, 'err' : RuleChangeError });
+  const Result_10 = IDL.Variant({ 'ok' : IDL.Null, 'err' : RuleChangeError });
   const Result_7 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ArticleId = IDL.Text;
   const Article = IDL.Record({
@@ -541,7 +590,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'players' : IDL.Vec(DiagramPlayer),
     'crewSize' : IDL.Nat,
   });
-  const Result_8 = IDL.Variant({
+  const Result_9 = IDL.Variant({
     'ok' : IDL.Vec(VideoSubmission),
     'err' : IDL.Text,
   });
@@ -595,6 +644,25 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'levels' : IDL.Vec(SportLevel),
     'rulebookYear' : IDL.Text,
   });
+  const PlayInput = IDL.Record({
+    'ruling' : IDL.Text,
+    'diagram' : IDL.Opt(CourtDiagram),
+    'articleId' : ArticleId,
+    'citation' : IDL.Text,
+    'scenario' : IDL.Text,
+  });
+  const ImportResult = IDL.Record({
+    'added' : IDL.Nat,
+    'updated' : IDL.Nat,
+    'removed' : IDL.Nat,
+  });
+  const Result_8 = IDL.Variant({ 'ok' : ImportResult, 'err' : IDL.Text });
+  const PoeInput = IDL.Record({
+    'title' : IDL.Text,
+    'body' : IDL.Text,
+    'season' : IDL.Text,
+    'linkedArticleIds' : IDL.Vec(IDL.Text),
+  });
   const Result_3 = IDL.Variant({ 'ok' : CasebookPlay, 'err' : IDL.Text });
   const ArticleInput = IDL.Record({
     'title' : IDL.Text,
@@ -613,19 +681,6 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'crewSize' : IDL.Nat,
   });
   const Result_4 = IDL.Variant({ 'ok' : MechanicsScenario, 'err' : IDL.Text });
-  const PlayInput = IDL.Record({
-    'ruling' : IDL.Text,
-    'diagram' : IDL.Opt(CourtDiagram),
-    'articleId' : ArticleId,
-    'citation' : IDL.Text,
-    'scenario' : IDL.Text,
-  });
-  const PoeInput = IDL.Record({
-    'title' : IDL.Text,
-    'body' : IDL.Text,
-    'season' : IDL.Text,
-    'linkedArticleIds' : IDL.Vec(IDL.Text),
-  });
   const Result_2 = IDL.Variant({ 'ok' : PointOfEmphasis, 'err' : IDL.Text });
   const RuleChangeInput = IDL.Record({
     'oldText' : IDL.Text,
@@ -649,7 +704,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   
   return IDL.Service({
     'approveSubmission' : IDL.Func([IDL.Text, IDL.Text], [Result_6], []),
-    'deleteRuleChange' : IDL.Func([IDL.Text], [Result_9], []),
+    'deleteRuleChange' : IDL.Func([IDL.Text], [Result_10], []),
     'forgetUser' : IDL.Func([IDL.Principal], [Result_7], []),
     'getArticle' : IDL.Func([ArticleId], [IDL.Opt(Article)], ['query']),
     'getArticleAudio' : IDL.Func(
@@ -674,7 +729,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(MechanicsScenario)],
         ['query'],
       ),
-    'listPendingSubmissions' : IDL.Func([], [Result_8], ['query']),
+    'listPendingSubmissions' : IDL.Func([], [Result_9], ['query']),
     'listPlays' : IDL.Func([ArticleId], [IDL.Vec(CasebookPlay)], ['query']),
     'listPlaysFor' : IDL.Func(
         [IDL.Vec(ArticleId)],
@@ -691,6 +746,11 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(RuleChange)],
         ['query'],
       ),
+    'listSportPointsOfEmphasis' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(PointOfEmphasis)],
+        ['query'],
+      ),
     'listSports' : IDL.Func([], [IDL.Vec(Sport)], ['query']),
     'metrics' : IDL.Func(
         [],
@@ -698,6 +758,12 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'rejectSubmission' : IDL.Func([IDL.Text], [Result_6], []),
+    'replacePlays' : IDL.Func([ArticleId, IDL.Vec(PlayInput)], [Result_8], []),
+    'replacePointsOfEmphasis' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Vec(PoeInput)],
+        [Result_8],
+        [],
+      ),
     'setAdmin' : IDL.Func([IDL.Principal], [Result_7], []),
     'setArticleAudio' : IDL.Func(
         [ArticleId, IDL.Vec(IDL.Nat8)],

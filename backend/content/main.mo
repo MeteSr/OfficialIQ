@@ -187,6 +187,11 @@ persistent actor Content {
 
   var sports : Map.Map<Text, Sport> = Map.empty<Text, Sport>();
 
+  // The sport each point of emphasis belongs to, for those imported with
+  // one (replacePointsOfEmphasis). Kept beside `poes` so the stored record
+  // doesn't change.
+  var poeSport : Map.Map<PoeId, Text> = Map.empty<PoeId, Text>();
+
   var nextPlayId : Nat = 0;
   var nextPoeId : Nat = 0;
   var nextScenarioId : Nat = 0;
@@ -277,6 +282,52 @@ persistent actor Content {
     #ok(play)
   };
 
+  /// How an import changed a set: records added, replaced in place, removed.
+  public type ImportResult = { added : Nat; updated : Nat; removed : Nat };
+
+  /// Replaces an article's approved rulings with `items` (a rulebook
+  /// import). A play whose citation is in `items` keeps its id, audio and
+  /// video and takes the new wording; the article's other plays are
+  /// removed. Running the same import twice changes nothing. Admin only.
+  public shared ({ caller }) func replacePlays(articleId : ArticleId, items : [PlayInput]) : async Result.Result<ImportResult, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    for (i in items.values()) {
+      if (i.articleId != articleId) return #err("articleId: every play must be for " # articleId);
+    };
+    let byCitation = Map.empty<Text, CasebookPlay>();
+    for ((_, p) in Map.entries(plays)) {
+      if (p.articleId == articleId) Map.add(byCitation, Text.compare, p.citation, p);
+    };
+    var added = 0;
+    var updated = 0;
+    let keep = Set.empty<Text>();
+    for (i in items.values()) {
+      switch (Map.get(byCitation, Text.compare, i.citation)) {
+        case (?old) {
+          Map.add(plays, Text.compare, old.id, { old with scenario = i.scenario; ruling = i.ruling; diagram = i.diagram });
+          Set.add(keep, Text.compare, old.id);
+          updated += 1;
+        };
+        case null {
+          let id = "p" # Nat.toText(nextPlayId);
+          nextPlayId += 1;
+          Map.add(plays, Text.compare, id, {
+            id; articleId; citation = i.citation; scenario = i.scenario; ruling = i.ruling;
+            audioUrl = null; diagram = i.diagram; videoUrl = null;
+          });
+          Map.add(byCitation, Text.compare, i.citation, { id; articleId; citation = i.citation; scenario = i.scenario; ruling = i.ruling; audioUrl = null; diagram = i.diagram; videoUrl = null });
+          Set.add(keep, Text.compare, id);
+          added += 1;
+        };
+      };
+    };
+    var removed = 0;
+    for ((_, p) in Map.entries(byCitation)) {
+      if (not Set.contains(keep, Text.compare, p.id)) { Map.remove(plays, Text.compare, p.id); removed += 1 };
+    };
+    #ok({ added; updated; removed })
+  };
+
   public shared ({ caller }) func setPlayVideo(id : Text, url : Text) : async Result.Result<CasebookPlay, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     switch (Map.get(plays, Text.compare, id)) {
@@ -363,6 +414,55 @@ persistent actor Content {
     };
     Map.add(poes, Text.compare, id, poe);
     #ok(poe)
+  };
+
+  /// Replaces a sport's points of emphasis for a season with `items` (a
+  /// rulebook import), matching by title: a match keeps its id and audio
+  /// and takes the new wording; the sport's others for the season are
+  /// removed. Admin only.
+  public shared ({ caller }) func replacePointsOfEmphasis(sportId : Text, season : Text, items : [PoeInput]) : async Result.Result<ImportResult, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    for (i in items.values()) {
+      if (i.season != season) return #err("season: every point must be for " # season);
+    };
+    let byTitle = Map.empty<Text, PointOfEmphasis>();
+    for ((id, p) in Map.entries(poes)) {
+      if (p.season == season and Map.get(poeSport, Text.compare, id) == ?sportId) Map.add(byTitle, Text.compare, p.title, p);
+    };
+    var added = 0;
+    var updated = 0;
+    let keep = Set.empty<Text>();
+    for (i in items.values()) {
+      switch (Map.get(byTitle, Text.compare, i.title)) {
+        case (?old) {
+          Map.add(poes, Text.compare, old.id, { old with body = i.body; linkedArticleIds = i.linkedArticleIds });
+          Set.add(keep, Text.compare, old.id);
+          updated += 1;
+        };
+        case null {
+          let id = "poe" # Nat.toText(nextPoeId);
+          nextPoeId += 1;
+          let poe : PointOfEmphasis = {
+            id; season; title = i.title; body = i.body; linkedArticleIds = i.linkedArticleIds;
+            audioUrl = null; createdAt = Time.now();
+          };
+          Map.add(poes, Text.compare, id, poe);
+          Map.add(poeSport, Text.compare, id, sportId);
+          Map.add(byTitle, Text.compare, i.title, poe);
+          Set.add(keep, Text.compare, id);
+          added += 1;
+        };
+      };
+    };
+    var removed = 0;
+    for ((_, p) in Map.entries(byTitle)) {
+      if (not Set.contains(keep, Text.compare, p.id)) {
+        Map.remove(poes, Text.compare, p.id);
+        Map.remove(poeSport, Text.compare, p.id);
+        removed += 1;
+      };
+    };
+    #ok({ added; updated; removed })
   };
 
   public shared ({ caller }) func upsertMechanicsScenario(input : ScenarioInput) : async Result.Result<MechanicsScenario, Text> {
@@ -523,6 +623,17 @@ persistent actor Content {
       if (p.season == season) { buf[i] := p; i += 1 };
     };
     VarArray.sliceToArray<PointOfEmphasis>(buf, 0, i)
+  };
+
+  /// A sport's points of emphasis for a season, oldest first (those
+  /// imported for it with replacePointsOfEmphasis).
+  public query func listSportPointsOfEmphasis(sportId : Text, season : Text) : async [PointOfEmphasis] {
+    let out = List.empty<PointOfEmphasis>();
+    for ((id, p) in Map.entries(poes)) {
+      if (p.season == season and Map.get(poeSport, Text.compare, id) == ?sportId) List.add(out, p);
+    };
+    List.sortInPlace(out, func(a : PointOfEmphasis, b : PointOfEmphasis) : { #less; #equal; #greater } = Int.compare(a.createdAt, b.createdAt));
+    List.toArray(out)
   };
 
   public query func listSports() : async [Sport] {

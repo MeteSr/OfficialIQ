@@ -10,10 +10,10 @@ import { useAuthStore } from "../store/authStore";
 import { saveAudioBlob, deleteAudioBlob, getDownloadedAudioIds } from "../lib/offlineDb";
 import { associationService, type Assignment } from "../services/association";
 import { levelLabel, useSport, useSportDisplayName } from "../lib/sport";
+import { currentSeason } from "../lib/ruleChanges";
 
 type AssignmentRow = { assignment: Assignment; associationName: string; coordinatorName: string; done: boolean };
 
-const CURRENT_SEASON = "2025-26";
 
 export default function StudyPage() {
   const navigate = useNavigate();
@@ -39,8 +39,12 @@ export default function StudyPage() {
   const [scenarios, setScenarios] = useState<MechanicsScenario[]>([]);
   const [mechanicsMastery, setMechanicsMastery] = useState<number | null>(null);
 
+  const season = currentSeason(Date.now());
   useEffect(() => {
-    contentService.listPointsOfEmphasis(CURRENT_SEASON).then(setPoes).catch(() => {});
+    contentService.listPointsOfEmphasis(sportId, season).then(setPoes).catch(() => setPoes([]));
+  }, [sportId, season]);
+
+  useEffect(() => {
     getDownloadedAudioIds().then(ids => setDownloadedIds(new Set(ids))).catch(() => {});
     contentService.listMechanicsScenarios().then(setScenarios).catch(() => {});
     return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
@@ -273,7 +277,7 @@ export default function StudyPage() {
           {poes.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>
-                {t("study.pointsOfEmphasis", { season: CURRENT_SEASON })}
+                {t("study.pointsOfEmphasis", { season })}
               </div>
               {poes.map((poe) => {
                 const reviewed = poe.linkedArticleIds.length > 0 &&

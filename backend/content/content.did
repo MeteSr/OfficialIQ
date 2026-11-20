@@ -77,13 +77,13 @@ type RuleChange =
  };
 type Result_9 = 
  variant {
-   err: RuleChangeError;
-   ok;
+   err: text;
+   ok: vec VideoSubmission;
  };
 type Result_8 = 
  variant {
    err: text;
-   ok: vec VideoSubmission;
+   ok: ImportResult;
  };
 type Result_7 = 
  variant {
@@ -114,6 +114,11 @@ type Result_2 =
  variant {
    err: text;
    ok: PointOfEmphasis;
+ };
+type Result_10 = 
+ variant {
+   err: RuleChangeError;
+   ok;
  };
 type Result_1 = 
  variant {
@@ -170,6 +175,12 @@ type MechanicsScenario =
    title: text;
    zones: vec MechanicsZone;
  };
+type ImportResult = 
+ record {
+   added: nat;
+   removed: nat;
+   updated: nat;
+ };
 type DiagramPlayer = 
  record {
    id: text;
@@ -225,7 +236,7 @@ type Article =
  };
 service : {
   approveSubmission: (id: text, playId: text) -> (Result_6);
-  deleteRuleChange: (id: text) -> (Result_9);
+  deleteRuleChange: (id: text) -> (Result_10);
   /// Called by the user canister when an official deletes their account:
   /// deletes their clip submissions that weren't used. An approved clip is
   /// already part of a casebook play, so it stays, with the submitter
@@ -239,7 +250,7 @@ service : {
   listArticles: (sportId: text, levelId: text, language: text) ->
    (vec Article) query;
   listMechanicsScenarios: () -> (vec MechanicsScenario) query;
-  listPendingSubmissions: () -> (Result_8) query;
+  listPendingSubmissions: () -> (Result_9) query;
   listPlays: (articleId: ArticleId) -> (vec CasebookPlay) query;
   /// The plays of several articles in one call (offline sync used to make
   /// one listPlays call per article).
@@ -247,12 +258,27 @@ service : {
   listPointsOfEmphasis: (season: text) -> (vec PointOfEmphasis) query;
   /// A sport's rule changes for a season (e.g. "2026-27"), oldest first.
   listRuleChanges: (sportId: text, season: text) -> (vec RuleChange) query;
+  /// A sport's points of emphasis for a season, oldest first (those
+  /// imported for it with replacePointsOfEmphasis).
+  listSportPointsOfEmphasis: (sportId: text, season: text) ->
+   (vec PointOfEmphasis) query;
   listSports: () -> (vec Sport) query;
   metrics: () -> (record {
                     articleCount: nat;
                     playCount: nat;
                   }) query;
   rejectSubmission: (id: text) -> (Result_6);
+  /// Replaces an article's approved rulings with `items` (a rulebook
+  /// import). A play whose citation is in `items` keeps its id, audio and
+  /// video and takes the new wording; the article's other plays are
+  /// removed. Running the same import twice changes nothing. Admin only.
+  replacePlays: (articleId: ArticleId, items: vec PlayInput) -> (Result_8);
+  /// Replaces a sport's points of emphasis for a season with `items` (a
+  /// rulebook import), matching by title: a match keeps its id and audio
+  /// and takes the new wording; the sport's others for the season are
+  /// removed. Admin only.
+  replacePointsOfEmphasis: (sportId: text, season: text, items:
+   vec PoeInput) -> (Result_8);
   setAdmin: (p: principal) -> (Result_7);
   setArticleAudio: (id: ArticleId, audio: blob) -> (Result_7);
   setPlayVideo: (id: text, url: text) -> (Result_3);

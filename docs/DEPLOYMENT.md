@@ -95,13 +95,34 @@ second person's approval click on top of being started by hand.
 Canisters with admin-only methods (`content`, `question`, `exam`, `user`,
 `ranking`, `ai_proxy`) let only a **controller** set the first admin, so
 nobody can claim it on a freshly deployed canister before you do. The
-admin scripts (`seed-content`, `set-ai-config`, `generate-audio`,
+admin scripts (`seed-content`, `seed-ncaa`, `set-ai-config`, `generate-audio`,
 `send-push`) run as the active icp identity (or `ICP_IDENTITY`) and claim
 admin on first use — run them with the identity that deployed.
 
-After the first deploy, load the content with the **Admin task** workflow
-(`seed-content`). It is safe to re-run: articles and plays are upserted, and
-questions are only added while the bank is empty.
+After the first deploy, load the content with the **Admin task** workflow:
+
+1. `seed-content` registers the sports and loads the officiating mechanics.
+   Safe to re-run: questions are only added while the bank is empty.
+2. `seed-ncaa` imports the NCAA men's basketball and football rule books.
+   The repository holds no NCAA text: the task downloads the NCAA's PDFs,
+   checks each against the edition pinned in
+   `frontend/scripts/ncaa/editions.mjs`, extracts the text with pdftotext,
+   and checks it word for word against a second extraction before writing
+   anything. It writes an article per rule, each rule's approved rulings as
+   casebook plays, the season's rule changes and points of emphasis, and a
+   certification exam template per sport. Safe to re-run: each rule's
+   plays and each sport's points of emphasis are replaced as a set.
+3. Make the question bank from the imported rules with the scenario
+   generator (Me → Scenario generator, admins only).
+
+When the NCAA posts a new edition, `seed-ncaa` refuses it (the file's hash
+changed). Review it locally: download the new PDFs and run
+`node scripts/seed-ncaa.mjs --books <folder> --dry-run`. Settle any line-end
+hyphen it reports in `scripts/ncaa/hyphenation.json`, fix the parser if a
+check fails, then pin the new hashes and titles in `editions.mjs`.
+
+`seed-content --practice` loads made-up NCAA practice content for local
+development only. It would overwrite imported rules.
 
 The push relay is the exception: it runs as its own identity
 (`PUSH_RELAY_IDENTITY_PEM`) and never claims admin.
@@ -135,7 +156,7 @@ change one and redeploy (or re-run Mobile release) to apply it.
 
 | Variable | Default | Turns on |
 |---|---|---|
-| `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app |
+| `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app (`ncaa_basketball,ncaa_football` once both are imported) |
 | `FEATURE_AUDIO` | off | Narrated articles (after `generate-audio.sh` has run) |
 | `FEATURE_CLIP_SUBMISSIONS` | off | Officials submitting casebook video clips |
 | `FEATURE_AI` | on | Rule assistant and AI drills (needs the key from step 7) |

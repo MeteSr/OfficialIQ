@@ -7,7 +7,8 @@ import { useSport } from "../lib/sport";
 import { userService, type LinkedAccount, type UpcomingGame } from "../services/user";
 import { contentService, type CasebookPlay } from "../services/content";
 import { challengeService, type Crew } from "../services/challenge";
-import { CURRENT_SEASON, gameTimeMs } from "../lib/gameDay";
+import { gameTimeMs } from "../lib/gameDay";
+import { currentSeason } from "../lib/ruleChanges";
 import { createCrewForGame, crewForGame } from "../lib/crew";
 
 const PROVIDERS = ["ArbiterSports", "RefTown"];
@@ -64,7 +65,7 @@ export default function SchedulePage() {
         .then(cs => setCrews(cs.filter(c => gameTimeMs(c.expiresAt) > now).sort((a, b) => Number(a.gameDate - b.gameDate))))
         .catch(() => setCrews([]));
 
-      const poes = await contentService.listPointsOfEmphasis(CURRENT_SEASON).catch(() => []);
+      const poes = await contentService.listPointsOfEmphasis(sportId, currentSeason(now)).catch(() => []);
       const linkedArticle = poes.flatMap(p => p.linkedArticleIds)[0];
       if (linkedArticle) {
         const plays = await contentService.listPlays(linkedArticle).catch(() => []);

@@ -18,7 +18,12 @@ export const LEVEL_ID = "varsity";
 // than basketball, not just basketball rule variants.
 export const SPORTS = [
   {
-    id: SPORT_ID, displayName: "NCAA Men's Basketball", rulebookYear: "2025-26",
+    id: SPORT_ID, displayName: "NCAA Men's Basketball", rulebookYear: "2026-27",
+    levels: [{ id: "varsity", displayName: "Varsity" }, { id: "collegiate", displayName: "Collegiate" }],
+  },
+  {
+    // Its rules come from the NCAA import (seed-ncaa.mjs, ncaa/editions.mjs).
+    id: "ncaa_football", displayName: "NCAA Football", rulebookYear: "2026",
     levels: [{ id: "varsity", displayName: "Varsity" }, { id: "collegiate", displayName: "Collegiate" }],
   },
   {

@@ -9,9 +9,16 @@ name: Admin task
 #   set-push-relay  — register the push relay's own identity. Leave
 #                     `principal` empty to use PUSH_RELAY_IDENTITY_PEM's
 #                     principal; "none" clears it.
-#   seed-content    — load the rules content, casebook plays and question
-#                     bank (frontend/scripts/seedData.mjs). Safe to re-run:
-#                     questions are only added to an empty bank.
+#   seed-content    — register the sports and load the officiating
+#                     mechanics (frontend/scripts/seedData.mjs). Safe to
+#                     re-run: questions are only added to an empty bank.
+#   seed-ncaa       — import the NCAA men's basketball and football rule
+#                     books: downloads the NCAA's PDFs, checks them against
+#                     the pinned editions and word for word, then writes
+#                     the rules, approved rulings, rule changes and points
+#                     of emphasis (frontend/scripts/seed-ncaa.mjs). Safe to
+#                     re-run. Make questions afterwards with the scenario
+#                     generator.
 #   set-ai-config   — store the Anthropic key from the ANTHROPIC_API_KEY
 #                     secret in ai_proxy (re-run to rotate it). The optional
 #                     ANTHROPIC_MODEL variable overrides the model.
@@ -33,7 +40,7 @@ on:
         description: "Task"
         required: true
         type: choice
-        options: [set-role, set-push-relay, seed-content, set-ai-config]
+        options: [set-role, set-push-relay, seed-content, seed-ncaa, set-ai-config]
       principal:
         description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none; unused otherwise)"
         required: false
@@ -79,6 +86,10 @@ jobs:
       - name: Install frontend deps
         run: npm ci --prefix frontend --no-audit --no-fund
 
+      - name: Install pdftotext
+        if: inputs.task == 'seed-ncaa'
+        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+
       - name: Resolve the push relay principal
         if: inputs.task == 'set-push-relay' && inputs.principal == ''
         env:
@@ -107,6 +118,10 @@ jobs:
           case "$TASK" in
             seed-content)
               node scripts/seed-content.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            seed-ncaa)
+              node scripts/seed-ncaa.mjs "$ENVIRONMENT"
               exit 0
               ;;
             set-ai-config)

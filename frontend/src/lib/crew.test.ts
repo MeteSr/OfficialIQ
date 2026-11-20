@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createShareLink = vi.fn();
 const getByShareToken = vi.fn();
 const createCrew = vi.fn();
+const listPointsOfEmphasis = vi.fn(async (..._a: unknown[]) => [{ linkedArticleIds: ["s:art2"] }]);
 vi.mock("../services/exam", () => ({ examService: { createShareLink: (...a: unknown[]) => createShareLink(...a), getByShareToken: (...a: unknown[]) => getByShareToken(...a) } }));
 vi.mock("../services/challenge", () => ({ challengeService: { createCrew: (...a: unknown[]) => createCrew(...a) } }));
 vi.mock("../services/content", () => ({
   contentService: {
     listArticles: async () => [{ id: "s:art1", title: "Art 1" }, { id: "s:art2", title: "Art 2" }],
-    listPointsOfEmphasis: async () => [{ linkedArticleIds: ["s:art2"] }],
+    listPointsOfEmphasis: (...a: unknown[]) => listPointsOfEmphasis(...a),
   },
 }));
 
 import { createCrewForGame, crewForGame } from "./crew";
+import { currentSeason } from "./ruleChanges";
 
 const game = { opponent: "Central vs North", gameDateMs: 1_800_000_000_000, sportId: "s", levelId: "varsity" };
 
@@ -25,6 +27,8 @@ describe("createCrewForGame", () => {
     createCrew.mockImplementation(async (input) => ({ id: "crew0", ...input }));
 
     await createCrewForGame(game);
+    // The game's sport's points of emphasis, this season.
+    expect(listPointsOfEmphasis).toHaveBeenCalledWith("s", currentSeason(Date.now()));
 
     const [config, picks] = createShareLink.mock.calls[0];
     expect(config).toMatchObject({ sportId: "s", mode: { ShareLink: null }, count: 6n });

@@ -209,10 +209,11 @@ export const contentService = {
     return actor().listRuleChanges(sportId, season);
   },
 
-  async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {
+  /** A sport's points of emphasis for a season (from its rulebook import). */
+  async listPointsOfEmphasis(sportId: string, season: string): Promise<PointOfEmphasis[]> {
     if (!CANISTER_ID) return [];
     try {
-      return await actor().listPointsOfEmphasis(season);
+      return await actor().listSportPointsOfEmphasis(sportId, season);
     } catch {
       return [];
     }

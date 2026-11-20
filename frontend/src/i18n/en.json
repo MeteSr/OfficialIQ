@@ -1205,7 +1205,6 @@
     "subtitle_other": "{{count}} rule changes for {{season}}",
     "old": "Before",
     "new": "Now",
-    "newRule": "New rule",
     "source": "Source: {{source}}",
     "quiz": "Quiz me on the changes",
     "none": "No rule changes have been published for {{season}} yet.",

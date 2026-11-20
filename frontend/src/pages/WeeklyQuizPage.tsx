@@ -8,13 +8,13 @@ import { userService, type WeeklyQuizResult } from "../services/user";
 import { rankingService } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
+import { currentSeason } from "../lib/ruleChanges";
 
 const SECONDS_PER_Q = 30;
 const TOTAL_QUESTIONS = 10;
 const NEW_RATIO = 0.6;
 const POE_RATIO = 0.2;
 const SEVEN_DAYS_NS = 7n * 24n * 3600n * 1_000_000_000n;
-const CURRENT_SEASON = "2025-26";
 
 type Source = "new" | "retention" | "poe";
 type TaggedQuestion = Question & { _source: Source };
@@ -69,7 +69,7 @@ export default function WeeklyQuizPage() {
         userService.getWeeklySchedule(sorted.map(a => a.id)),
         userService.getMyProgress(),
         userService.getWeeklyQuizHistory(),
-        contentService.listPointsOfEmphasis(CURRENT_SEASON).catch(() => []),
+        contentService.listPointsOfEmphasis(sportId, currentSeason(Date.now())).catch(() => []),
       ]);
       setHistory(hist);
       const poeArticleIds = [...new Set(poes.flatMap(p => p.linkedArticleIds))];
