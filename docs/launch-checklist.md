@@ -10,7 +10,7 @@ CI and docs. Update a line when it changes, rather than adding a new one.
 Nothing below is blocked on code. The app can't go live until these are done:
 
 1. **Mete:** fund the deploy identity with cycles and set `ICP_IDENTITY_PEM` on the `staging` environment. Staging has never deployed: every "Deploy (staging)" run so far, including the one for #53, stopped at "Skip until the deploy identity is configured".
-2. **Mete:** run the Admin task `seed-ncaa` (after `seed-content`) to import the NCAA men's basketball and football rule books, then make questions with the scenario generator and add `ncaa_football` to `LAUNCH_SPORTS`. The practice content in `seedData.mjs` is no longer seeded outside local development.
+2. **Mete:** run the Admin task `seed-ncaa` (after `seed-content`) to import the NCAA men's basketball and football rule books, then `set-ai-config` and `generate-questions` (re-run until it reports nothing left) to make the question bank, and add `ncaa_football` to `LAUNCH_SPORTS`. The practice content in `seedData.mjs` is no longer seeded outside local development.
 3. **Mete + Claude:** run the staging smoke test (ranked quiz, cert exam, challenge) once staging is up.
 4. **Mete:** set up the production accounts and keys: a spend-capped Anthropic key, VAPID keys and the push relay identity.
 5. **Mete:** ship Android and iOS. The iOS project, in-app sign-in and release workflows are built (§7); what's left is the Apple and Google accounts and the secrets listed in `docs/MOBILE.md`, then a sign-in test on a real phone.

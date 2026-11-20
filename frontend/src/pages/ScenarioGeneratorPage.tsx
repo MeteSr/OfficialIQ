@@ -6,6 +6,7 @@ import { useAuthStore } from "../store/authStore";
 import { contentService, type Article, type Sport } from "../services/content";
 import { aiProxyService } from "../services/aiProxy";
 import { questionService, type Difficulty } from "../services/question";
+import { ruleSections } from "../lib/questionGen";
 
 type GeneratedQuestion = {
   stem: string;
@@ -35,6 +36,7 @@ export default function ScenarioGeneratorPage() {
   const [sportId, setSportId] = useState("");
   const [articles, setArticles] = useState<Article[]>([]);
   const [articleId, setArticleId] = useState("");
+  const [sectionKey, setSectionKey] = useState("");
   const [instructions, setInstructions] = useState("");
   const [count, setCount] = useState(5);
 
@@ -82,14 +84,18 @@ export default function ScenarioGeneratorPage() {
     );
   }
 
+  const article = articles.find(a => a.id === articleId);
+  const sections = article ? ruleSections(article) : [];
+
   async function handleGenerate() {
     setGenerating(true);
     setError("");
     setParsed(null);
     setApprovals({});
     try {
-      const article = articles.find(a => a.id === articleId);
-      const articleContext = article ? `${article.title}\n${article.body}`.slice(0, 4000) : "";
+      // A section at a time, so the AI sees all of it (rules run to 40,000
+      // characters).
+      const articleContext = sections.find(s => s.key === sectionKey)?.context ?? sections[0]?.context ?? "";
       const raw = await aiProxyService.generateScenarios(instructions, articleContext, count);
       setRawResponse(raw);
       tryParse(raw);
@@ -176,7 +182,7 @@ export default function ScenarioGeneratorPage() {
             <div style={{ position: "relative" }}>
               <select
                 value={articleId}
-                onChange={e => setArticleId(e.target.value)}
+                onChange={e => { setArticleId(e.target.value); setSectionKey(""); }}
                 style={{ width: "100%", minHeight: 46, padding: "0 36px 0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontSize: 13, appearance: "none", cursor: "pointer" }}
               >
                 {articles.map(a => <option key={a.id} value={a.id}>Art. {Number(a.number)}</option>)}
@@ -185,6 +191,22 @@ export default function ScenarioGeneratorPage() {
             </div>
           </div>
         </div>
+
+        {/* Section of the rule */}
+        {sections.length > 1 && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontFamily: T.fontMono, fontWeight: 600, fontSize: 10, letterSpacing: "0.1em", color: T.faint }}>
+              {t("scenarioGen.sectionLabel").toUpperCase()}
+            </span>
+            <select
+              value={sectionKey || sections[0].key}
+              onChange={e => setSectionKey(e.target.value)}
+              style={{ width: "100%", minHeight: 46, padding: "0 12px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontFamily: T.font, fontSize: 13, cursor: "pointer" }}
+            >
+              {sections.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          </label>
+        )}
 
         {/* Instructions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

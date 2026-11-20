@@ -441,6 +441,7 @@
     "subtitle": "Generate, review, then approve into the question bank.",
     "sportLabel": "Sport",
     "articleLabel": "Article to ground questions in",
+    "sectionLabel": "Section of the rule",
     "instructionsLabel": "Instructions",
     "instructionsPlaceholder": "e.g. \"5 novel foul scenarios, difficulty: Advanced, focus on player-control fouls vs blocking fouls\"",
     "countLabel": "Count",

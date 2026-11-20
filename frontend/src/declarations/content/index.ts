@@ -198,6 +198,10 @@ export interface _SERVICE {
   'getMechanicsScenario' : ActorMethod<[string], [] | [MechanicsScenario]>,
   'getMySubmissions' : ActorMethod<[], Array<VideoSubmission>>,
   'isAdminCaller' : ActorMethod<[], boolean>,
+  /**
+   * / A sport's articles at a level, with those for every level (an empty
+   * / levelId: a rule book that covers them all).
+   */
   'listArticles' : ActorMethod<[string, string, string], Array<Article>>,
   'listMechanicsScenarios' : ActorMethod<[], Array<MechanicsScenario>>,
   'listPendingSubmissions' : ActorMethod<[], Result_9>,

@@ -31,10 +31,10 @@ describe("buildBasketball", () => {
   };
   const out = buildBasketball(edition, rulesBook, caseBook);
 
-  it("makes one article per rule and every rule's plays (none is an empty set)", () => {
+  it("makes one article per rule, for every level, and every rule's plays (none is an empty set)", () => {
     expect(out.articles).toEqual([
-      { sportId: "s_bb", levelId: "varsity", number: 1, title: "Court", body: "SECTION 1. A", language: "en" },
-      { sportId: "s_bb", levelId: "varsity", number: 2, title: "Officials", body: "SECTION 1. B", language: "en" },
+      { sportId: "s_bb", levelId: "", number: 1, title: "Court", body: "SECTION 1. A", language: "en" },
+      { sportId: "s_bb", levelId: "", number: 2, title: "Officials", body: "SECTION 1. B", language: "en" },
     ]);
     expect(out.plays).toEqual({
       "s_bb:art1": [],

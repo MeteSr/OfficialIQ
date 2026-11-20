@@ -112,14 +112,24 @@ After the first deploy, load the content with the **Admin task** workflow:
    casebook plays, the season's rule changes and points of emphasis, and a
    certification exam template per sport. Safe to re-run: each rule's
    plays and each sport's points of emphasis are replaced as a set.
-3. Make the question bank from the imported rules with the scenario
-   generator (Me → Scenario generator, admins only).
+3. `generate-questions` (after `set-ai-config`) makes the question bank
+   from the imported rules through the AI proxy: about five questions on
+   each rule section and one on each approved ruling, kept only when
+   complete and citing what they were made from. It stops after
+   `max_requests` AI requests (default 40); run it again to continue, as
+   finished sections are skipped. In all, both sports need about 470
+   requests. To make more on one section, use the scenario generator
+   (Me → AI Scenario Generator, admins only), which works a section at a
+   time and lets you review each question before it is saved.
 
 When the NCAA posts a new edition, `seed-ncaa` refuses it (the file's hash
 changed). Review it locally: download the new PDFs and run
 `node scripts/seed-ncaa.mjs --books <folder> --dry-run`. Settle any line-end
 hyphen it reports in `scripts/ncaa/hyphenation.json`, fix the parser if a
 check fails, then pin the new hashes and titles in `editions.mjs`.
+
+Imported rules have no level: each is listed for every level of its
+sport.
 
 `seed-content --practice` loads made-up NCAA practice content for local
 development only. It would overwrite imported rules.

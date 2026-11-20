@@ -247,6 +247,8 @@ service : {
   getMechanicsScenario: (id: text) -> (opt MechanicsScenario) query;
   getMySubmissions: () -> (vec VideoSubmission) query;
   isAdminCaller: () -> (bool) query;
+  /// A sport's articles at a level, with those for every level (an empty
+  /// levelId: a rule book that covers them all).
   listArticles: (sportId: text, levelId: text, language: text) ->
    (vec Article) query;
   listMechanicsScenarios: () -> (vec MechanicsScenario) query;

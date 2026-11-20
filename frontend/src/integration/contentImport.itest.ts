@@ -66,3 +66,15 @@ describe("importing points of emphasis", () => {
     expect(err(await content.replacePointsOfEmphasis(sportId, "2030-31", [{ ...poe("X"), season: "2031-32" }]))).toMatch(/season/);
   });
 });
+
+describe("an article for every level", () => {
+  it("lists an article with no level under each of the sport's levels", async () => {
+    const content = await adminCall("content");
+    ok(await content.upsertArticle({ sportId, levelId: "", number: 7n, title: "All levels", body: "Body.", language: "en" }));
+    ok(await content.upsertArticle({ sportId, levelId: "jv", number: 8n, title: "JV only", body: "Body.", language: "en" }));
+    const anyone = await canister("content", newIdentity());
+    const titles = async (level: string) => ((await anyone.listArticles(sportId, level, "en")) as { title: string }[]).map(a => a.title).sort();
+    expect(await titles("varsity")).toEqual(["All levels"]);
+    expect(await titles("jv")).toEqual(["All levels", "JV only"]);
+  });
+});

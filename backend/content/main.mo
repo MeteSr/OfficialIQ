@@ -643,6 +643,8 @@ persistent actor Content {
     VarArray.sliceToArray<Sport>(buf, 0, i)
   };
 
+  /// A sport's articles at a level, with those for every level (an empty
+  /// levelId: a rule book that covers them all).
   public query func listArticles(sportId : Text, levelId : Text, language : Text) : async [Article] {
     let buf = VarArray.repeat<Article>({
       id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = ""; language = "";
@@ -650,7 +652,7 @@ persistent actor Content {
     }, Map.size(articles));
     var i = 0;
     for ((_, art) in Map.entries(articles)) {
-      if (art.sportId == sportId and art.levelId == levelId and art.language == language) {
+      if (art.sportId == sportId and (art.levelId == levelId or art.levelId == "") and art.language == language) {
         buf[i] := art;
         i += 1;
       };

@@ -1,9 +1,8 @@
 // Imports the NCAA men's basketball and football rule books into the content
 // and exam canisters, word for word: an article per rule, each rule's
 // approved rulings as casebook plays, the season's rule changes and points
-// of emphasis, and a certification exam template per sport. Questions are
-// not imported: admins make them from the imported rules with the scenario
-// generator.
+// of emphasis, and a certification exam template per sport. The question
+// bank is made from the imported rules afterwards (generate-questions.mjs).
 //
 // The repository holds no NCAA text. This downloads the NCAA's PDFs, checks
 // each against the edition pinned in ncaa/editions.mjs, extracts the text
@@ -176,7 +175,7 @@ async function main() {
   await ensureAdmin("content", content, principal);
   await ensureAdmin("exam", exam, principal);
   for (const r of read) await write(r.edition, r.built, content, exam);
-  console.log("Done. Make questions from the imported rules with the scenario generator.");
+  console.log("Done. Make the question bank with scripts/generate-questions.mjs.");
 }
 
 main().catch((err) => {

@@ -24,7 +24,9 @@ export function citedArticles(sportId, text, ruleNumbers) {
   return out;
 }
 
-const LEVEL_ID = "varsity"; // as the rest of the app keys NCAA content
+// A rule book covers every level of its sport: no level means all of them
+// (content.listArticles).
+const LEVEL_ID = "";
 
 function articlesAndPlays(sportId, rules, plays) {
   const articles = rules.map((r) => ({ sportId, levelId: LEVEL_ID, number: r.number, title: r.title, body: r.body, language: "en" }));

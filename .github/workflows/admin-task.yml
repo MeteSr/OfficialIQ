@@ -17,8 +17,12 @@ name: Admin task
 #                     the pinned editions and word for word, then writes
 #                     the rules, approved rulings, rule changes and points
 #                     of emphasis (frontend/scripts/seed-ncaa.mjs). Safe to
-#                     re-run. Make questions afterwards with the scenario
-#                     generator.
+#                     re-run.
+#   generate-questions — make the question bank from the imported rules with
+#                     the AI proxy (needs set-ai-config first): questions on
+#                     each rule section and each approved ruling. Stops
+#                     after `max_requests` AI requests; re-run to continue
+#                     (finished sections are skipped).
 #   set-ai-config   — store the Anthropic key from the ANTHROPIC_API_KEY
 #                     secret in ai_proxy (re-run to rotate it). The optional
 #                     ANTHROPIC_MODEL variable overrides the model.
@@ -40,11 +44,16 @@ on:
         description: "Task"
         required: true
         type: choice
-        options: [set-role, set-push-relay, seed-content, seed-ncaa, set-ai-config]
+        options: [set-role, set-push-relay, seed-content, seed-ncaa, generate-questions, set-ai-config]
       principal:
         description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none; unused otherwise)"
         required: false
         default: ""
+        type: string
+      max_requests:
+        description: "AI requests (generate-questions only; about 5 questions each, or \"all\")"
+        required: false
+        default: "40"
         type: string
       role:
         description: "Role (set-role only)"
@@ -71,6 +80,7 @@ jobs:
       TASK: ${{ inputs.task }}
       PRINCIPAL: ${{ inputs.principal }}
       ROLE: ${{ inputs.role }}
+      MAX_REQUESTS: ${{ inputs.max_requests }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -122,6 +132,14 @@ jobs:
               ;;
             seed-ncaa)
               node scripts/seed-ncaa.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            generate-questions)
+              if ! [[ "$MAX_REQUESTS" =~ ^([0-9]+|all)$ ]]; then
+                echo "::error::max_requests must be a number or \"all\"."
+                exit 1
+              fi
+              node --no-warnings scripts/generate-questions.mjs "$ENVIRONMENT" --max-requests "$MAX_REQUESTS"
               exit 0
               ;;
             set-ai-config)

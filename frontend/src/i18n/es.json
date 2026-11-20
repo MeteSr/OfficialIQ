@@ -441,6 +441,7 @@
     "subtitle": "Genera, revisa y luego aprueba para el banco de preguntas.",
     "sportLabel": "Deporte",
     "articleLabel": "Artículo en el que basar las preguntas",
+    "sectionLabel": "Sección de la regla",
     "instructionsLabel": "Instrucciones",
     "instructionsPlaceholder": "ej. \"5 escenarios de falta novedosos, dificultad: Avanzado, enfocados en faltas de control de jugador vs faltas de bloqueo\"",
     "countLabel": "Cantidad",
