@@ -31,7 +31,7 @@ import { idlFactory as contentIdl } from "../src/declarations/content/index.ts";
 import { idlFactory as examIdl } from "../src/declarations/exam/index.ts";
 import { parseBbox, stripRunning } from "./ncaa/text.mjs";
 import { BASKETBALL_LAYOUT, checkCaseBook, checkRulesBook, parseCaseBook, parseRulesBook } from "./ncaa/basketball.mjs";
-import { FOOTBALL_LAYOUT, checkFootballBook, parseFootballBook } from "./ncaa/football.mjs";
+import { FOOTBALL_LAYOUT, REPLAY_LAYOUT, checkFootballBook, checkReplayCaseBook, parseFootballBook, parseReplayCaseBook } from "./ncaa/football.mjs";
 import { buildBasketball, buildFootball, checkEdition } from "./ncaa/import.mjs";
 import { EDITIONS, LEVELS } from "./ncaa/editions.mjs";
 
@@ -84,10 +84,14 @@ async function readEdition(edition, work) {
     return { built, problems };
   }
   const f = extract(await fetchBook(edition.books.rules, work), "-layout");
+  const c = extract(await fetchBook(edition.books.caseBook, work), "-layout");
   const book = parseFootballBook(stripRunning(f.pages, FOOTBALL_LAYOUT), { overrides: OVERRIDES });
-  const built = buildFootball(edn, book);
+  const replay = parseReplayCaseBook(stripRunning(c.pages, REPLAY_LAYOUT), { overrides: OVERRIDES });
+  const built = buildFootball(edn, book, replay);
   const problems = checkEdition(edition.displayName, {
-    rules: book.rules, plays: built.plays, failed: checkFootballBook(book, f.plain), unresolved: book.report.unresolved,
+    rules: book.rules, plays: built.plays,
+    failed: [...checkFootballBook(book, f.plain), ...checkReplayCaseBook(replay, c.plain)],
+    unresolved: [...book.report.unresolved, ...replay.report.unresolved],
   });
   return { built, problems };
 }

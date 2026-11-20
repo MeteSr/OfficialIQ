@@ -41,6 +41,12 @@ export const EDITIONS = [
         url: `${S3}/football/rules/PRMFB_RulesBook.pdf`,
         sha256: "2a9e63b038b6efc70ad846487f33fdda175993c2229c911c3e06291ec74a9dd5",
       },
+      // Its play situations are Rule 12's (instant replay) rulings.
+      caseBook: {
+        title: "2026 NCAA Football Instant Replay Case Book",
+        url: `${S3}/football/rules/PRMFB_CaseBook.pdf`,
+        sha256: "fbe7f29d9ec5044057de7e6e2fd452c161b298994d44dbc86c8f68297f8a6b84",
+      },
     },
   },
 ];

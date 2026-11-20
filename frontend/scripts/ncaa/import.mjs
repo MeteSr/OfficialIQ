@@ -63,10 +63,11 @@ export function buildBasketball(edition, rulesBook, caseBook) {
   };
 }
 
-export function buildFootball(edition, book) {
+/** The rules book, and the Instant Replay Case Book's plays for Rule 12 (`replay`, optional). */
+export function buildFootball(edition, book, replay = { plays: [] }) {
   const numbers = book.rules.map((r) => r.number);
   return {
-    ...articlesAndPlays(edition.sportId, book.rules, book.plays),
+    ...articlesAndPlays(edition.sportId, book.rules, [...book.plays, ...replay.plays]),
     ruleChanges: book.changes.map((c) => change(edition, c.citation, c.text, c.text)),
     emphasis: emphasis(edition, book.emphasis, numbers),
   };

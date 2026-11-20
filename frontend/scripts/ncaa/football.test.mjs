@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stripRunning } from "./text.mjs";
-import { checkFootballBook, FOOTBALL_LAYOUT, parseFootballBook } from "./football.mjs";
+import { checkFootballBook, checkReplayCaseBook, FOOTBALL_LAYOUT, parseFootballBook, parseReplayCaseBook } from "./football.mjs";
 
 // Invented text in the layout of the NCAA football rules book. The real
 // book is only read at seed time; none of its text is in the repo.
@@ -87,6 +87,8 @@ const pages = [
     G("Fouls by a team after the"),
     L("snap:"),
     G("III. A ball is old. RULING: Keep it."),
+    G("Note: Old balls are"),
+    L("fine."),
     G("IV 1/10 @ A-25. A ball is new. RULING:"),
     L("Use it.", 63),
     G("VI Not next, so a heading."),
@@ -140,12 +142,15 @@ describe("parseFootballBook", () => {
       { ruleNumber: 1, citation: "A.R. 1-2-1-II", scenario: "A team paints it blue.", ruling: "Illegal. It must be green." },
       { ruleNumber: 1, citation: "A.R. 1-3-2-I", scenario: "A ball is flat.", ruling: "Replace it." },
       { ruleNumber: 1, citation: "A.R. 1-3-2-II", scenario: "A ball is wet.", ruling: "Dry it [if it is wet.]" },
-      { ruleNumber: 1, citation: "A.R. 1-3-2-III", scenario: "A ball is old.", ruling: "Keep it." },
-      { ruleNumber: 1, citation: "A.R. 1-3-2-IV", scenario: "1/10 @ A-25. A ball is new.", ruling: "Use it." },
+      { ruleNumber: 1, citation: "A.R. 1-3-2-III", scenario: "Fouls by a team after the snap:\nA ball is old.", ruling: "Keep it.\nNote: Old balls are fine.", lead: "Fouls by a team after the snap:" },
+      { ruleNumber: 1, citation: "A.R. 1-3-2-IV", scenario: "Fouls by a team after the snap:\n1/10 @ A-25. A ball is new.", ruling: "Use it.", lead: "Fouls by a team after the snap:" },
       { ruleNumber: 2, citation: "A.R. 2-1-1-I", scenario: "Is a term a term?", ruling: "Yes." },
       { ruleNumber: 2, citation: "A.R. 2-1-1-II", scenario: "Two parts:\n1. A term.", ruling: "Yes.\n2. A word. RULING: No." },
     ]);
-    expect(book.report.headings).toEqual(expect.arrayContaining(["Balls and Other Things—ARTICLE 2", "Fouls by a team after the snap:", "VI Not next, so a heading."]));
+    expect(book.report.headings).toEqual(expect.arrayContaining(["Balls and Other Things—ARTICLE 2", "VI Not next, so a heading."]));
+    expect(book.report.headings).not.toContain("Fouls by a team after the snap:");
+    expect(book.report.leads).toEqual(["Fouls by a team after the snap:"]);
+    expect(book.report.notes).toEqual(["A.R. 1-3-2-III"]);
   });
 });
 
@@ -164,7 +169,7 @@ const text = raw(
     "ARTICLE 1. A term is a term (see", "Appendix A).", "Appendix A", "Not a rule."],
   ["Part III:", "Interpretations", "RULE 1", "The Game, Field", "and Equipment", "SECTION 2. THE FIELD", "Dimensions and Markings—ARTICLE 1",
     "Approved Ruling 1-2-1", "I. A team paints the field red.", "RULING: Legal.", "II.", "A team paints it blue. RULING:", "Illegal. It must be",
-    "green.", "Balls and", "Other Things—ARTICLE 2", "Approved Ruling 1-3-2", "I. A ball is flat. RULING: Replace it.", "II. A ball is wet. RULING: Dry it [if it", "is wet.]", "Fouls by a team after the", "snap:", "III. A ball is old. RULING: Keep it.", "IV     1/10 @ A-25. A ball is new. RULING:", "Use it.", "VI Not next, so a heading.", "Wet Balls—ARTICLE 3", "RULE 2", "Definitions",
+    "green.", "Balls and", "Other Things—ARTICLE 2", "Approved Ruling 1-3-2", "I. A ball is flat. RULING: Replace it.", "II. A ball is wet. RULING: Dry it [if it", "is wet.]", "Fouls by a team after the", "snap:", "III. A ball is old. RULING: Keep it.", "Note: Old balls are", "fine.", "IV     1/10 @ A-25. A ball is new. RULING:", "Use it.", "VI Not next, so a heading.", "Wet Balls—ARTICLE 3", "RULE 2", "Definitions",
     "SECTION 1. TERMS", "Approved Ruling 2-1-1", "I. Is a term a term? RULING: Yes.", "II. Two parts:", "1. A term. RULING: Yes.", "2. A word. RULING: No.", "Index to Rules", "Term"],
 );
 
@@ -191,5 +196,66 @@ describe("FOOTBALL_LAYOUT", () => {
       at(39.8, "Part III: / KicksFI-36"), at(39.8, "Index to Rules"), at(61, "Body."), at(567.9, "FI-4"),
     ] }], FOOTBALL_LAYOUT);
     expect(kept[0].lines.map(l => l.words.join(" "))).toEqual(["Index to Rules", "Body."]);
+  });
+});
+
+describe("parseReplayCaseBook", () => {
+  // The Instant Replay Case Book's play situations: everything at the
+  // margin, numbered plays in sequence under topic headings.
+  const replay = [
+    page(1, L("Contents"), L("PART III: 2030 PLAY SITUATIONS")),
+    page(2,
+      G("PART III: 2030 PLAY"),
+      G("SITUATIONS"),
+      G("Free Kicks"),
+      G("Note: In each play the kick is at the A-35."),
+      G("1. Touching a kick"),
+      G("A80 touches the ball. Is it"),
+      L("reviewable? RULING: Yes. Overturn (Rule 12-3)."),
+      G("2. Another kick"),
+      G("The kick goes out of bounds."),
+      G("RULING: Reviewable. B ball:"),
+      L("1. at the B-35; or"),
+      L("2. a rekick."),
+      G("NON-REVIEWABLE KICKS"),
+      G("3. Late flag"),
+      G("A flag comes in late. RULING: Not"),
+      L("reviewable."),
+      G("Note: Flags are never reviewed."),
+      G("Runs"),
+      G("4. Runner down"),
+      G("A22 is down. RULING: Reviewable."),
+      G("5. Contact to the head or neck of a"),
+      L("defenseless player"),
+      G("B12 hits A80. RULING: Foul."),
+    ),
+  ];
+  const r = parseReplayCaseBook(replay);
+
+  it("reads each numbered play, with the lead-in that applies to its group", () => {
+    expect(r.plays).toEqual([
+      { ruleNumber: 12, citation: "Instant Replay Case Book 1 (Touching a kick)", scenario: "Note: In each play the kick is at the A-35.\nA80 touches the ball. Is it reviewable?", ruling: "Yes. Overturn (Rule 12-3).", lead: "Note: In each play the kick is at the A-35." },
+      { ruleNumber: 12, citation: "Instant Replay Case Book 2 (Another kick)", scenario: "Note: In each play the kick is at the A-35.\nThe kick goes out of bounds.", ruling: "Reviewable. B ball: 1. at the B-35; or 2. a rekick.", lead: "Note: In each play the kick is at the A-35." },
+      { ruleNumber: 12, citation: "Instant Replay Case Book 3 (Late flag)", scenario: "A flag comes in late.", ruling: "Not reviewable.\nNote: Flags are never reviewed.", lead: "" },
+      { ruleNumber: 12, citation: "Instant Replay Case Book 4 (Runner down)", scenario: "A22 is down.", ruling: "Reviewable.", lead: "" },
+      { ruleNumber: 12, citation: "Instant Replay Case Book 5 (Contact to the head or neck of a defenseless player)", scenario: "B12 hits A80.", ruling: "Foul.", lead: "" },
+    ]);
+    expect(r.report.headings).toEqual(["Free Kicks", "NON-REVIEWABLE KICKS", "Runs"]);
+  });
+
+  it("passes the word-for-word check, and names a play that differs", () => {
+    const text = raw(
+      ["Contents", "PART III: 2030 PLAY SITUATIONS", "", "1"],
+      ["PART III: 2030 PLAY", "SITUATIONS", "Free Kicks", "Note: In each play the kick is at the A-35.", "1. Touching a kick",
+        "A80 touches the ball. Is it", "reviewable? RULING: Yes. Overturn (Rule 12-3).", "2. Another kick", "The kick goes out of bounds.",
+        "RULING: Reviewable. B ball:", "1. at the B-35; or", "2. a rekick.", "NON-REVIEWABLE KICKS", "3. Late flag",
+        "A flag comes in late. RULING: Not", "reviewable.", "Note: Flags are never reviewed.", "Runs", "4. Runner down",
+        "A22 is down. RULING: Reviewable.", "5. Contact to the head or neck of a", "defenseless player", "B12 hits A80. RULING: Foul.", "", "36"],
+    );
+    expect(checkReplayCaseBook(r, text)).toEqual([]);
+    const changed = structuredClone(r);
+    changed.plays[2].ruling = "Not reviewable.";
+    changed.plays[0].scenario = changed.plays[0].scenario.replace("Is it", "Was it");
+    expect(checkReplayCaseBook(changed, text)).toEqual(["Instant Replay Case Book 1 (Touching a kick)", "Instant Replay Case Book 3 (Late flag)"]);
   });
 });

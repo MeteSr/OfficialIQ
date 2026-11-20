@@ -65,7 +65,12 @@ describe("buildFootball", () => {
     plays: [{ ruleNumber: 9, citation: "A.R. 9-1-3-I", scenario: "Facts.", ruling: "Foul." }],
     report: { unresolved: [] },
   };
-  const out = buildFootball({ sportId: "s_fb", season: "2030-31", source: "2030 Test Football Rules Book" }, book);
+  const replay = { plays: [{ ruleNumber: 12, citation: "Instant Replay Case Book 1 (Kick)", scenario: "Facts.", ruling: "Reviewable.", lead: "" }], report: { unresolved: [] } };
+  const out = buildFootball({ sportId: "s_fb", season: "2030-31", source: "2030 Test Football Rules Book" }, { ...book, rules: [...book.rules, { number: 12, title: "Instant Replay", body: "SECTION 1. R" }] }, replay);
+
+  it("adds the replay case book's plays to Rule 12", () => {
+    expect(out.plays["s_fb:art12"]).toEqual([{ articleId: "s_fb:art12", citation: "Instant Replay Case Book 1 (Kick)", scenario: "Facts.", ruling: "Reviewable.", diagram: [] }]);
+  });
 
   it("titles a change by its summary, which is all the table gives", () => {
     expect(out.ruleChanges).toEqual([{
