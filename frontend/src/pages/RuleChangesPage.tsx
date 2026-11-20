@@ -50,17 +50,21 @@ export default function RuleChangesPage() {
                 <div style={{ fontWeight: 700, fontSize: 16, margin: "2px 0 8px" }}>{c.title}</div>
                 {c.summary && <div style={{ fontSize: 14, marginBottom: 12 }}>{c.summary}</div>}
                 {c.oldText ? (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={label}>{t("ruleChanges.old")}</div>
-                    <del style={{ display: "block", fontSize: 14, color: T.muted, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{c.oldText}</del>
-                  </div>
+                  <>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={label}>{t("ruleChanges.old")}</div>
+                      <del style={{ display: "block", fontSize: 14, color: T.muted, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{c.oldText}</del>
+                    </div>
+                    <div>
+                      <div style={label}>{t("ruleChanges.new")}</div>
+                      <ins style={{ display: "block", textDecoration: "none", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", borderLeft: `3px solid ${fill.accent}`, paddingLeft: 10 }}>{c.newText}</ins>
+                    </div>
+                  </>
                 ) : (
-                  <div style={{ ...label, color: fill.attention }}>{t("ruleChanges.newRule")}</div>
+                  // No old wording to compare (an imported change is the
+                  // rulebook's own description of it): the text alone.
+                  <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", borderLeft: `3px solid ${fill.accent}`, paddingLeft: 10 }}>{c.newText}</div>
                 )}
-                <div>
-                  <div style={label}>{t("ruleChanges.new")}</div>
-                  <ins style={{ display: "block", textDecoration: "none", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", borderLeft: `3px solid ${fill.accent}`, paddingLeft: 10 }}>{c.newText}</ins>
-                </div>
                 {c.source && <div style={{ fontSize: 11, color: T.faint, marginTop: 10 }}>{t("ruleChanges.source", { source: c.source })}</div>}
               </article>
             ))}

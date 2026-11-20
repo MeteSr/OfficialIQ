@@ -12,7 +12,11 @@ export type Features = {
   sports: string[];
   /** Narrated rule articles (needs the ElevenLabs audio to be generated). */
   audio: boolean;
-  /** Officials submitting video clips for casebook plays (issue #29). */
+  /**
+   * Game clips (issue #29): the film room, uploads and "you make the call".
+   * Needs video hosting set up (scripts/set-video-config.mjs). The
+   * variable keeps its old name, FEATURE_CLIP_SUBMISSIONS.
+   */
   clipSubmissions: boolean;
   /** Rule assistant, AI drills and the scenario generator (needs the Anthropic key). */
   ai: boolean;

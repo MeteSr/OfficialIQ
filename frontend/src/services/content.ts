@@ -1,3 +1,4 @@
+import { forLevel } from "../lib/level";
 import { canisterId } from "../lib/icEnv";
 import { sportOffered } from "../lib/features";
 import { createActor } from "./actor";
@@ -148,13 +149,13 @@ export const contentService = {
   // keeps working unchanged — only pages that actually need translated
   // content pass it explicitly.
   async listArticles(sportId: string, levelId: string, language: string = "en"): Promise<Article[]> {
-    if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && a.levelId === levelId && a.language === language);
+    if (!CANISTER_ID) return MOCK_ARTICLES.filter(a => a.sportId === sportId && forLevel(a, levelId) && a.language === language);
     try {
       const articles = await actor().listArticles(sportId, levelId, language);
       cacheArticles(articles).catch(() => {});
       return articles;
     } catch (e) {
-      const cached = (await getCachedArticles()).filter(a => a.sportId === sportId && a.levelId === levelId && a.language === language);
+      const cached = (await getCachedArticles()).filter(a => a.sportId === sportId && forLevel(a, levelId) && a.language === language);
       if (cached.length > 0) return cached;
       throw e;
     }
@@ -209,10 +210,11 @@ export const contentService = {
     return actor().listRuleChanges(sportId, season);
   },
 
-  async listPointsOfEmphasis(season: string): Promise<PointOfEmphasis[]> {
+  /** A sport's points of emphasis for a season (from its rulebook import). */
+  async listPointsOfEmphasis(sportId: string, season: string): Promise<PointOfEmphasis[]> {
     if (!CANISTER_ID) return [];
     try {
-      return await actor().listPointsOfEmphasis(season);
+      return await actor().listSportPointsOfEmphasis(sportId, season);
     } catch {
       return [];
     }

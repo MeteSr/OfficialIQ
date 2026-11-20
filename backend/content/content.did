@@ -1,3 +1,8 @@
+type Visibility = 
+ variant {
+   association: text;
+   everyone;
+ };
 type VideoSubmission = 
  record {
    citation: text;
@@ -14,6 +19,12 @@ type SubmissionStatus =
    Approved;
    Pending;
    Rejected;
+ };
+type Status = 
+ variant {
+   approved;
+   pending;
+   rejected;
  };
 type SportLevel = 
  record {
@@ -77,18 +88,21 @@ type RuleChange =
  };
 type Result_9 = 
  variant {
-   err: RuleChangeError;
-   ok;
+   err: text;
+   ok: Clip;
  };
 type Result_8 = 
  variant {
    err: text;
-   ok: vec VideoSubmission;
+   ok;
  };
 type Result_7 = 
  variant {
    err: text;
-   ok;
+   ok: record {
+         uploadId: text;
+         uploadUrl: text;
+       };
  };
 type Result_6 = 
  variant {
@@ -114,6 +128,34 @@ type Result_2 =
  variant {
    err: text;
    ok: PointOfEmphasis;
+ };
+type Result_14 = 
+ variant {
+   err: text;
+   ok: record {
+         clip: Clip;
+         url: text;
+       };
+ };
+type Result_13 = 
+ variant {
+   err: RuleChangeError;
+   ok;
+ };
+type Result_12 = 
+ variant {
+   err: text;
+   ok: vec Clip;
+ };
+type Result_11 = 
+ variant {
+   err: text;
+   ok: vec VideoSubmission;
+ };
+type Result_10 = 
+ variant {
+   err: text;
+   ok: ImportResult;
  };
 type Result_1 = 
  variant {
@@ -170,6 +212,12 @@ type MechanicsScenario =
    title: text;
    zones: vec MechanicsZone;
  };
+type ImportResult = 
+ record {
+   added: nat;
+   removed: nat;
+   updated: nat;
+ };
 type DiagramPlayer = 
  record {
    id: text;
@@ -188,6 +236,54 @@ type CourtDiagram =
  record {
    arrows: vec DiagramArrow;
    players: vec DiagramPlayer;
+ };
+type ClipQuestion = 
+ record {
+   choices: vec Choice;
+   correctId: text;
+   explanation: text;
+   stem: text;
+ };
+type ClipInput = 
+ record {
+   articleId: text;
+   callAtSec: opt nat;
+   description: text;
+   playId: opt text;
+   question: opt ClipQuestion;
+   rightsAttested: bool;
+   sectionKey: opt text;
+   sportId: text;
+   title: text;
+   uploadId: text;
+   visibility: Visibility;
+ };
+type Clip = 
+ record {
+   articleId: text;
+   callAtSec: opt nat;
+   createdAt: int;
+   description: text;
+   id: text;
+   playId: opt text;
+   question: opt ClipQuestion;
+   reviewedBy: opt principal;
+   rights: record {
+             attestedAt: int;
+             statement: text;
+           };
+   sectionKey: opt text;
+   sportId: text;
+   status: Status;
+   title: text;
+   uploadId: text;
+   uploader: principal;
+   visibility: Visibility;
+ };
+type Choice = 
+ record {
+   id: text;
+   "text": text;
  };
 type CasebookPlay = 
  record {
@@ -225,21 +321,39 @@ type Article =
  };
 service : {
   approveSubmission: (id: text, playId: text) -> (Result_6);
-  deleteRuleChange: (id: text) -> (Result_9);
+  /// A clip and a signed MP4 link to play it, for a viewer who may see it.
+  clipPlayback: (id: text) -> (Result_14);
+  /// Describes an uploaded clip, for review. The uploader must be a member
+  /// of the association a clip is for.
+  createClip: (input: ClipInput) -> (Result_9);
+  /// Removes a clip (its uploader or a reviewer), and its video.
+  deleteClip: (id: text) -> (Result_8);
+  deleteRuleChange: (id: text) -> (Result_13);
   /// Called by the user canister when an official deletes their account:
   /// deletes their clip submissions that weren't used. An approved clip is
   /// already part of a casebook play, so it stays, with the submitter
   /// replaced by the anonymous principal. Safe to repeat.
-  forgetUser: (p: principal) -> (Result_7);
+  forgetUser: (p: principal) -> (Result_8);
   getArticle: (id: ArticleId) -> (opt Article) query;
   getArticleAudio: (id: ArticleId) -> (opt blob) query;
   getMechanicsScenario: (id: text) -> (opt MechanicsScenario) query;
   getMySubmissions: () -> (vec VideoSubmission) query;
   isAdminCaller: () -> (bool) query;
+  /// A sport's articles at a level, with those for every level (an empty
+  /// levelId: a rule book that covers them all).
   listArticles: (sportId: text, levelId: text, language: text) ->
    (vec Article) query;
+  /// An association's clips, for its members: approved ones, and those
+  /// waiting for review for its coordinator.
+  listAssociationClips: (associationId: text) -> (Result_12);
+  /// Approved clips for everyone on a rule (or a whole sport, with articleId
+  /// null), with the caller's own clips waiting for review.
+  listClips: (sportId: text, articleId: opt text) -> (vec Clip) query;
+  /// The clips the caller reviews that are waiting: for an admin, those for
+  /// everyone; for a coordinator, their associations'.
+  listClipsToReview: () -> (vec Clip);
   listMechanicsScenarios: () -> (vec MechanicsScenario) query;
-  listPendingSubmissions: () -> (Result_8) query;
+  listPendingSubmissions: () -> (Result_11) query;
   listPlays: (articleId: ArticleId) -> (vec CasebookPlay) query;
   /// The plays of several articles in one call (offline sync used to make
   /// one listPlays call per article).
@@ -247,16 +361,40 @@ service : {
   listPointsOfEmphasis: (season: text) -> (vec PointOfEmphasis) query;
   /// A sport's rule changes for a season (e.g. "2026-27"), oldest first.
   listRuleChanges: (sportId: text, season: text) -> (vec RuleChange) query;
+  /// A sport's points of emphasis for a season, oldest first (those
+  /// imported for it with replacePointsOfEmphasis).
+  listSportPointsOfEmphasis: (sportId: text, season: text) ->
+   (vec PointOfEmphasis) query;
   listSports: () -> (vec Sport) query;
   metrics: () -> (record {
                     articleCount: nat;
                     playCount: nat;
                   }) query;
   rejectSubmission: (id: text) -> (Result_6);
-  setAdmin: (p: principal) -> (Result_7);
-  setArticleAudio: (id: ArticleId, audio: blob) -> (Result_7);
+  /// Replaces an article's approved rulings with `items` (a rulebook
+  /// import). A play whose citation is in `items` keeps its id, audio and
+  /// video and takes the new wording; the article's other plays are
+  /// removed. Running the same import twice changes nothing. Admin only.
+  replacePlays: (articleId: ArticleId, items: vec PlayInput) -> (Result_10);
+  /// Replaces a sport's points of emphasis for a season with `items` (a
+  /// rulebook import), matching by title: a match keeps its id and audio
+  /// and takes the new wording; the sport's others for the season are
+  /// removed. Admin only.
+  replacePointsOfEmphasis: (sportId: text, season: text, items:
+   vec PoeInput) -> (Result_10);
+  /// Approves or rejects a clip. Approving needs the video to have finished
+  /// processing, and turns on its MP4 rendition for playback.
+  reviewClip: (id: text, approve: bool) -> (Result_9);
+  setAdmin: (p: principal) -> (Result_8);
+  setArticleAudio: (id: ArticleId, audio: blob) -> (Result_8);
   setPlayVideo: (id: text, url: text) -> (Result_3);
-  setPoeAudio: (id: PoeId, audio: blob) -> (Result_7);
+  setPoeAudio: (id: PoeId, audio: blob) -> (Result_8);
+  /// Stores the Cloudflare Stream account (scripts/set-video-config.mjs). Admin only.
+  setVideoConfig: (accountId: text, customerCode: text, apiToken: text) ->
+   (Result_8);
+  /// A one-time link to upload a clip's video straight to Cloudflare (a
+  /// POST of the file as form field "file"). Signed-in officials, a few a day.
+  startClipUpload: () -> (Result_7);
   submitVideoClip: (citation: text, clipUrl: text) -> (Result_6);
   upsertArticle: (input: ArticleInput) -> (Result_5);
   upsertMechanicsScenario: (input: ScenarioInput) -> (Result_4);
@@ -265,4 +403,5 @@ service : {
   /// Adds a change (id null) or replaces the one with `id`. Admin only.
   upsertRuleChange: (id: opt text, input: RuleChangeInput) -> (Result_1);
   upsertSport: (input: SportInput) -> (Result);
+  videoConfigured: () -> (bool) query;
 }

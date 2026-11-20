@@ -66,6 +66,10 @@ export interface TrainingRequirement {
   'hoursPerSeason' : bigint,
 }
 export interface _SERVICE {
+  /**
+   * / For other canisters: the associations `p` coordinates.
+   */
+  'coordinatedBy' : ActorMethod<[Principal], Array<string>>,
   'createAssignment' : ActorMethod<
     [string, string, Array<string>, boolean, bigint, Array<Principal>],
     Result_8
@@ -93,6 +97,16 @@ export interface _SERVICE {
   'getTrainingRequirement' : ActorMethod<[string], Result_4>,
   'isCoordinatorOf' : ActorMethod<[Principal, Principal], boolean>,
   'joinAssociation' : ActorMethod<[string], Result_3>,
+  /**
+   * / For other canisters (content's clip library): an official's place in
+   * / an association.
+   */
+  'membershipOf' : ActorMethod<
+    [string, Principal],
+    { 'member' : null } |
+      { 'none' : null } |
+      { 'coordinator' : null }
+  >,
   'metrics' : ActorMethod<
     [],
     { 'associationCount' : bigint, 'assignmentCount' : bigint }
@@ -185,6 +199,7 @@ export const Result = IDL.Variant({
 });
 
 export const idlService: IDL.ServiceClass = IDL.Service({
+  'coordinatedBy' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Text)], ['query']),
   'createAssignment' : IDL.Func(
       [
         IDL.Text,
@@ -218,6 +233,17 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       ['query'],
     ),
   'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
+  'membershipOf' : IDL.Func(
+      [IDL.Text, IDL.Principal],
+      [
+        IDL.Variant({
+          'member' : IDL.Null,
+          'none' : IDL.Null,
+          'coordinator' : IDL.Null,
+        }),
+      ],
+      ['query'],
+    ),
   'metrics' : IDL.Func(
       [],
       [
@@ -309,6 +335,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
+    'coordinatedBy' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Text)], ['query']),
     'createAssignment' : IDL.Func(
         [
           IDL.Text,
@@ -346,6 +373,17 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         ['query'],
       ),
     'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
+    'membershipOf' : IDL.Func(
+        [IDL.Text, IDL.Principal],
+        [
+          IDL.Variant({
+            'member' : IDL.Null,
+            'none' : IDL.Null,
+            'coordinator' : IDL.Null,
+          }),
+        ],
+        ['query'],
+      ),
     'metrics' : IDL.Func(
         [],
         [

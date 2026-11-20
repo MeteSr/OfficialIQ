@@ -58,3 +58,17 @@ suite("project", func() {
     expect.option(int(p, "n"), func i = debug_show i, func(a : Int, b : Int) : Bool = a == b).equal(?-3);
   });
 });
+
+suite("getObject", func() {
+  test("reads the fields of a nested object, as Cloudflare's {\"result\": {...}} replies have", func() {
+    let j = "{\"success\": true, \"result\": {\"uid\": \"abc123\", \"uploadURL\": \"https://upload.example/x\", \"meta\": {\"k\": \"v\"}}, \"errors\": []}";
+    let inner = switch (Json.fields(j)) { case (?f) Json.getObject(f, "result"); case null null };
+    let uid = switch inner { case (?r) Json.getText(r, "uid"); case null null };
+    expect.option(uid, func t = t, Text.equal).equal(?"abc123");
+    let url = switch inner { case (?r) Json.getText(r, "uploadURL"); case null null };
+    expect.option(url, func t = t, Text.equal).equal(?"https://upload.example/x");
+    // Arrays and scalars are not objects.
+    let errs = switch (Json.fields(j)) { case (?f) Json.getObject(f, "errors"); case null null };
+    expect.bool(errs == null).isTrue();
+  });
+});

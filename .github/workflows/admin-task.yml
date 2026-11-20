@@ -9,9 +9,23 @@ name: Admin task
 #   set-push-relay  — register the push relay's own identity. Leave
 #                     `principal` empty to use PUSH_RELAY_IDENTITY_PEM's
 #                     principal; "none" clears it.
-#   seed-content    — load the rules content, casebook plays and question
-#                     bank (frontend/scripts/seedData.mjs). Safe to re-run:
-#                     questions are only added to an empty bank.
+#   seed-content    — register the sports and load the officiating
+#                     mechanics (frontend/scripts/seedData.mjs). Safe to
+#                     re-run: questions are only added to an empty bank.
+#   seed-ncaa       — import the NCAA men's basketball and football rule
+#                     books: downloads the NCAA's PDFs, checks them against
+#                     the pinned editions and word for word, then writes
+#                     the rules, approved rulings, rule changes and points
+#                     of emphasis (frontend/scripts/seed-ncaa.mjs). Safe to
+#                     re-run.
+#   generate-questions — make the question bank from the imported rules with
+#                     the AI proxy (needs set-ai-config first): questions on
+#                     each rule section and each approved ruling. Stops
+#                     after `max_requests` AI requests; re-run to continue
+#                     (finished sections are skipped).
+#   set-video-config — store the Cloudflare Stream account for game clips
+#                     (CLOUDFLARE_STREAM_TOKEN secret; CLOUDFLARE_ACCOUNT_ID
+#                     and CLOUDFLARE_STREAM_CUSTOMER_CODE variables).
 #   set-ai-config   — store the Anthropic key from the ANTHROPIC_API_KEY
 #                     secret in ai_proxy (re-run to rotate it). The optional
 #                     ANTHROPIC_MODEL variable overrides the model.
@@ -33,11 +47,16 @@ on:
         description: "Task"
         required: true
         type: choice
-        options: [set-role, set-push-relay, seed-content, set-ai-config]
+        options: [set-role, set-push-relay, seed-content, seed-ncaa, generate-questions, set-ai-config, set-video-config]
       principal:
         description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none; unused otherwise)"
         required: false
         default: ""
+        type: string
+      max_requests:
+        description: "AI requests (generate-questions only; about 5 questions each, or \"all\")"
+        required: false
+        default: "40"
         type: string
       role:
         description: "Role (set-role only)"
@@ -64,6 +83,7 @@ jobs:
       TASK: ${{ inputs.task }}
       PRINCIPAL: ${{ inputs.principal }}
       ROLE: ${{ inputs.role }}
+      MAX_REQUESTS: ${{ inputs.max_requests }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -78,6 +98,10 @@ jobs:
 
       - name: Install frontend deps
         run: npm ci --prefix frontend --no-audit --no-fund
+
+      - name: Install pdftotext
+        if: inputs.task == 'seed-ncaa'
+        run: sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
 
       - name: Resolve the push relay principal
         if: inputs.task == 'set-push-relay' && inputs.principal == ''
@@ -101,12 +125,35 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ inputs.task == 'set-ai-config' && secrets.ANTHROPIC_API_KEY || '' }}
           ANTHROPIC_MODEL: ${{ inputs.task == 'set-ai-config' && vars.ANTHROPIC_MODEL || '' }}
+          CLOUDFLARE_STREAM_TOKEN: ${{ inputs.task == 'set-video-config' && secrets.CLOUDFLARE_STREAM_TOKEN || '' }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ inputs.task == 'set-video-config' && vars.CLOUDFLARE_ACCOUNT_ID || '' }}
+          CLOUDFLARE_STREAM_CUSTOMER_CODE: ${{ inputs.task == 'set-video-config' && vars.CLOUDFLARE_STREAM_CUSTOMER_CODE || '' }}
         run: |
           # Inputs arrive through env, never interpolated into the script.
           cd frontend
           case "$TASK" in
             seed-content)
               node scripts/seed-content.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            seed-ncaa)
+              node scripts/seed-ncaa.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            generate-questions)
+              if ! [[ "$MAX_REQUESTS" =~ ^([0-9]+|all)$ ]]; then
+                echo "::error::max_requests must be a number or \"all\"."
+                exit 1
+              fi
+              node --no-warnings scripts/generate-questions.mjs "$ENVIRONMENT" --max-requests "$MAX_REQUESTS"
+              exit 0
+              ;;
+            set-video-config)
+              if [ -z "$CLOUDFLARE_STREAM_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$CLOUDFLARE_STREAM_CUSTOMER_CODE" ]; then
+                echo "::error::Set the CLOUDFLARE_STREAM_TOKEN secret and the CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_CUSTOMER_CODE variables on this environment (docs/DEPLOYMENT.md, Video hosting)."
+                exit 1
+              fi
+              node --no-warnings scripts/set-video-config.mjs "$ENVIRONMENT"
               exit 0
               ;;
             set-ai-config)

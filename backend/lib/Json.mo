@@ -1,7 +1,8 @@
 /// Just enough JSON to read flat fields from an API response (Stripe's, in
-/// lib/Billing.mo): the scalar fields at the top level of an object. Nested
-/// objects and arrays are skipped whole, so a key inside them can never be
-/// mistaken for a top-level one. Unit-tested in test/Json.test.mo.
+/// lib/Billing.mo; Cloudflare's, in lib/Clips.mo): the scalar fields at the
+/// top level of an object, and a nested object's fields on request
+/// (getObject). Arrays are skipped whole, and a key inside a nested value
+/// can never be mistaken for a top-level one. Unit-tested in test/Json.test.mo.
 import Char "mo:core/Char";
 import Int "mo:core/Int";
 import List "mo:core/List";
@@ -15,7 +16,8 @@ module {
     #int : Int;
     #bool : Bool;
     #null_;
-    #other; // a nested object or array, or a non-integer number
+    #obj : Text; // a nested object, as its raw JSON (read it with getObject)
+    #other; // an array, or a non-integer number
   };
 
   public type Fields = [(Text, Value)];
@@ -124,7 +126,15 @@ module {
     func value() : ?Value {
       switch (peek()) {
         case (?'\"') switch (str()) { case (?t) ?#text(t); case null null };
-        case (?'{' or ?'[') if (skipNested()) ?#other else null;
+        case (?'{') {
+          let start = i;
+          if (not skipNested()) return null;
+          var raw = "";
+          var k = start;
+          while (k < i) { raw #= cs[k].toText(); k += 1 };
+          ?#obj(raw)
+        };
+        case (?'[') if (skipNested()) ?#other else null;
         case (?'t') if (word("true")) ?#bool(true) else null;
         case (?'f') if (word("false")) ?#bool(false) else null;
         case (?'n') if (word("null")) ?#null_ else null;
@@ -163,6 +173,9 @@ module {
   public func getText(f : Fields, key : Text) : ?Text = switch (get(f, key)) { case (?#text(t)) ?t; case _ null };
 
   public func getInt(f : Fields, key : Text) : ?Int = switch (get(f, key)) { case (?#int(v)) ?v; case _ null };
+
+  /// The fields of a nested object (`{"result": {...}}`).
+  public func getObject(f : Fields, key : Text) : ?Fields = switch (get(f, key)) { case (?#obj(raw)) fields(raw); case _ null };
 
   func escape(t : Text) : Text {
     var out = "";

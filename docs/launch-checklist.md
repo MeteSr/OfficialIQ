@@ -10,7 +10,7 @@ CI and docs. Update a line when it changes, rather than adding a new one.
 Nothing below is blocked on code. The app can't go live until these are done:
 
 1. **Mete:** fund the deploy identity with cycles and set `ICP_IDENTITY_PEM` on the `staging` environment. Staging has never deployed: every "Deploy (staging)" run so far, including the one for #53, stopped at "Skip until the deploy identity is configured".
-2. **Mete:** confirm the rights to the NCAA rules content, or replace it with licensed text. The seed data says it was written from scratch for development (`frontend/scripts/seedData.mjs`, issue #1).
+2. **Mete:** run the Admin task `seed-ncaa` (after `seed-content`) to import the NCAA men's basketball and football rule books, then `set-ai-config` and `generate-questions` (re-run until it reports nothing left) to make the question bank, and add `ncaa_football` to `LAUNCH_SPORTS`. The practice content in `seedData.mjs` is no longer seeded outside local development.
 3. **Mete + Claude:** run the staging smoke test (ranked quiz, cert exam, challenge) once staging is up.
 4. **Mete:** set up the production accounts and keys: a spend-capped Anthropic key, VAPID keys and the push relay identity.
 5. **Mete:** ship Android and iOS. The iOS project, in-app sign-in and release workflows are built (§7); what's left is the Apple and Google accounts and the secrets listed in `docs/MOBILE.md`, then a sign-in test on a real phone.
@@ -44,7 +44,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | Monthly quiz "days left" was hardcoded to 4 (and said 25 questions instead of 50) | Now counted from the date (`lib/monthlyWindow.ts`) | Ready | Claude |
 | Weekly quiz "agree %" was hardcoded to 68% | Now real, from `question.getAnswerRates`; hidden until a question has 10 answers | Ready | Claude |
 | Services fall back to stub data when a canister ID is missing | `frontend/src/lib/icEnv.ts` | Ready (only affects dev builds; staging smoke test confirms) | Claude |
-| Case-play video clips | Player and moderation queue built, no clips (issue #29) | Ready for launch: submissions hidden until `FEATURE_CLIP_SUBMISSIONS` is set | Mete |
+| Game clips (issue #29) | Film room, uploads to Cloudflare Stream, per-association clips, rights statement, review, "you make the call" built; no clips yet | Ready for launch hidden: set up video hosting (DEPLOYMENT.md, "Video hosting"), find footage, then set `FEATURE_CLIP_SUBMISSIONS` | Mete |
 | Badges UI | Dropped in the design handoff; back on the Me page (Mete's call, 2026-11-18) | Ready | Claude |
 | Assigning-platform schedule sync | Manual entry works; no ArbiterSports/RefTown API (issue #30) | Ready for launch with manual entry | Mete |
 | French / Portuguese | Intentionally not offered | Ready (out of scope for launch) | Mete |
@@ -83,7 +83,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 
 | Item | Status | Owner |
 |---|---|---|
-| NCAA Men's Basketball content cleared for commercial use (issue #1, BUSINESS.md #1) | **Not ready, launch blocker** | Mete |
+| NCAA men's basketball and football rule text: imported word for word from the NCAA's own PDFs at seed time (`seed-ncaa`); none is in the repository. Mete cleared going ahead with both (issue #1, BUSINESS.md #1) | Ready in code; run `seed-ncaa` after deploy | Mete (run), Claude (built) |
 | FIBA / FIFA / World Rugby content (issue #50): needs licensed rulebooks; Claude won't write rules text without them | Not ready; launch can go NCAA-only if these sports are hidden | Mete |
 | NFHS Basketball is registered with no content | Ready: only `LAUNCH_SPORTS` (default `ncaa_basketball`) is offered | Claude |
 | Privacy policy and terms pages (both stores require a privacy policy URL) | Pages built at `/privacy` and `/terms`, linked from the Me tab and the landing page, with a draft written from what the app stores and sends (`frontend/src/legal/index.ts`). **Mete:** fill in the bracketed fields (operator, contact email, effective date, governing law), review (ideally with a lawyer), then set `LEGAL_DRAFT` to `false` | Mete (text), Claude (pages) |

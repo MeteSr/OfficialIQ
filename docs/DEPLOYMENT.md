@@ -95,13 +95,44 @@ second person's approval click on top of being started by hand.
 Canisters with admin-only methods (`content`, `question`, `exam`, `user`,
 `ranking`, `ai_proxy`) let only a **controller** set the first admin, so
 nobody can claim it on a freshly deployed canister before you do. The
-admin scripts (`seed-content`, `set-ai-config`, `generate-audio`,
+admin scripts (`seed-content`, `seed-ncaa`, `set-ai-config`, `generate-audio`,
 `send-push`) run as the active icp identity (or `ICP_IDENTITY`) and claim
 admin on first use — run them with the identity that deployed.
 
-After the first deploy, load the content with the **Admin task** workflow
-(`seed-content`). It is safe to re-run: articles and plays are upserted, and
-questions are only added while the bank is empty.
+After the first deploy, load the content with the **Admin task** workflow:
+
+1. `seed-content` registers the sports and loads the officiating mechanics.
+   Safe to re-run: questions are only added while the bank is empty.
+2. `seed-ncaa` imports the NCAA men's basketball and football rule books.
+   The repository holds no NCAA text: the task downloads the NCAA's PDFs,
+   checks each against the edition pinned in
+   `frontend/scripts/ncaa/editions.mjs`, extracts the text with pdftotext,
+   and checks it word for word against a second extraction before writing
+   anything. It writes an article per rule, each rule's approved rulings as
+   casebook plays, the season's rule changes and points of emphasis, and a
+   certification exam template per sport. Safe to re-run: each rule's
+   plays and each sport's points of emphasis are replaced as a set.
+3. `generate-questions` (after `set-ai-config`) makes the question bank
+   from the imported rules through the AI proxy: about five questions on
+   each rule section and one on each approved ruling, kept only when
+   complete and citing what they were made from. It stops after
+   `max_requests` AI requests (default 40); run it again to continue, as
+   finished sections are skipped. In all, both sports need about 470
+   requests. To make more on one section, use the scenario generator
+   (Me → AI Scenario Generator, admins only), which works a section at a
+   time and lets you review each question before it is saved.
+
+When the NCAA posts a new edition, `seed-ncaa` refuses it (the file's hash
+changed). Review it locally: download the new PDFs and run
+`node scripts/seed-ncaa.mjs --books <folder> --dry-run`. Settle any line-end
+hyphen it reports in `scripts/ncaa/hyphenation.json`, fix the parser if a
+check fails, then pin the new hashes and titles in `editions.mjs`.
+
+Imported rules have no level: each is listed for every level of its
+sport.
+
+`seed-content --practice` loads made-up NCAA practice content for local
+development only. It would overwrite imported rules.
 
 The push relay is the exception: it runs as its own identity
 (`PUSH_RELAY_IDENTITY_PEM`) and never claims admin.
@@ -125,6 +156,34 @@ spend limit, used for nothing else, so a leaked key can cost at most that
 limit. Rotate it by re-running `set-ai-config` with the new key, then
 delete the old one in the Console.
 
+### Video hosting (game clips, issue #29)
+
+Game clips are uploaded to and played from **Cloudflare Stream**. Officials'
+browsers send the video straight to Cloudflare with a one-time link, and
+every clip plays only through a signed link (valid for an hour) that the
+content canister gives a viewer after checking they may see it: everyone,
+for a clip approved for everyone; members of the association, for an
+association's clip. Playback is the MP4 rendition, which the canister turns
+on when a clip is approved.
+
+1. In Cloudflare, enable Stream on the account and create an API token with
+   **Stream: Edit** on that account only. Note the account id and the
+   customer code (the `customer-<code>` part of the Stream playback host).
+2. On the environment, add the `CLOUDFLARE_STREAM_TOKEN` secret and the
+   `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_STREAM_CUSTOMER_CODE` variables.
+3. Run the **Admin task** `set-video-config`. Re-run it to rotate the token.
+4. Set `FEATURE_CLIP_SUBMISSIONS=true` and redeploy to show the film room.
+
+Like the Anthropic key, the token is in canister memory that the subnet's
+node operators could read, so keep it to Stream on that one account.
+Cloudflare bills by minutes stored and minutes delivered; each official can
+start 10 uploads a day, of at most 3 minutes each.
+
+Uploaders confirm they filmed the footage or may share it (the statement in
+`backend/lib/Clips.mo`), and every clip is reviewed before anyone else sees
+it: admins review clips for everyone, an association's coordinator reviews
+its clips, in the film room's "To review" list.
+
 ### 8. What the app shows (feature switches)
 
 Repository variables decide which parts of the app a build turns on
@@ -135,9 +194,9 @@ change one and redeploy (or re-run Mobile release) to apply it.
 
 | Variable | Default | Turns on |
 |---|---|---|
-| `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app |
+| `LAUNCH_SPORTS` | `ncaa_basketball` | Comma-separated sport ids offered in the app (`ncaa_basketball,ncaa_football` once both are imported) |
 | `FEATURE_AUDIO` | off | Narrated articles (after `generate-audio.sh` has run) |
-| `FEATURE_CLIP_SUBMISSIONS` | off | Officials submitting casebook video clips |
+| `FEATURE_CLIP_SUBMISSIONS` | off | Game clips: the film room, uploads and "you make the call" (after `set-video-config`) |
 | `FEATURE_AI` | on | Rule assistant and AI drills (needs the key from step 7) |
 | `FEATURE_WEB_PUSH` | on when the `VAPID_PUBLIC_KEY` secret exists | Streak notifications on the website |
 | `FEATURE_NATIVE_PUSH` | off | Streak notifications in the apps (docs/MOBILE.md, "Push notifications") |
@@ -199,8 +258,8 @@ season the page says so and Home shows nothing.
 Admins see a **Moderation Queue** row on the Me tab. It has the question
 reports officials send from a quiz ("Report a problem with this
 question"), the app's error log (crashes and failed loads, with nothing
-identifying the official), and, when clip submissions are on, clips
-waiting for review. Fix a reported question with the content tools, then
+identifying the official), and older clip-link submissions waiting for
+review. Uploaded game clips are reviewed in the film room instead. Fix a reported question with the content tools, then
 mark the report resolved.
 
 ## Day-to-day usage

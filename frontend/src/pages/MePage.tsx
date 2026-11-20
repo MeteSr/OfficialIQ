@@ -564,7 +564,7 @@ export default function MePage() {
           {features.ai && <NavRow label={t("me.aiPracticeDrills")} tag="AI" tagColor={fill.accent} path="/ai-drills" />}
           {features.ai && isAiAdmin && <NavRow label={t("me.aiScenarioGenerator")} tag="AI" tagColor={fill.accent} path="/ai-scenarios" />}
           {features.ai && <NavRow label={t("me.askRuleAssistant")} tag="AI" tagColor={fill.accent} path="/ask" />}
-          {features.clipSubmissions && <NavRow label={t("me.submitClip")} path="/submit-clip" />}
+          {features.clipSubmissions && <NavRow label={t("me.filmRoom")} path="/clips" />}
         </div>
 
         {/* People group */}

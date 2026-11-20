@@ -25,7 +25,7 @@ they win over older patterns in this file or the code. The weekly
 | Canister   | Responsibility |
 |------------|----------------|
 | **user**      | Profiles, roles (Official / Assessor / Admin), sport + level |
-| **content**   | Rule articles, casebook plays; keyed by `sportId:artN` |
+| **content**   | Rule articles, casebook plays, game clips (Cloudflare Stream outcalls); keyed by `sportId:artN` |
 | **question**  | MCQ bank; `sampleQuiz()` returns filtered question sets |
 | **exam**      | Generated exam sessions, share tokens, answer submission |
 | **ranking**   | ELO-based leaderboard (Friends / State / National), streak tracking |

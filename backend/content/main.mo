@@ -11,6 +11,9 @@ import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
 import Set "mo:core/Set";
 import Env "../lib/Env";
+import Clips "../lib/Clips";
+import Error "mo:core/Error";
+import Call "mo:ic/Call";
 
 persistent actor Content {
 
@@ -187,6 +190,11 @@ persistent actor Content {
 
   var sports : Map.Map<Text, Sport> = Map.empty<Text, Sport>();
 
+  // The sport each point of emphasis belongs to, for those imported with
+  // one (replacePointsOfEmphasis). Kept beside `poes` so the stored record
+  // doesn't change.
+  var poeSport : Map.Map<PoeId, Text> = Map.empty<PoeId, Text>();
+
   var nextPlayId : Nat = 0;
   var nextPoeId : Nat = 0;
   var nextScenarioId : Nat = 0;
@@ -277,6 +285,52 @@ persistent actor Content {
     #ok(play)
   };
 
+  /// How an import changed a set: records added, replaced in place, removed.
+  public type ImportResult = { added : Nat; updated : Nat; removed : Nat };
+
+  /// Replaces an article's approved rulings with `items` (a rulebook
+  /// import). A play whose citation is in `items` keeps its id, audio and
+  /// video and takes the new wording; the article's other plays are
+  /// removed. Running the same import twice changes nothing. Admin only.
+  public shared ({ caller }) func replacePlays(articleId : ArticleId, items : [PlayInput]) : async Result.Result<ImportResult, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    for (i in items.values()) {
+      if (i.articleId != articleId) return #err("articleId: every play must be for " # articleId);
+    };
+    let byCitation = Map.empty<Text, CasebookPlay>();
+    for ((_, p) in Map.entries(plays)) {
+      if (p.articleId == articleId) Map.add(byCitation, Text.compare, p.citation, p);
+    };
+    var added = 0;
+    var updated = 0;
+    let keep = Set.empty<Text>();
+    for (i in items.values()) {
+      switch (Map.get(byCitation, Text.compare, i.citation)) {
+        case (?old) {
+          Map.add(plays, Text.compare, old.id, { old with scenario = i.scenario; ruling = i.ruling; diagram = i.diagram });
+          Set.add(keep, Text.compare, old.id);
+          updated += 1;
+        };
+        case null {
+          let id = "p" # Nat.toText(nextPlayId);
+          nextPlayId += 1;
+          Map.add(plays, Text.compare, id, {
+            id; articleId; citation = i.citation; scenario = i.scenario; ruling = i.ruling;
+            audioUrl = null; diagram = i.diagram; videoUrl = null;
+          });
+          Map.add(byCitation, Text.compare, i.citation, { id; articleId; citation = i.citation; scenario = i.scenario; ruling = i.ruling; audioUrl = null; diagram = i.diagram; videoUrl = null });
+          Set.add(keep, Text.compare, id);
+          added += 1;
+        };
+      };
+    };
+    var removed = 0;
+    for ((_, p) in Map.entries(byCitation)) {
+      if (not Set.contains(keep, Text.compare, p.id)) { Map.remove(plays, Text.compare, p.id); removed += 1 };
+    };
+    #ok({ added; updated; removed })
+  };
+
   public shared ({ caller }) func setPlayVideo(id : Text, url : Text) : async Result.Result<CasebookPlay, Text> {
     if (not isAdmin(caller)) return #err("Admin only");
     switch (Map.get(plays, Text.compare, id)) {
@@ -337,6 +391,17 @@ persistent actor Content {
   /// replaced by the anonymous principal. Safe to repeat.
   public shared ({ caller }) func forgetUser(p : Principal) : async Result.Result<(), Text> {
     if (not Env.isCanister<system>(caller, "user")) return #err("User canister only");
+    // Their clips: approved ones stay without their name (as approved video
+    // submissions do); the rest, and unfinished uploads, go.
+    let theirClips = List.empty<Clips.Clip>();
+    for ((_, c) in Map.entries(clips)) { if (c.uploader == p) List.add(theirClips, c) };
+    for (c in List.values(theirClips)) {
+      if (c.status == #approved) Map.add(clips, Text.compare, c.id, { c with uploader = Principal.anonymous() })
+      else Map.remove(clips, Text.compare, c.id);
+    };
+    let theirUploads = List.empty<Text>();
+    for ((uid, u) in Map.entries(clipUploads)) { if (u.uploader == p) List.add(theirUploads, uid) };
+    for (uid in List.values(theirUploads)) Map.remove(clipUploads, Text.compare, uid);
     let theirs = List.empty<VideoSubmission>();
     for ((_, s) in Map.entries(submissions)) { if (s.submitter == p) List.add(theirs, s) };
     for (s in List.values(theirs)) {
@@ -363,6 +428,55 @@ persistent actor Content {
     };
     Map.add(poes, Text.compare, id, poe);
     #ok(poe)
+  };
+
+  /// Replaces a sport's points of emphasis for a season with `items` (a
+  /// rulebook import), matching by title: a match keeps its id and audio
+  /// and takes the new wording; the sport's others for the season are
+  /// removed. Admin only.
+  public shared ({ caller }) func replacePointsOfEmphasis(sportId : Text, season : Text, items : [PoeInput]) : async Result.Result<ImportResult, Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    for (i in items.values()) {
+      if (i.season != season) return #err("season: every point must be for " # season);
+    };
+    let byTitle = Map.empty<Text, PointOfEmphasis>();
+    for ((id, p) in Map.entries(poes)) {
+      if (p.season == season and Map.get(poeSport, Text.compare, id) == ?sportId) Map.add(byTitle, Text.compare, p.title, p);
+    };
+    var added = 0;
+    var updated = 0;
+    let keep = Set.empty<Text>();
+    for (i in items.values()) {
+      switch (Map.get(byTitle, Text.compare, i.title)) {
+        case (?old) {
+          Map.add(poes, Text.compare, old.id, { old with body = i.body; linkedArticleIds = i.linkedArticleIds });
+          Set.add(keep, Text.compare, old.id);
+          updated += 1;
+        };
+        case null {
+          let id = "poe" # Nat.toText(nextPoeId);
+          nextPoeId += 1;
+          let poe : PointOfEmphasis = {
+            id; season; title = i.title; body = i.body; linkedArticleIds = i.linkedArticleIds;
+            audioUrl = null; createdAt = Time.now();
+          };
+          Map.add(poes, Text.compare, id, poe);
+          Map.add(poeSport, Text.compare, id, sportId);
+          Map.add(byTitle, Text.compare, i.title, poe);
+          Set.add(keep, Text.compare, id);
+          added += 1;
+        };
+      };
+    };
+    var removed = 0;
+    for ((_, p) in Map.entries(byTitle)) {
+      if (not Set.contains(keep, Text.compare, p.id)) {
+        Map.remove(poes, Text.compare, p.id);
+        Map.remove(poeSport, Text.compare, p.id);
+        removed += 1;
+      };
+    };
+    #ok({ added; updated; removed })
   };
 
   public shared ({ caller }) func upsertMechanicsScenario(input : ScenarioInput) : async Result.Result<MechanicsScenario, Text> {
@@ -525,6 +639,17 @@ persistent actor Content {
     VarArray.sliceToArray<PointOfEmphasis>(buf, 0, i)
   };
 
+  /// A sport's points of emphasis for a season, oldest first (those
+  /// imported for it with replacePointsOfEmphasis).
+  public query func listSportPointsOfEmphasis(sportId : Text, season : Text) : async [PointOfEmphasis] {
+    let out = List.empty<PointOfEmphasis>();
+    for ((id, p) in Map.entries(poes)) {
+      if (p.season == season and Map.get(poeSport, Text.compare, id) == ?sportId) List.add(out, p);
+    };
+    List.sortInPlace(out, func(a : PointOfEmphasis, b : PointOfEmphasis) : { #less; #equal; #greater } = Int.compare(a.createdAt, b.createdAt));
+    List.toArray(out)
+  };
+
   public query func listSports() : async [Sport] {
     let buf = VarArray.repeat<Sport>({ id = ""; displayName = ""; levels = []; rulebookYear = "" }, Map.size(sports));
     var i = 0;
@@ -532,6 +657,8 @@ persistent actor Content {
     VarArray.sliceToArray<Sport>(buf, 0, i)
   };
 
+  /// A sport's articles at a level, with those for every level (an empty
+  /// levelId: a rule book that covers them all).
   public query func listArticles(sportId : Text, levelId : Text, language : Text) : async [Article] {
     let buf = VarArray.repeat<Article>({
       id = ""; sportId = ""; levelId = ""; number = 0; title = ""; body = ""; language = "";
@@ -539,7 +666,7 @@ persistent actor Content {
     }, Map.size(articles));
     var i = 0;
     for ((_, art) in Map.entries(articles)) {
-      if (art.sportId == sportId and art.levelId == levelId and art.language == language) {
+      if (art.sportId == sportId and (art.levelId == levelId or art.levelId == "") and art.language == language) {
         buf[i] := art;
         i += 1;
       };
@@ -598,6 +725,218 @@ persistent actor Content {
       if (s.status == #Pending) List.add(buf, s);
     };
     #ok(List.toArray(buf))
+  };
+
+  // ─── Clip library ──────────────────────────────────────────────────────────
+  // Game clips hosted on Cloudflare Stream (lib/Clips.mo has the rules and
+  // the API formats). An official uploads a file straight to Cloudflare
+  // with a one-time link from startClipUpload, then describes it with
+  // createClip: the rule (and section or ruling) it shows, an optional
+  // "you make the call" question at a point in the clip, who may see it
+  // (everyone, or one association's members), and that they have the right
+  // to share it. Admins review clips for everyone; an association's
+  // coordinator reviews its clips. Clips only ever play through a signed
+  // link that clipPlayback gives a viewer it has checked.
+
+  type VideoConfig = { accountId : Text; customerCode : Text; apiToken : Text };
+  var videoConfig : ?VideoConfig = null;
+  var clips : Map.Map<Text, Clips.Clip> = Map.empty<Text, Clips.Clip>();
+  var nextClipId : Nat = 0;
+  // Uploads started but not yet described: Cloudflare video id → uploader.
+  var clipUploads : Map.Map<Text, { uploader : Principal; startedAt : Int }> = Map.empty<Text, { uploader : Principal; startedAt : Int }>();
+  // Signed playback tokens, reused while fresh (one outcall per clip per ~hour).
+  transient let clipTokens : Map.Map<Text, { token : Text; mintedAt : Int }> = Map.empty<Text, { token : Text; mintedAt : Int }>();
+  transient let MAX_UPLOADS_PER_DAY : Nat = 10;
+  transient let DAY_NS : Int = 86_400_000_000_000;
+
+  /// Stores the Cloudflare Stream account (scripts/set-video-config.mjs). Admin only.
+  public shared ({ caller }) func setVideoConfig(accountId : Text, customerCode : Text, apiToken : Text) : async Result.Result<(), Text> {
+    if (not isAdmin(caller)) return #err("Admin only");
+    if (blank(accountId) or blank(customerCode) or blank(apiToken)) return #err("All three values are needed");
+    videoConfig := ?{ accountId; customerCode; apiToken };
+    Map.clear(clipTokens);
+    #ok(())
+  };
+
+  public query func videoConfigured() : async Bool { videoConfig != null };
+
+  /// A Cloudflare Stream API call, made by one replica (each replica would
+  /// otherwise create its own upload or token). The body on 200, else an error.
+  func stream(method : { #get; #post; #delete }, path : Text, body : Text) : async Result.Result<Text, Text> {
+    let cfg = switch videoConfig { case (?c) c; case null return #err("Video hosting isn't set up yet") };
+    let req = Call.httpRequest(Clips.API # cfg.accountId # "/stream" # path)
+      .withMethod(method)
+      .withHeader("authorization", "Bearer " # cfg.apiToken)
+      .withHeader("content-type", "application/json")
+      .withMaxResponseBytes(20_000)
+      .nonReplicated();
+    let resp = try {
+      await (if (body == "") req else req.withBody(Text.encodeUtf8(body))).send()
+    } catch (e) { return #err("Couldn't reach the video host: " # Error.message(e)) };
+    if (resp.status != 200) return #err("The video host refused the request (HTTP " # Nat.toText(resp.status) # ")");
+    #ok(switch (Text.decodeUtf8(resp.body)) { case (?t) t; case null "" })
+  };
+
+  type AssociationView = actor { membershipOf : query (Text, Principal) -> async Clips.Membership; coordinatedBy : query Principal -> async [Text] };
+
+  func association<system>() : ?AssociationView {
+    switch (Env.canisterId<system>("association")) { case (?id) ?(actor (id.toText()) : AssociationView); case null null }
+  };
+
+  func membership<system>(c : Clips.Clip, p : Principal) : async* Clips.Membership {
+    switch (c.visibility) {
+      case (#everyone) #none;
+      case (#association(a)) switch (association<system>()) {
+        case (?assoc) try { await assoc.membershipOf(a, p) } catch (_) { #none };
+        case null #none;
+      };
+    }
+  };
+
+  /// A one-time link to upload a clip's video straight to Cloudflare (a
+  /// POST of the file as form field "file"). Signed-in officials, a few a day.
+  public shared ({ caller }) func startClipUpload() : async Result.Result<{ uploadId : Text; uploadUrl : Text }, Text> {
+    if (Principal.isAnonymous(caller)) return #err("Sign in to upload a clip");
+    let since = Time.now() - DAY_NS;
+    var today = 0;
+    for ((_, u) in Map.entries(clipUploads)) { if (u.uploader == caller and u.startedAt > since) today += 1 };
+    for ((_, c) in Map.entries(clips)) { if (c.uploader == caller and c.createdAt > since) today += 1 };
+    if (today >= MAX_UPLOADS_PER_DAY) return #err("That's today's limit of clip uploads");
+    switch (await stream(#post, "/direct_upload", Clips.directUploadBody(Clips.MAX_DURATION_SEC))) {
+      case (#err(e)) #err(e);
+      case (#ok(body)) switch (Clips.parseDirectUpload(body)) {
+        case (?u) {
+          Map.add(clipUploads, Text.compare, u.uid, { uploader = caller; startedAt = Time.now() });
+          #ok({ uploadId = u.uid; uploadUrl = u.uploadUrl })
+        };
+        case null #err("The video host's reply wasn't understood");
+      };
+    }
+  };
+
+  /// Describes an uploaded clip, for review. The uploader must be a member
+  /// of the association a clip is for.
+  public shared ({ caller }) func createClip(input : Clips.ClipInput) : async Result.Result<Clips.Clip, Text> {
+    switch (Clips.validate(input)) { case (?field) return #err("invalid: " # field); case null {} };
+    switch (Map.get(clipUploads, Text.compare, input.uploadId)) {
+      case (?u) { if (u.uploader != caller) return #err("That upload isn't yours") };
+      case null return #err("Unknown upload: start one with startClipUpload");
+    };
+    if (Map.get(articles, Text.compare, input.articleId) == null) return #err("invalid: articleId");
+    switch (input.playId) {
+      case (?pid) switch (Map.get(plays, Text.compare, pid)) { case (?p) { if (p.articleId != input.articleId) return #err("invalid: playId") }; case null return #err("invalid: playId") };
+      case null {};
+    };
+    let draft : Clips.Clip = {
+      id = "clip" # Nat.toText(nextClipId); uploadId = input.uploadId; sportId = input.sportId; articleId = input.articleId;
+      sectionKey = input.sectionKey; playId = input.playId; title = input.title; description = input.description;
+      callAtSec = input.callAtSec; question = input.question; visibility = input.visibility; uploader = caller;
+      rights = { statement = Clips.RIGHTS_STATEMENT; attestedAt = Time.now() }; status = #pending; createdAt = Time.now(); reviewedBy = null;
+    };
+    switch (input.visibility) {
+      case (#association(_)) { if ((await* membership<system>(draft, caller)) == #none) return #err("Join the association to share clips with it") };
+      case (#everyone) {};
+    };
+    nextClipId += 1;
+    Map.remove(clipUploads, Text.compare, input.uploadId);
+    Map.add(clips, Text.compare, draft.id, draft);
+    #ok(draft)
+  };
+
+  /// Approves or rejects a clip. Approving needs the video to have finished
+  /// processing, and turns on its MP4 rendition for playback.
+  public shared ({ caller }) func reviewClip(id : Text, approve : Bool) : async Result.Result<Clips.Clip, Text> {
+    let c = switch (Map.get(clips, Text.compare, id)) { case (?c) c; case null return #err("Not found") };
+    if (not Clips.canReview(c, isAdmin(caller), await* membership<system>(c, caller))) return #err("Not a reviewer of this clip");
+    if (approve) {
+      switch (await stream(#get, "/" # c.uploadId, "")) {
+        case (#err(e)) return #err(e);
+        case (#ok(body)) { if (Clips.parseReady(body) != ?true) return #err("The video is still processing; try again in a minute") };
+      };
+      switch (await stream(#post, "/" # c.uploadId # "/downloads", "{}")) { case (#err(e)) return #err(e); case (#ok(_)) {} };
+    };
+    let reviewed = { c with status = if approve #approved else #rejected; reviewedBy = ?caller };
+    Map.add(clips, Text.compare, id, reviewed);
+    #ok(reviewed)
+  };
+
+  /// Approved clips for everyone on a rule (or a whole sport, with articleId
+  /// null), with the caller's own clips waiting for review.
+  public shared query ({ caller }) func listClips(sportId : Text, articleId : ?Text) : async [Clips.Clip] {
+    let out = List.empty<Clips.Clip>();
+    for ((_, c) in Map.entries(clips)) {
+      let here = c.sportId == sportId and (switch articleId { case (?a) c.articleId == a; case null true });
+      let visible = (c.status == #approved and c.visibility == #everyone) or (c.uploader == caller and c.status == #pending);
+      if (here and visible) List.add(out, c);
+    };
+    List.toArray(out)
+  };
+
+  /// An association's clips, for its members: approved ones, and those
+  /// waiting for review for its coordinator.
+  public shared ({ caller }) func listAssociationClips(associationId : Text) : async Result.Result<[Clips.Clip], Text> {
+    let assoc = switch (association<system>()) { case (?a) a; case null return #err("Associations aren't available") };
+    let m = try { await assoc.membershipOf(associationId, caller) } catch (_) { return #err("Couldn't check membership, try again") };
+    if (m == #none) return #err("Members only");
+    let out = List.empty<Clips.Clip>();
+    for ((_, c) in Map.entries(clips)) {
+      if (c.visibility == #association(associationId) and Clips.canView(c, caller, m)) List.add(out, c);
+    };
+    #ok(List.toArray(out))
+  };
+
+  /// The clips the caller reviews that are waiting: for an admin, those for
+  /// everyone; for a coordinator, their associations'.
+  public shared ({ caller }) func listClipsToReview() : async [Clips.Clip] {
+    let mine = switch (association<system>()) {
+      case (?a) try { await a.coordinatedBy(caller) } catch (_) { [] };
+      case null [];
+    };
+    let admin = isAdmin(caller);
+    let out = List.empty<Clips.Clip>();
+    for ((_, c) in Map.entries(clips)) {
+      if (c.status == #pending) {
+        let mineToReview = switch (c.visibility) {
+          case (#everyone) admin;
+          case (#association(a)) admin or Array.find<Text>(mine, func(x) { x == a }) != null;
+        };
+        if (mineToReview) List.add(out, c);
+      };
+    };
+    List.toArray(out)
+  };
+
+  /// A clip and a signed MP4 link to play it, for a viewer who may see it.
+  public shared ({ caller }) func clipPlayback(id : Text) : async Result.Result<{ url : Text; clip : Clips.Clip }, Text> {
+    let c = switch (Map.get(clips, Text.compare, id)) { case (?c) c; case null return #err("Not found") };
+    let cfg = switch videoConfig { case (?c) c; case null return #err("Video hosting isn't set up yet") };
+    if (not Clips.canView(c, caller, await* membership<system>(c, caller)) and not isAdmin(caller)) return #err("Not allowed to watch this clip");
+    let now = Time.now();
+    let token = switch (Map.get(clipTokens, Text.compare, c.uploadId)) {
+      case (?t) { if (Clips.tokenFresh(t.mintedAt, now)) ?t.token else null };
+      case null null;
+    };
+    let t = switch token {
+      case (?t) t;
+      case null switch (await stream(#post, "/" # c.uploadId # "/token", "{}")) {
+        case (#err(e)) return #err(e);
+        case (#ok(body)) switch (Clips.parseToken(body)) {
+          case (?t) { Map.add(clipTokens, Text.compare, c.uploadId, { token = t; mintedAt = now }); t };
+          case null return #err("The video host's reply wasn't understood");
+        };
+      };
+    };
+    #ok({ url = Clips.mp4Url(cfg.customerCode, t); clip = c })
+  };
+
+  /// Removes a clip (its uploader or a reviewer), and its video.
+  public shared ({ caller }) func deleteClip(id : Text) : async Result.Result<(), Text> {
+    let c = switch (Map.get(clips, Text.compare, id)) { case (?c) c; case null return #err("Not found") };
+    if (c.uploader != caller and not Clips.canReview(c, isAdmin(caller), await* membership<system>(c, caller))) return #err("Not allowed");
+    Map.remove(clips, Text.compare, id);
+    Map.remove(clipTokens, Text.compare, c.uploadId);
+    ignore await stream(#delete, "/" # c.uploadId, "");
+    #ok(())
   };
 
   public query func metrics() : async { articleCount : Nat; playCount : Nat } {

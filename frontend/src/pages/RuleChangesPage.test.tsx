@@ -34,14 +34,18 @@ function renderPage() {
 describe("RuleChangesPage", () => {
   afterEach(() => { cleanup(); list.mockReset(); });
 
-  it("shows each change's old and new wording, and marks a brand-new rule", async () => {
+  it("shows each change's old and new wording, or the text alone when there's no old wording", async () => {
     list.mockResolvedValue([change("a", "ncaa_basketball:art4", "Old wording a"), change("b", "ncaa_basketball:art9", "")]);
     renderPage();
     expect(await screen.findByText("Change a")).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith("ncaa_basketball", currentSeason(Date.now()));
     expect(screen.getByText("Old wording a")).toBeInTheDocument();
     expect(screen.getByText("New wording a")).toBeInTheDocument();
-    expect(screen.getByText(/New rule/)).toBeInTheDocument();
+    // An imported change is the book's description of it, not a new rule.
+    expect(screen.getByText("New wording b")).toBeInTheDocument();
+    expect(screen.queryByText(/New rule/)).toBeNull();
+    expect(screen.getAllByText("Before")).toHaveLength(1);
+    expect(screen.getAllByText("Now")).toHaveLength(1);
     expect(screen.getAllByText(/Test edition/)).toHaveLength(2);
   });
 

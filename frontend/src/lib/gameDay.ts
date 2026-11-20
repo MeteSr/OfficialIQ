@@ -1,11 +1,9 @@
 // Question selection for the game-day refresher (#63) and crew pregame
 // (#64). Both are graded exam sessions; these build the "picks" the exam
 // canister fills from the question bank (see backend/question pickForExam).
+import { currentSeason } from "./ruleChanges";
 import type { Pick } from "../services/exam";
 import type { Crew } from "../services/challenge";
-
-// Season whose points of emphasis drive "plays at this level" (was local to SchedulePage).
-export const CURRENT_SEASON = "2025-26";
 
 export const REFRESHER_SEC_PER_Q = 60; // 5 questions, about 5 minutes
 export const CREW_SEC_PER_Q = 45;
@@ -80,12 +78,12 @@ export async function loadLevelContext(
   sportId: string, levelId: string,
   deps: {
     listArticles: (sportId: string, levelId: string) => Promise<{ id: string; title: string }[]>;
-    listPointsOfEmphasis: (season: string) => Promise<{ linkedArticleIds: string[] }[]>;
+    listPointsOfEmphasis: (sportId: string, season: string) => Promise<{ linkedArticleIds: string[] }[]>;
   },
 ): Promise<{ articles: { id: string; title: string }[]; emphasisArticleIds: string[] }> {
   const [articles, poes] = await Promise.all([
     deps.listArticles(sportId, levelId),
-    deps.listPointsOfEmphasis(CURRENT_SEASON).catch(() => []),
+    deps.listPointsOfEmphasis(sportId, currentSeason(Date.now())).catch(() => []),
   ]);
   return { articles, emphasisArticleIds: poes.flatMap(p => p.linkedArticleIds) };
 }

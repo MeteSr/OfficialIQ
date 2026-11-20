@@ -40,7 +40,7 @@ export default function RefresherPage() {
     const [level, weak, changes] = await Promise.all([
       loadLevelContext(sportId, levelId, {
         listArticles: (s, l) => contentService.listArticles(s, l),
-        listPointsOfEmphasis: (season) => contentService.listPointsOfEmphasis(season),
+        listPointsOfEmphasis: (s, season) => contentService.listPointsOfEmphasis(s, season),
       }),
       questionService.getMyWeakArticles(sportId, 3),
       // Optional: without them the refresher is just its usual five.
