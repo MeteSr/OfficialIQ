@@ -34,13 +34,13 @@ export function parseBbox(xhtml) {
  * numbers (a number on its own near the bottom). A rule's own heading near
  * the top doesn't match the header pattern, so it stays.
  */
-export function stripRunning(pages, { header, headerMaxY, footerMinY }) {
+export function stripRunning(pages, { header, headerMaxY, footer = /^\d+$/, footerMinY }) {
   return pages.map((p) => ({
     ...p,
     lines: p.lines.filter((l) => {
       const text = l.words.join(" ");
       if (l.y <= headerMaxY && header.test(text)) return false;
-      if (l.y >= footerMinY && /^\d+$/.test(text)) return false;
+      if (l.y >= footerMinY && footer.test(text)) return false;
       return true;
     }),
   }));
@@ -114,6 +114,31 @@ export function joinLines(lines, vocab, { paragraphStart, overrides, where } = {
   }
   if (current !== "") paragraphs.push(current);
   return { paragraphs, unresolved };
+}
+
+/** Splits `items` into groups, each starting where `isStart(item, index)` holds (anything before the first is dropped). */
+export function groupAt(items, isStart) {
+  const groups = [];
+  for (const [k, it] of items.entries()) {
+    if (isStart(it, k)) groups.push([it]);
+    else if (groups.length > 0) groups[groups.length - 1].push(it);
+  }
+  return groups;
+}
+
+/**
+ * joinLines for line objects ({ words, start? }): a line marked `start`
+ * begins a paragraph whatever it says (a wider gap or an indent in the
+ * book, where its words don't show it).
+ */
+export function joinMarked(lines, vocab, opts) {
+  const out = { paragraphs: [], unresolved: [] };
+  for (const group of groupAt(lines, (l, k) => k === 0 || l.start)) {
+    const r = joinLines(group.map((l) => l.words), vocab, opts);
+    out.paragraphs.push(...r.paragraphs);
+    out.unresolved.push(...r.unresolved);
+  }
+  return out;
 }
 
 /**

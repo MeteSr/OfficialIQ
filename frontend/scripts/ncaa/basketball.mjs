@@ -3,7 +3,7 @@
 // per approved ruling, the season's rule changes and points of emphasis.
 // Every passage keeps the book's wording; see text.mjs for how lines are
 // rejoined and import.mjs for the word-for-word check.
-import { buildVocabulary, joinLines, normalizeForCheck } from "./text.mjs";
+import { buildVocabulary, groupAt, joinMarked, normalizeForCheck } from "./text.mjs";
 
 /** Where the running headers and page numbers sit in these books (612pt pages). */
 export const BASKETBALL_LAYOUT = { header: /^(\d+|RULE \d+ \/ .+)$/, headerMaxY: 45, footerMinY: 567 };
@@ -16,16 +16,7 @@ const CASE_PARAGRAPH = /^(([a-z]|[ivx]{1,4})\.(\s|$)|\d+\.(\s|$)|\d+((,| and| or
 const NOT_TEXT = /^(\[THIS PAGE IS INTENTIONALLY LEFT BLANK\]|\d{1,2})$/;
 
 const flatten = (pages) => pages.flatMap((p) => p.lines.map((l) => ({ page: p.number, words: l.words, text: l.words.join(" ") })));
-// A line marked `start` begins a paragraph whatever it says.
-function join(lines, vocab, opts) {
-  const out = { paragraphs: [], unresolved: [] };
-  for (const group of groupAt(lines, (l, k) => k === 0 || l.start)) {
-    const r = joinLines(group.map((l) => l.words), vocab, opts);
-    out.paragraphs.push(...r.paragraphs);
-    out.unresolved.push(...r.unresolved);
-  }
-  return out;
-}
+const join = joinMarked;
 
 export function parseRulesBook(pages, { overrides = {} } = {}) {
   const lines = flatten(pages);
@@ -87,16 +78,6 @@ export function parseRulesBook(pages, { overrides = {} } = {}) {
     i = stop;
   }
   return { rules, changes, emphasis, report };
-}
-
-/** Splits `items` into groups, each starting where `isStart` holds (anything before the first is dropped). */
-function groupAt(items, isStart) {
-  const groups = [];
-  for (const [k, it] of items.entries()) {
-    if (isStart(it, k)) groups.push([it]);
-    else if (groups.length > 0) groups[groups.length - 1].push(it);
-  }
-  return groups;
 }
 
 export function parseCaseBook(pages, { overrides = {} } = {}) {
