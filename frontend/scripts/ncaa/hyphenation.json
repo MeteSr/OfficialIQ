@@ -1,0 +1,9 @@
+{
+  "_comment": "Reviewed line-end hyphens the books don't settle on their own (see text.mjs). Key: the word fragments either side of the line break. keep = the hyphen is printed as part of the word; join = only a line break. Fragments only, no rule text.",
+  "coaching-|box": "keep",
+  "warm-|up": "keep",
+  "ball-|handler": "keep",
+  "non-|fulfillment": "keep",
+  "eight-|minute": "keep",
+  "medical-|decision-making)": "keep"
+}
