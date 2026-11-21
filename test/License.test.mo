@@ -2,6 +2,7 @@ import { test; suite; expect } "mo:test";
 import License "../backend/lib/License";
 import Billing "../backend/lib/Billing";
 import Principal "mo:core/Principal";
+import Array "mo:core/Array";
 
 let SEC : Int = 1_000_000_000;
 let DAY : Int = 86_400 * SEC;
