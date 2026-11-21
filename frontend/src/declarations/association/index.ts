@@ -18,6 +18,9 @@ export interface Assignment {
   'articleIds' : Array<string>,
   'dueAt' : bigint,
 }
+export type AssignmentError = { 'licenseRequired' : null } |
+  { 'associationNotFound' : null } |
+  { 'notCoordinator' : null };
 export interface AssociationRec {
   'id' : string,
   'joinCode' : string,
@@ -26,40 +29,113 @@ export interface AssociationRec {
   'sport' : string,
   'coordinator' : Principal,
 }
+export type CheckoutError = { 'associationNotFound' : null } |
+  { 'notConfigured' : null } |
+  { 'notCoordinator' : null } |
+  { 'stripeUnavailable' : null } |
+  { 'tooFewSeats' : null };
 export interface Completion {
   'member' : Principal,
   'completedAt' : bigint,
   'score' : bigint,
   'assignmentId' : string,
 }
+export type CoordinatorLicense = { 'active' : null } |
+  { 'none' : null } |
+  { 'lapsed' : null } |
+  { 'unlicensed' : null };
 export type GetRequirementError = { 'notAuthorized' : null } |
   { 'associationNotFound' : null };
+export interface HttpHeader { 'value' : string, 'name' : string }
+export interface HttpRequestResult {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<HttpHeader>,
+}
+export type LicenseAccessError = { 'associationNotFound' : null } |
+  { 'notCoordinator' : null };
+export type LicenseAdminError = { 'associationNotFound' : null } |
+  { 'notAdmin' : null } |
+  { 'invalidConfig' : null };
+export type LicenseClaimError = { 'malformed' : null } |
+  { 'notSubscription' : null } |
+  { 'invalidSession' : null } |
+  { 'associationNotFound' : null } |
+  { 'notConfigured' : null } |
+  { 'notYours' : null } |
+  { 'notCoordinator' : null } |
+  { 'notActive' : null } |
+  { 'stripeUnavailable' : null } |
+  { 'notComplete' : null } |
+  { 'alreadyClaimed' : null } |
+  { 'tooFewSeats' : null };
+export interface LicenseInfo {
+  'expiresAt' : bigint,
+  'source' : Source,
+  'seats' : bigint,
+  'updatedAt' : bigint,
+}
+export interface LicenseView {
+  'active' : boolean,
+  'memberCount' : bigint,
+  'paywallOn' : boolean,
+  'minSeats' : bigint,
+  'holders' : Array<Principal>,
+  'checkoutReady' : boolean,
+  'license' : [] | [LicenseInfo],
+}
+export type MoveSeatError = { 'noSeat' : null } |
+  { 'associationNotFound' : null } |
+  { 'notMember' : null } |
+  { 'alreadyHasSeat' : null } |
+  { 'notCoordinator' : null };
 export interface RequirementInput {
   'seasonStartMonth' : bigint,
   'hoursPerSeason' : bigint,
 }
-export type Result = { 'ok' : [] | [TrainingRequirement] } |
+export type Result = { 'ok' : string } |
+  { 'err' : CheckoutError };
+export type Result_1 = { 'ok' : [] | [TrainingRequirement] } |
   { 'err' : SetRequirementError };
-export type Result_1 = { 'ok' : Completion } |
+export type Result_10 = { 'ok' : LicenseView } |
+  { 'err' : LicenseAccessError };
+export type Result_11 = { 'ok' : Array<Principal> } |
   { 'err' : string };
+export type Result_12 = { 'ok' : Array<Assignment> } |
+  { 'err' : string };
+export type Result_13 = { 'ok' : Array<Completion> } |
+  { 'err' : string };
+export type Result_14 = { 'ok' : Assignment } |
+  { 'err' : AssignmentError };
 export type Result_2 = { 'ok' : null } |
   { 'err' : string };
-export type Result_3 = { 'ok' : AssociationRec } |
+export type Result_3 = { 'ok' : null } |
+  { 'err' : LicenseAdminError };
+export type Result_4 = { 'ok' : LicenseView } |
+  { 'err' : LicenseClaimError };
+export type Result_5 = { 'ok' : Completion } |
   { 'err' : string };
-export type Result_4 = { 'ok' : [] | [TrainingRequirement] } |
+export type Result_6 = { 'ok' : LicenseView } |
+  { 'err' : MoveSeatError };
+export type Result_7 = { 'ok' : AssociationRec } |
+  { 'err' : string };
+export type Result_8 = { 'ok' : LicenseInfo } |
+  { 'err' : LicenseAdminError };
+export type Result_9 = { 'ok' : [] | [TrainingRequirement] } |
   { 'err' : GetRequirementError };
-export type Result_5 = { 'ok' : Array<Principal> } |
-  { 'err' : string };
-export type Result_6 = { 'ok' : Array<Assignment> } |
-  { 'err' : string };
-export type Result_7 = { 'ok' : Array<Completion> } |
-  { 'err' : string };
-export type Result_8 = { 'ok' : Assignment } |
-  { 'err' : string };
-export type SetRequirementError = { 'associationNotFound' : null } |
+export type SetRequirementError = { 'licenseRequired' : null } |
+  { 'associationNotFound' : null } |
   { 'notCoordinator' : null } |
   { 'invalidHours' : null } |
   { 'invalidSeasonStartMonth' : null };
+export type Source = { 'stripe' : string } |
+  { 'trial' : null } |
+  { 'manual' : null };
+export interface StripeConfig {
+  'key' : string,
+  'priceId' : string,
+  'appUrl' : string,
+}
 export interface TrainingRequirement {
   'seasonStartMonth' : bigint,
   'updatedAt' : bigint,
@@ -67,14 +143,25 @@ export interface TrainingRequirement {
 }
 export interface _SERVICE {
   /**
+   * / Licenses the association from a finished Stripe Checkout: the caller
+   * / coordinates it, the session names them and this association, is
+   * / complete and started a subscription nobody has claimed, and that
+   * / subscription is active with at least 10 seats.
+   */
+  'claimLicense' : ActorMethod<[string, string], Result_4>,
+  /**
    * / For other canisters: the associations `p` coordinates.
    */
   'coordinatedBy' : ActorMethod<[Principal], Array<string>>,
+  'coordinatorLicense' : ActorMethod<
+    [Principal, Principal],
+    CoordinatorLicense
+  >,
   'createAssignment' : ActorMethod<
     [string, string, Array<string>, boolean, bigint, Array<Principal>],
-    Result_8
+    Result_14
   >,
-  'createAssociation' : ActorMethod<[string, string], Result_3>,
+  'createAssociation' : ActorMethod<[string, string], Result_7>,
   /**
    * / Called by the user canister when an official deletes their account:
    * / removes them from every association and its assignments, drops their
@@ -82,10 +169,11 @@ export interface _SERVICE {
    * / assignments and everyone's completions of them). Safe to repeat.
    */
   'forgetUser' : ActorMethod<[Principal], Result_2>,
-  'getAssignmentCompletions' : ActorMethod<[string], Result_7>,
+  'getAssignmentCompletions' : ActorMethod<[string], Result_13>,
   'getAssociation' : ActorMethod<[string], [] | [AssociationRec]>,
-  'getAssociationAssignments' : ActorMethod<[string], Result_6>,
-  'getAssociationMembers' : ActorMethod<[string], Result_5>,
+  'getAssociationAssignments' : ActorMethod<[string], Result_12>,
+  'getAssociationMembers' : ActorMethod<[string], Result_11>,
+  'getLicense' : ActorMethod<[string], Result_10>,
   'getMyAssignments' : ActorMethod<[], Array<Assignment>>,
   'getMyAssociations' : ActorMethod<[], Array<AssociationRec>>,
   'getMyCompletions' : ActorMethod<[], Array<Completion>>,
@@ -94,9 +182,20 @@ export interface _SERVICE {
    * / The association's requirement, for its coordinator and members. null
    * / when none is set.
    */
-  'getTrainingRequirement' : ActorMethod<[string], Result_4>,
+  'getTrainingRequirement' : ActorMethod<[string], Result_9>,
+  /**
+   * / A license granted by hand (invoices, POs, test accounts), until
+   * / `until` (nanoseconds). Any number of seats. Replaces the current one.
+   */
+  'grantLicense' : ActorMethod<[string, bigint, bigint], Result_8>,
+  'isAdminCaller' : ActorMethod<[], boolean>,
   'isCoordinatorOf' : ActorMethod<[Principal, Principal], boolean>,
-  'joinAssociation' : ActorMethod<[string], Result_3>,
+  'joinAssociation' : ActorMethod<[string], Result_7>,
+  /**
+   * / A member leaves an association (the coordinator can't). Their seat,
+   * / if they had one, goes to the next member in join order.
+   */
+  'leaveAssociation' : ActorMethod<[string], Result_2>,
   /**
    * / For other canisters (content's clip library): an official's place in
    * / an association.
@@ -109,24 +208,111 @@ export interface _SERVICE {
   >,
   'metrics' : ActorMethod<
     [],
-    { 'associationCount' : bigint, 'assignmentCount' : bigint }
+    {
+      'licensedAssociations' : bigint,
+      'associationCount' : bigint,
+      'assignmentCount' : bigint,
+      'trials' : bigint,
+      'totalSeats' : bigint,
+    }
   >,
+  /**
+   * / Moves a seat (and the Pro it carries) from one member to another.
+   */
+  'moveSeat' : ActorMethod<[string, Principal, Principal], Result_6>,
   'recordCompletion' : ActorMethod<[string, bigint], Result_2>,
   /**
    * / Records an assignment completion from a finished exam session graded by
    * / the exam canister, taken on the assignment's articles. Each session
    * / counts once; retaking replaces the earlier completion.
    */
-  'recordGradedCompletion' : ActorMethod<[string, string], Result_1>,
+  'recordGradedCompletion' : ActorMethod<[string, string], Result_5>,
+  /**
+   * / Re-reads the association's Stripe subscription now (after a seat
+   * / change in the customer portal, say) rather than at the next daily
+   * / check. At most once a minute.
+   */
+  'refreshLicense' : ActorMethod<[string], Result_4>,
+  /**
+   * / Removes the license (not the Stripe subscription: cancel that in
+   * / Stripe). Its seat holders lose the Pro it gave them.
+   */
+  'revokeLicense' : ActorMethod<[string], Result_3>,
+  'setAdmin' : ActorMethod<[Principal], Result_2>,
+  /**
+   * / Stripe for license checkout: a restricted key (see stripeConfig), the
+   * / per-seat yearly Price, and the app's https origin that Checkout returns
+   * / to. null switches checkout off.
+   */
+  'setLicenseStripe' : ActorMethod<[[] | [StripeConfig]], Result_3>,
+  /**
+   * / From the user canister's setPaywallEnabled. Switching it on starts the
+   * / 30-day trial for every association that has never had a license.
+   */
+  'setPaywallFlag' : ActorMethod<[boolean], Result_2>,
   /**
    * / Sets the association's requirement, or clears it with null.
    * / Coordinator only.
    */
   'setTrainingRequirement' : ActorMethod<
     [string, [] | [RequirementInput]],
-    Result
+    Result_1
+  >,
+  /**
+   * / Starts a Stripe Checkout for `seats` seats (10 or more) of the yearly
+   * / per-seat Price and returns its URL. The seat count that counts is the
+   * / one on the subscription Stripe creates, read back by claimLicense.
+   */
+  'startLicenseCheckout' : ActorMethod<[string, bigint], Result>,
+  'transformLicenseStripe' : ActorMethod<
+    [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
+    HttpRequestResult
   >,
 }
+export const Source = IDL.Variant({
+  'stripe' : IDL.Text,
+  'trial' : IDL.Null,
+  'manual' : IDL.Null,
+});
+export const LicenseInfo = IDL.Record({
+  'expiresAt' : IDL.Int,
+  'source' : Source,
+  'seats' : IDL.Nat,
+  'updatedAt' : IDL.Int,
+});
+export const LicenseView = IDL.Record({
+  'active' : IDL.Bool,
+  'memberCount' : IDL.Nat,
+  'paywallOn' : IDL.Bool,
+  'minSeats' : IDL.Nat,
+  'holders' : IDL.Vec(IDL.Principal),
+  'checkoutReady' : IDL.Bool,
+  'license' : IDL.Opt(LicenseInfo),
+});
+export const LicenseClaimError = IDL.Variant({
+  'malformed' : IDL.Null,
+  'notSubscription' : IDL.Null,
+  'invalidSession' : IDL.Null,
+  'associationNotFound' : IDL.Null,
+  'notConfigured' : IDL.Null,
+  'notYours' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+  'notActive' : IDL.Null,
+  'stripeUnavailable' : IDL.Null,
+  'notComplete' : IDL.Null,
+  'alreadyClaimed' : IDL.Null,
+  'tooFewSeats' : IDL.Null,
+});
+export const Result_4 = IDL.Variant({
+  'ok' : LicenseView,
+  'err' : LicenseClaimError,
+});
+export const CoordinatorLicense = IDL.Variant({
+  'active' : IDL.Null,
+  'none' : IDL.Null,
+  'lapsed' : IDL.Null,
+  'unlicensed' : IDL.Null,
+});
 export const Assignment = IDL.Record({
   'id' : IDL.Text,
   'title' : IDL.Text,
@@ -137,7 +323,15 @@ export const Assignment = IDL.Record({
   'articleIds' : IDL.Vec(IDL.Text),
   'dueAt' : IDL.Int,
 });
-export const Result_8 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
+export const AssignmentError = IDL.Variant({
+  'licenseRequired' : IDL.Null,
+  'associationNotFound' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+});
+export const Result_14 = IDL.Variant({
+  'ok' : Assignment,
+  'err' : AssignmentError,
+});
 export const AssociationRec = IDL.Record({
   'id' : IDL.Text,
   'joinCode' : IDL.Text,
@@ -146,7 +340,7 @@ export const AssociationRec = IDL.Record({
   'sport' : IDL.Text,
   'coordinator' : IDL.Principal,
 });
-export const Result_3 = IDL.Variant({
+export const Result_7 = IDL.Variant({
   'ok' : AssociationRec,
   'err' : IDL.Text,
 });
@@ -157,17 +351,25 @@ export const Completion = IDL.Record({
   'score' : IDL.Nat,
   'assignmentId' : IDL.Text,
 });
-export const Result_7 = IDL.Variant({
+export const Result_13 = IDL.Variant({
   'ok' : IDL.Vec(Completion),
   'err' : IDL.Text,
 });
-export const Result_6 = IDL.Variant({
+export const Result_12 = IDL.Variant({
   'ok' : IDL.Vec(Assignment),
   'err' : IDL.Text,
 });
-export const Result_5 = IDL.Variant({
+export const Result_11 = IDL.Variant({
   'ok' : IDL.Vec(IDL.Principal),
   'err' : IDL.Text,
+});
+export const LicenseAccessError = IDL.Variant({
+  'associationNotFound' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+});
+export const Result_10 = IDL.Variant({
+  'ok' : LicenseView,
+  'err' : LicenseAccessError,
 });
 export const TrainingRequirement = IDL.Record({
   'seasonStartMonth' : IDL.Nat,
@@ -178,28 +380,78 @@ export const GetRequirementError = IDL.Variant({
   'notAuthorized' : IDL.Null,
   'associationNotFound' : IDL.Null,
 });
-export const Result_4 = IDL.Variant({
+export const Result_9 = IDL.Variant({
   'ok' : IDL.Opt(TrainingRequirement),
   'err' : GetRequirementError,
 });
-export const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+export const LicenseAdminError = IDL.Variant({
+  'associationNotFound' : IDL.Null,
+  'notAdmin' : IDL.Null,
+  'invalidConfig' : IDL.Null,
+});
+export const Result_8 = IDL.Variant({
+  'ok' : LicenseInfo,
+  'err' : LicenseAdminError,
+});
+export const MoveSeatError = IDL.Variant({
+  'noSeat' : IDL.Null,
+  'associationNotFound' : IDL.Null,
+  'notMember' : IDL.Null,
+  'alreadyHasSeat' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+});
+export const Result_6 = IDL.Variant({
+  'ok' : LicenseView,
+  'err' : MoveSeatError,
+});
+export const Result_5 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+export const Result_3 = IDL.Variant({
+  'ok' : IDL.Null,
+  'err' : LicenseAdminError,
+});
+export const StripeConfig = IDL.Record({
+  'key' : IDL.Text,
+  'priceId' : IDL.Text,
+  'appUrl' : IDL.Text,
+});
 export const RequirementInput = IDL.Record({
   'seasonStartMonth' : IDL.Nat,
   'hoursPerSeason' : IDL.Nat,
 });
 export const SetRequirementError = IDL.Variant({
+  'licenseRequired' : IDL.Null,
   'associationNotFound' : IDL.Null,
   'notCoordinator' : IDL.Null,
   'invalidHours' : IDL.Null,
   'invalidSeasonStartMonth' : IDL.Null,
 });
-export const Result = IDL.Variant({
+export const Result_1 = IDL.Variant({
   'ok' : IDL.Opt(TrainingRequirement),
   'err' : SetRequirementError,
 });
+export const CheckoutError = IDL.Variant({
+  'associationNotFound' : IDL.Null,
+  'notConfigured' : IDL.Null,
+  'notCoordinator' : IDL.Null,
+  'stripeUnavailable' : IDL.Null,
+  'tooFewSeats' : IDL.Null,
+});
+export const Result = IDL.Variant({ 'ok' : IDL.Text, 'err' : CheckoutError });
+export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+export const HttpRequestResult = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(HttpHeader),
+});
 
 export const idlService: IDL.ServiceClass = IDL.Service({
+  'claimLicense' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
   'coordinatedBy' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Text)], ['query']),
+  'coordinatorLicense' : IDL.Func(
+      [IDL.Principal, IDL.Principal],
+      [CoordinatorLicense],
+      ['query'],
+    ),
   'createAssignment' : IDL.Func(
       [
         IDL.Text,
@@ -209,15 +461,16 @@ export const idlService: IDL.ServiceClass = IDL.Service({
         IDL.Int,
         IDL.Vec(IDL.Principal),
       ],
-      [Result_8],
+      [Result_14],
       [],
     ),
-  'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
+  'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_7], []),
   'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
-  'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_7], ['query']),
+  'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_13], ['query']),
   'getAssociation' : IDL.Func([IDL.Text], [IDL.Opt(AssociationRec)], ['query']),
-  'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_6], ['query']),
-  'getAssociationMembers' : IDL.Func([IDL.Text], [Result_5], ['query']),
+  'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_12], ['query']),
+  'getAssociationMembers' : IDL.Func([IDL.Text], [Result_11], ['query']),
+  'getLicense' : IDL.Func([IDL.Text], [Result_10], ['query']),
   'getMyAssignments' : IDL.Func([], [IDL.Vec(Assignment)], ['query']),
   'getMyAssociations' : IDL.Func([], [IDL.Vec(AssociationRec)], ['query']),
   'getMyCompletions' : IDL.Func([], [IDL.Vec(Completion)], ['query']),
@@ -226,13 +479,16 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [IDL.Vec(AssociationRec)],
       ['query'],
     ),
-  'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_4], ['query']),
+  'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_9], ['query']),
+  'grantLicense' : IDL.Func([IDL.Text, IDL.Nat, IDL.Int], [Result_8], []),
+  'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
   'isCoordinatorOf' : IDL.Func(
       [IDL.Principal, IDL.Principal],
       [IDL.Bool],
       ['query'],
     ),
-  'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
+  'joinAssociation' : IDL.Func([IDL.Text], [Result_7], []),
+  'leaveAssociation' : IDL.Func([IDL.Text], [Result_2], []),
   'membershipOf' : IDL.Func(
       [IDL.Text, IDL.Principal],
       [
@@ -248,24 +504,92 @@ export const idlService: IDL.ServiceClass = IDL.Service({
       [],
       [
         IDL.Record({
+          'licensedAssociations' : IDL.Nat,
           'associationCount' : IDL.Nat,
           'assignmentCount' : IDL.Nat,
+          'trials' : IDL.Nat,
+          'totalSeats' : IDL.Nat,
         }),
       ],
       ['query'],
     ),
+  'moveSeat' : IDL.Func(
+      [IDL.Text, IDL.Principal, IDL.Principal],
+      [Result_6],
+      [],
+    ),
   'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
-  'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+  'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+  'refreshLicense' : IDL.Func([IDL.Text], [Result_4], []),
+  'revokeLicense' : IDL.Func([IDL.Text], [Result_3], []),
+  'setAdmin' : IDL.Func([IDL.Principal], [Result_2], []),
+  'setLicenseStripe' : IDL.Func([IDL.Opt(StripeConfig)], [Result_3], []),
+  'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_2], []),
   'setTrainingRequirement' : IDL.Func(
       [IDL.Text, IDL.Opt(RequirementInput)],
-      [Result],
+      [Result_1],
       [],
+    ),
+  'startLicenseCheckout' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
+  'transformLicenseStripe' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : HttpRequestResult,
+        }),
+      ],
+      [HttpRequestResult],
+      ['query'],
     ),
 });
 
 export const idlInitArgs: IDL.Type[] = [];
 
 export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
+  const Source = IDL.Variant({
+    'stripe' : IDL.Text,
+    'trial' : IDL.Null,
+    'manual' : IDL.Null,
+  });
+  const LicenseInfo = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'source' : Source,
+    'seats' : IDL.Nat,
+    'updatedAt' : IDL.Int,
+  });
+  const LicenseView = IDL.Record({
+    'active' : IDL.Bool,
+    'memberCount' : IDL.Nat,
+    'paywallOn' : IDL.Bool,
+    'minSeats' : IDL.Nat,
+    'holders' : IDL.Vec(IDL.Principal),
+    'checkoutReady' : IDL.Bool,
+    'license' : IDL.Opt(LicenseInfo),
+  });
+  const LicenseClaimError = IDL.Variant({
+    'malformed' : IDL.Null,
+    'notSubscription' : IDL.Null,
+    'invalidSession' : IDL.Null,
+    'associationNotFound' : IDL.Null,
+    'notConfigured' : IDL.Null,
+    'notYours' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+    'notActive' : IDL.Null,
+    'stripeUnavailable' : IDL.Null,
+    'notComplete' : IDL.Null,
+    'alreadyClaimed' : IDL.Null,
+    'tooFewSeats' : IDL.Null,
+  });
+  const Result_4 = IDL.Variant({
+    'ok' : LicenseView,
+    'err' : LicenseClaimError,
+  });
+  const CoordinatorLicense = IDL.Variant({
+    'active' : IDL.Null,
+    'none' : IDL.Null,
+    'lapsed' : IDL.Null,
+    'unlicensed' : IDL.Null,
+  });
   const Assignment = IDL.Record({
     'id' : IDL.Text,
     'title' : IDL.Text,
@@ -276,7 +600,12 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'articleIds' : IDL.Vec(IDL.Text),
     'dueAt' : IDL.Int,
   });
-  const Result_8 = IDL.Variant({ 'ok' : Assignment, 'err' : IDL.Text });
+  const AssignmentError = IDL.Variant({
+    'licenseRequired' : IDL.Null,
+    'associationNotFound' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+  });
+  const Result_14 = IDL.Variant({ 'ok' : Assignment, 'err' : AssignmentError });
   const AssociationRec = IDL.Record({
     'id' : IDL.Text,
     'joinCode' : IDL.Text,
@@ -285,7 +614,7 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'sport' : IDL.Text,
     'coordinator' : IDL.Principal,
   });
-  const Result_3 = IDL.Variant({ 'ok' : AssociationRec, 'err' : IDL.Text });
+  const Result_7 = IDL.Variant({ 'ok' : AssociationRec, 'err' : IDL.Text });
   const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const Completion = IDL.Record({
     'member' : IDL.Principal,
@@ -293,17 +622,25 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'score' : IDL.Nat,
     'assignmentId' : IDL.Text,
   });
-  const Result_7 = IDL.Variant({
+  const Result_13 = IDL.Variant({
     'ok' : IDL.Vec(Completion),
     'err' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({
+  const Result_12 = IDL.Variant({
     'ok' : IDL.Vec(Assignment),
     'err' : IDL.Text,
   });
-  const Result_5 = IDL.Variant({
+  const Result_11 = IDL.Variant({
     'ok' : IDL.Vec(IDL.Principal),
     'err' : IDL.Text,
+  });
+  const LicenseAccessError = IDL.Variant({
+    'associationNotFound' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+  });
+  const Result_10 = IDL.Variant({
+    'ok' : LicenseView,
+    'err' : LicenseAccessError,
   });
   const TrainingRequirement = IDL.Record({
     'seasonStartMonth' : IDL.Nat,
@@ -314,28 +651,72 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'notAuthorized' : IDL.Null,
     'associationNotFound' : IDL.Null,
   });
-  const Result_4 = IDL.Variant({
+  const Result_9 = IDL.Variant({
     'ok' : IDL.Opt(TrainingRequirement),
     'err' : GetRequirementError,
   });
-  const Result_1 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+  const LicenseAdminError = IDL.Variant({
+    'associationNotFound' : IDL.Null,
+    'notAdmin' : IDL.Null,
+    'invalidConfig' : IDL.Null,
+  });
+  const Result_8 = IDL.Variant({
+    'ok' : LicenseInfo,
+    'err' : LicenseAdminError,
+  });
+  const MoveSeatError = IDL.Variant({
+    'noSeat' : IDL.Null,
+    'associationNotFound' : IDL.Null,
+    'notMember' : IDL.Null,
+    'alreadyHasSeat' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+  });
+  const Result_6 = IDL.Variant({ 'ok' : LicenseView, 'err' : MoveSeatError });
+  const Result_5 = IDL.Variant({ 'ok' : Completion, 'err' : IDL.Text });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : LicenseAdminError });
+  const StripeConfig = IDL.Record({
+    'key' : IDL.Text,
+    'priceId' : IDL.Text,
+    'appUrl' : IDL.Text,
+  });
   const RequirementInput = IDL.Record({
     'seasonStartMonth' : IDL.Nat,
     'hoursPerSeason' : IDL.Nat,
   });
   const SetRequirementError = IDL.Variant({
+    'licenseRequired' : IDL.Null,
     'associationNotFound' : IDL.Null,
     'notCoordinator' : IDL.Null,
     'invalidHours' : IDL.Null,
     'invalidSeasonStartMonth' : IDL.Null,
   });
-  const Result = IDL.Variant({
+  const Result_1 = IDL.Variant({
     'ok' : IDL.Opt(TrainingRequirement),
     'err' : SetRequirementError,
   });
+  const CheckoutError = IDL.Variant({
+    'associationNotFound' : IDL.Null,
+    'notConfigured' : IDL.Null,
+    'notCoordinator' : IDL.Null,
+    'stripeUnavailable' : IDL.Null,
+    'tooFewSeats' : IDL.Null,
+  });
+  const Result = IDL.Variant({ 'ok' : IDL.Text, 'err' : CheckoutError });
+  const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const HttpRequestResult = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
   
   return IDL.Service({
+    'claimLicense' : IDL.Func([IDL.Text, IDL.Text], [Result_4], []),
     'coordinatedBy' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Text)], ['query']),
+    'coordinatorLicense' : IDL.Func(
+        [IDL.Principal, IDL.Principal],
+        [CoordinatorLicense],
+        ['query'],
+      ),
     'createAssignment' : IDL.Func(
         [
           IDL.Text,
@@ -345,19 +726,20 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
           IDL.Int,
           IDL.Vec(IDL.Principal),
         ],
-        [Result_8],
+        [Result_14],
         [],
       ),
-    'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
+    'createAssociation' : IDL.Func([IDL.Text, IDL.Text], [Result_7], []),
     'forgetUser' : IDL.Func([IDL.Principal], [Result_2], []),
-    'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_7], ['query']),
+    'getAssignmentCompletions' : IDL.Func([IDL.Text], [Result_13], ['query']),
     'getAssociation' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(AssociationRec)],
         ['query'],
       ),
-    'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_6], ['query']),
-    'getAssociationMembers' : IDL.Func([IDL.Text], [Result_5], ['query']),
+    'getAssociationAssignments' : IDL.Func([IDL.Text], [Result_12], ['query']),
+    'getAssociationMembers' : IDL.Func([IDL.Text], [Result_11], ['query']),
+    'getLicense' : IDL.Func([IDL.Text], [Result_10], ['query']),
     'getMyAssignments' : IDL.Func([], [IDL.Vec(Assignment)], ['query']),
     'getMyAssociations' : IDL.Func([], [IDL.Vec(AssociationRec)], ['query']),
     'getMyCompletions' : IDL.Func([], [IDL.Vec(Completion)], ['query']),
@@ -366,13 +748,16 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [IDL.Vec(AssociationRec)],
         ['query'],
       ),
-    'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_4], ['query']),
+    'getTrainingRequirement' : IDL.Func([IDL.Text], [Result_9], ['query']),
+    'grantLicense' : IDL.Func([IDL.Text, IDL.Nat, IDL.Int], [Result_8], []),
+    'isAdminCaller' : IDL.Func([], [IDL.Bool], ['query']),
     'isCoordinatorOf' : IDL.Func(
         [IDL.Principal, IDL.Principal],
         [IDL.Bool],
         ['query'],
       ),
-    'joinAssociation' : IDL.Func([IDL.Text], [Result_3], []),
+    'joinAssociation' : IDL.Func([IDL.Text], [Result_7], []),
+    'leaveAssociation' : IDL.Func([IDL.Text], [Result_2], []),
     'membershipOf' : IDL.Func(
         [IDL.Text, IDL.Principal],
         [
@@ -388,18 +773,42 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
         [],
         [
           IDL.Record({
+            'licensedAssociations' : IDL.Nat,
             'associationCount' : IDL.Nat,
             'assignmentCount' : IDL.Nat,
+            'trials' : IDL.Nat,
+            'totalSeats' : IDL.Nat,
           }),
         ],
         ['query'],
       ),
+    'moveSeat' : IDL.Func(
+        [IDL.Text, IDL.Principal, IDL.Principal],
+        [Result_6],
+        [],
+      ),
     'recordCompletion' : IDL.Func([IDL.Text, IDL.Nat], [Result_2], []),
-    'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
+    'recordGradedCompletion' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+    'refreshLicense' : IDL.Func([IDL.Text], [Result_4], []),
+    'revokeLicense' : IDL.Func([IDL.Text], [Result_3], []),
+    'setAdmin' : IDL.Func([IDL.Principal], [Result_2], []),
+    'setLicenseStripe' : IDL.Func([IDL.Opt(StripeConfig)], [Result_3], []),
+    'setPaywallFlag' : IDL.Func([IDL.Bool], [Result_2], []),
     'setTrainingRequirement' : IDL.Func(
         [IDL.Text, IDL.Opt(RequirementInput)],
-        [Result],
+        [Result_1],
         [],
+      ),
+    'startLicenseCheckout' : IDL.Func([IDL.Text, IDL.Nat], [Result], []),
+    'transformLicenseStripe' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : HttpRequestResult,
+          }),
+        ],
+        [HttpRequestResult],
+        ['query'],
       ),
   });
 };

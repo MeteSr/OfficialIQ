@@ -2,6 +2,7 @@ import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/user";
 import type { ClaimError, MyEntitlement } from "../lib/plan";
+import { LicenseRequired } from "../lib/license";
 import type { CallMatch } from "../lib/callLog";
 
 // ─── Candid IDL ──────────────────────────────────────────────────────────────
@@ -201,7 +202,7 @@ export const userService = {
   async getMemberTrainingActivity(p: any): Promise<TrainingActivity> {
     if (!CANISTER_ID) return { studyDays: [], weeklyQuizzes: [], monthlyQuizzes: [] };
     const res = await actor().getMemberTrainingActivity(p);
-    if ("err" in res) throw new Error("Not authorized");
+    if ("err" in res) throw "licenseRequired" in res.err ? new LicenseRequired() : new Error("Not authorized");
     return res.ok;
   },
 

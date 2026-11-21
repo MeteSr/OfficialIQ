@@ -5,7 +5,9 @@ import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
 import { questionService } from "../services/question";
-import { computeReadiness } from "../lib/readiness";
+import { computeReadiness, sortByReadiness, type Readiness } from "../lib/readiness";
+import { userService } from "../services/user";
+import LicensePrompt from "../components/LicensePrompt";
 import { DEFAULT_CERT_TEMPLATE, examService, type ExamSession } from "../services/exam";
 import { exportOrPrint } from "../lib/exportPdf";
 
@@ -29,6 +31,20 @@ function seasonOf(ms: number): string {
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
 }
 
+const READINESS_LABEL_KEYS: Record<Readiness["label"], string> = {
+  "On Track": "analytics.readinessOnTrack",
+  "Borderline": "analytics.readinessBorderline",
+  "Needs Work": "analytics.readinessNeedsWork",
+  "Not Enough Data": "analytics.readinessNotEnoughData",
+};
+
+function readinessColor(label: Readiness["label"]): string {
+  if (label === "On Track") return T.correct;
+  if (label === "Borderline") return "#D9A400";
+  if (label === "Needs Work") return T.wrong;
+  return T.muted;
+}
+
 export default function AssociationAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated, principal } = useAuthStore();
@@ -40,6 +56,9 @@ export default function AssociationAnalyticsPage() {
 
   const [seasonCompare, setSeasonCompare] = useState<{ season: string; avg: number; count: number }[]>([]);
   const [readinessBreakdown, setReadinessBreakdown] = useState<{ onTrack: number; borderline: number; needsWork: number; notEnough: number; total: number }>({ onTrack: 0, borderline: 0, needsWork: 0, notEnough: 0, total: 0 });
+  const [memberReadiness, setMemberReadiness] = useState<{ principal: string; name: string; readiness: Readiness }[]>([]);
+  // Crew readiness needs the association's seat license once the paywall is on (#78).
+  const [licenseNeeded, setLicenseNeeded] = useState(false);
   const [missedQuestions, setMissedQuestions] = useState<{ questionId: string; stem: string; citation: string; wrongCount: number; totalCount: number }[]>([]);
 
   const isCoordinator = !!assoc && !!principal && assoc.coordinator.toString() === principal;
@@ -53,10 +72,14 @@ export default function AssociationAnalyticsPage() {
       setAssoc(rec);
       if (rec.coordinator.toString() !== principal) return; // gate below handles messaging
 
-      const members = await associationService.getAssociationMembers(id);
-      const [passTemplates, memberExams] = await Promise.all([
+      const license = await associationService.getLicense(id);
+      const gated = !!license && license.paywallOn && !license.active;
+      setLicenseNeeded(gated);
+      const members = gated ? [] : await associationService.getAssociationMembers(id);
+      const [passTemplates, memberExams, profiles] = await Promise.all([
         examService.listExamTemplates(rec.sport),
         Promise.all(members.map(p => examService.getMemberExams(p).catch(() => [] as ExamSession[]))),
+        Promise.all(members.map(p => userService.getPublicProfile(p).catch(() => null))),
       ]);
       const passThreshold = passTemplates.length > 0 ? Number(passTemplates[0].passThresholdPct) : Number(DEFAULT_CERT_TEMPLATE.passThresholdPct);
       const memberScoreHistories = memberExams.map(scoredExamsChronological);
@@ -78,15 +101,18 @@ export default function AssociationAnalyticsPage() {
 
       // Per-member readiness, aggregated
       let onTrack = 0, borderline = 0, needsWork = 0, notEnough = 0;
-      for (const history of memberScoreHistories) {
+      const perMember: { principal: string; name: string; readiness: Readiness }[] = [];
+      for (const [i, history] of memberScoreHistories.entries()) {
         const chrono = history.map(h => h.score);
         const r = computeReadiness(chrono, passThreshold);
+        perMember.push({ principal: members[i].toString(), name: profiles[i]?.displayName ?? t("assocDetail.unnamedOfficial"), readiness: r });
         if (r.label === "On Track") onTrack++;
         else if (r.label === "Borderline") borderline++;
         else if (r.label === "Needs Work") needsWork++;
         else notEnough++;
       }
       setReadinessBreakdown({ onTrack, borderline, needsWork, notEnough, total: members.length });
+      setMemberReadiness(sortByReadiness(perMember));
 
       // Most-missed questions across the whole membership (question bank is
       // global, not per-association, so this reflects everyone who's
@@ -150,6 +176,8 @@ export default function AssociationAnalyticsPage() {
       </div>
 
       <div className="report-card" style={{ padding: 16 }}>
+        {licenseNeeded ? <LicensePrompt associationId={assoc.id} /> : (
+          <>
         {/* Certification readiness dashboard */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocAnalytics.readinessTitle")}</div>
@@ -163,6 +191,22 @@ export default function AssociationAnalyticsPage() {
             <span style={{ color: T.wrong, fontWeight: 700 }}>{t("assocAnalytics.needsWork", { count: readinessBreakdown.needsWork })}</span>
             <span style={{ color: T.muted, fontWeight: 700 }}>{t("assocAnalytics.notEnoughData", { count: readinessBreakdown.notEnough })}</span>
           </div>
+        </div>
+
+        {/* Per-member readiness, least ready first (#78) */}
+        <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocAnalytics.readinessByMember")}</div>
+          {memberReadiness.map(m => (
+            <div key={m.principal} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${T.border}` }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{m.name}</span>
+              {m.readiness.label !== "Not Enough Data" && (
+                <span style={{ fontSize: 12, color: T.muted }}>{t("assocAnalytics.readinessScore", { score: m.readiness.score })}</span>
+              )}
+              <span style={{ fontSize: 12, fontWeight: 700, color: readinessColor(m.readiness.label), minWidth: 90, textAlign: "right" }}>
+                {t(READINESS_LABEL_KEYS[m.readiness.label])}
+              </span>
+            </div>
+          ))}
         </div>
 
         {/* Season cohort comparison */}
@@ -186,6 +230,9 @@ export default function AssociationAnalyticsPage() {
             </>
           )}
         </div>
+
+          </>
+        )}
 
         {/* Most-missed questions */}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }}>

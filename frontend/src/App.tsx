@@ -14,6 +14,7 @@ import ExamPage from "./pages/ExamPage";
 import RanksPage from "./pages/RanksPage";
 import MePage from "./pages/MePage";
 import { features } from "./lib/features";
+import { purchasesAllowed } from "./lib/purchases";
 import { installErrorReporting } from "./lib/errorReporting";
 
 // The bottom-nav tabs ship in the main bundle; every other page is its own
@@ -48,6 +49,7 @@ const ScenarioGeneratorPage = lazy(() => import("./pages/ScenarioGeneratorPage")
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const AssociationAnalyticsPage = lazy(() => import("./pages/AssociationAnalyticsPage"));
+const AssociationLicensePage = lazy(() => import("./pages/AssociationLicensePage"));
 const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const UpgradeReturnPage = lazy(() => import("./pages/UpgradeReturnPage"));
@@ -129,6 +131,8 @@ function AppShell() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/association/:id/analytics" element={<AssociationAnalyticsPage />} />
           <Route path="/association/:id/training" element={<AssociationTrainingPage />} />
+          {/* Sells seats, so the website only (#78, #80). */}
+          <Route path="/association/:id/license" element={<Gate on={purchasesAllowed()}><AssociationLicensePage /></Gate>} />
           <Route path="/association/:id/training/:member" element={<TranscriptPage />} />
           <Route path="/transcript" element={<TranscriptPage />} />
           <Route path="/quiz/share/:token" element={<QuizPage />} />

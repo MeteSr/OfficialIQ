@@ -2,6 +2,8 @@ import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/association";
 import type { Requirement, SetRequirementError } from "../lib/transcript";
+import { LicenseRequired, type LicenseClaimError, type LicenseView } from "../lib/license";
+import type { Principal } from "@icp-sdk/core/principal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,13 @@ export type Completion = {
 };
 
 export type TrainingRequirement = { hoursPerSeason: bigint; seasonStartMonth: bigint; updatedAt: bigint };
+
+/** A refused license checkout, claim or seat move; map `reason` with licenseClaimErrorKey. */
+export class LicenseFailed extends Error {
+  constructor(public readonly reason: LicenseClaimError | Record<string, null>) {
+    super(Object.keys(reason)[0]);
+  }
+}
 
 /** A rejected setTrainingRequirement; map `reason` with requirementErrorKey. */
 export class SetRequirementFailed extends Error {
@@ -69,7 +78,10 @@ export const associationService = {
   ): Promise<Assignment> {
     if (!CANISTER_ID) throw new Error("Association canister not deployed");
     const res = await actor().createAssignment(associationId, title, articleIds, casebook, BigInt(dueAt) * 1_000_000n, targetMembers);
-    if ("err" in res) throw new Error(res.err);
+    if ("err" in res) {
+      if ("licenseRequired" in res.err) throw new LicenseRequired();
+      throw new Error("notCoordinator" in res.err ? "Only the coordinator can assign modules" : "Association not found");
+    }
     return res.ok;
   },
 
@@ -135,6 +147,53 @@ export const associationService = {
     const res = await actor().getTrainingRequirement(associationId);
     if ("err" in res) throw new Error("notAuthorized" in res.err ? "Not authorized" : "Association not found");
     return res.ok.length ? res.ok[0] : null;
+  },
+
+  // ─── Seat licenses (issue #78) ───
+
+  /** The association's license and seats. Coordinator only; null when it can't be read. */
+  async getLicense(associationId: string): Promise<LicenseView | null> {
+    if (!CANISTER_ID) return null;
+    const res = await actor().getLicense(associationId);
+    return "err" in res ? null : res.ok;
+  },
+
+  /** Moves a seat (and its Pro) from one member to another. Throws LicenseFailed. */
+  async moveSeat(associationId: string, from: Principal, to: Principal): Promise<LicenseView> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().moveSeat(associationId, from, to);
+    if ("err" in res) throw new LicenseFailed(res.err);
+    return res.ok;
+  },
+
+  /** A Stripe Checkout URL for `seats` seats (10 or more). Website only. Throws LicenseFailed. */
+  async startLicenseCheckout(associationId: string, seats: number): Promise<string> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().startLicenseCheckout(associationId, BigInt(seats));
+    if ("err" in res) throw new LicenseFailed(res.err);
+    return res.ok;
+  },
+
+  /** Licenses the association from a finished checkout. Throws LicenseFailed. */
+  async claimLicense(associationId: string, sessionId: string): Promise<LicenseView> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().claimLicense(associationId, sessionId);
+    if ("err" in res) throw new LicenseFailed(res.err);
+    return res.ok;
+  },
+
+  /** Re-reads the Stripe subscription now (after a change in the customer portal). Throws LicenseFailed. */
+  async refreshLicense(associationId: string): Promise<LicenseView> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().refreshLicense(associationId);
+    if ("err" in res) throw new LicenseFailed(res.err);
+    return res.ok;
+  },
+
+  async leaveAssociation(associationId: string): Promise<void> {
+    if (!CANISTER_ID) throw new Error("Association canister not deployed");
+    const res = await actor().leaveAssociation(associationId);
+    if ("err" in res) throw new Error(res.err);
   },
 
   async getAssignmentCompletions(assignmentId: string): Promise<Completion[]> {

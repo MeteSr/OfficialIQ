@@ -130,7 +130,8 @@ export type Result_6 = { 'ok' : string } |
   { 'err' : string };
 export type Result_7 = { 'ok' : AnswerFeedback } |
   { 'err' : string };
-export type TrainingAccessError = { 'notAuthorized' : null };
+export type TrainingAccessError = { 'licenseRequired' : null } |
+  { 'notAuthorized' : null };
 export interface TrainingSession {
   'id' : string,
   'startedAt' : bigint,
@@ -169,7 +170,9 @@ export interface _SERVICE {
   'getMemberExams' : ActorMethod<[Principal], Array<ExamSession>>,
   /**
    * / A member's training sessions, for the coordinator of an association
-   * / they belong to (same check as getMemberExams).
+   * / they belong to. Once the paywall is on, that association needs a seat
+   * / license (#78); one that lapsed keeps reading what's there, so its
+   * / transcript can still be exported.
    */
   'getMemberTraining' : ActorMethod<[Principal], Result_5>,
   /**
@@ -313,7 +316,10 @@ export const TrainingSession = IDL.Record({
   'finishedAt' : IDL.Int,
   'questionCount' : IDL.Nat,
 });
-export const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
+export const TrainingAccessError = IDL.Variant({
+  'licenseRequired' : IDL.Null,
+  'notAuthorized' : IDL.Null,
+});
 export const Result_5 = IDL.Variant({
   'ok' : IDL.Vec(TrainingSession),
   'err' : TrainingAccessError,
@@ -519,7 +525,10 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     'finishedAt' : IDL.Int,
     'questionCount' : IDL.Nat,
   });
-  const TrainingAccessError = IDL.Variant({ 'notAuthorized' : IDL.Null });
+  const TrainingAccessError = IDL.Variant({
+    'licenseRequired' : IDL.Null,
+    'notAuthorized' : IDL.Null,
+  });
   const Result_5 = IDL.Variant({
     'ok' : IDL.Vec(TrainingSession),
     'err' : TrainingAccessError,

@@ -29,7 +29,7 @@ export default function setup(project: TestProject) {
     if (!ids[c]) throw new Error(`Canister ${c} isn't deployed on ${env}. Run: icp network start -d && icp deploy`);
   }
   const admin = adminIdentity().getPrincipal().toText();
-  for (const c of ["question", "user", "exam", "ranking", "content", "ai_proxy"]) {
+  for (const c of ["question", "user", "exam", "ranking", "content", "ai_proxy", "association"]) {
     const out = icp(["canister", "call", c, "setAdmin", `(principal "${admin}")`, "-e", env]);
     // A re-run against the same network finds the admin already set.
     if (!out.includes("ok") && !out.includes("Unauthorized")) throw new Error(`${c}.setAdmin: ${out}`);

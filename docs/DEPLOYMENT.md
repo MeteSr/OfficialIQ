@@ -244,6 +244,40 @@ Support and App Store review accounts get Pro with
 Pro by source. Renewals are checked hourly against Stripe for
 subscriptions within a day of their period end.
 
+### Association licenses (issue #78)
+
+Associations pay **$36 per seat per year** (10 seats or more) on the
+website; the apps show no prices or purchase links. Each seat gives its
+official Pro, and while the paywall is on the coordinator features
+(assignments, training requirements, transcripts, crew readiness) need an
+active license. A new association gets a 30-day, 25-seat trial when the
+paywall is on (associations that exist when it's switched on get theirs
+then). With the paywall off nothing changes.
+
+1. In Stripe, create a "Association license" product with one **yearly,
+   per-unit** price of $36. Checkout passes the seat count as the quantity;
+   the canister refuses fewer than 10.
+2. In the customer portal settings, let customers **update quantities** and
+   cancel, so coordinators change seats there.
+3. Create a **restricted key** with read access to Checkout Sessions and
+   Subscriptions and **write access to Checkout Sessions** (to start a
+   checkout with the seat count), and nothing else. It can't move money.
+4. On the GitHub environment, add the secret `STRIPE_LICENSE_KEY` and the
+   variable `STRIPE_LICENSE_PRICE_ID` (the `price_...` id), then run the
+   **Admin task** workflow with `set-license-stripe`. Checkout returns to
+   `NATIVE_WEB_ORIGIN` when set, else the frontend canister's icp0.io
+   address.
+5. After deploying this version, run `setPaywallEnabled` again (it now
+   also tells the association canister) once billing is on.
+
+Invoiced associations get a license by hand:
+`icp canister call association grantLicense '("asc12", 40, <until ns>)' -e ic`
+(`revokeLicense` removes it). Admin grants may go below 10 seats.
+`metrics()` on the association canister counts licensed associations,
+seats and trials. Stripe licenses are re-read daily (hourly near their
+period end), so seat changes and cancellations land without a webhook; a
+coordinator can also press "check again" on the License page.
+
 ### Rule changes (issue #68)
 
 "What changed this season" lists `content.upsertRuleChange` entries for

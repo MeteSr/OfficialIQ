@@ -319,7 +319,9 @@
     "vsPriorSeason": "{{delta}}pt vs prior season",
     "mostMissedTitle": "Most-Missed Questions",
     "notEnoughAnswerData": "Not enough answer data yet.",
-    "missedOf": "Missed {{wrong}} of {{total}} attempts ({{pct}}%)"
+    "missedOf": "Missed {{wrong}} of {{total}} attempts ({{pct}}%)",
+    "readinessByMember": "Readiness by member",
+    "readinessScore": "{{score}}% recent average"
   },
   "audioMode": {
     "loadFailed": "Couldn't load audio for this article.",
@@ -623,7 +625,8 @@
     "csvCompletedAt": "Completed At",
     "csvCompleted": "Completed",
     "csvPending": "Pending",
-    "viewTrainingHours": "View Training Hours"
+    "viewTrainingHours": "View Training Hours",
+    "manageLicense": "License and seats"
   },
   "home": {
     "anOfficial": "an official",
@@ -1351,5 +1354,41 @@
     "reject": "Reject",
     "waiting": "Waiting for review",
     "none": "No clips for this sport yet. Upload the first one."
+  },
+  "license": {
+    "title": "License and seats",
+    "requiredTitle": "This needs an association license",
+    "requiredDesc": "Assignments, training requirements, transcripts and crew readiness come with an association license or its 30-day trial.",
+    "seeLicense": "See the license",
+    "status_none": "No license yet",
+    "status_trial": "Free trial until {{date}}",
+    "status_active": "Licensed until {{date}}",
+    "status_lapsed": "The license ended on {{date}}. Existing data stays readable; new assignments and the readiness view need a license again.",
+    "seatsUsed": "{{used}} of {{seats}} seats used",
+    "paywallOff": "Billing isn't switched on yet, so everything is open for now.",
+    "unlocks": "Each seat gives its official OfficialIQ Pro. Seats go to members in the order they joined, and you can move them.",
+    "seatHolders": "Seat holders",
+    "noHolders": "No one holds a seat yet.",
+    "moveSeatOf": "Move {{name}}'s seat",
+    "moveTo": "Move to…",
+    "noSeat": "{{name}} · no seat",
+    "you": "You",
+    "buyTitle": "Buy a license",
+    "buyMoreTitle": "Change seats",
+    "pricing": "${{price}} per seat per year, {{min}} seats or more.",
+    "seatsLabel": "Seats to buy",
+    "total": "${{total}} a year for {{seats}} seats",
+    "buy": "Buy {{seats}} seats",
+    "working": "Working…",
+    "manage": "Change seats or cancel",
+    "refresh": "I changed my seats, check again",
+    "claimed": "Your license is active. Seats go to your members now.",
+    "errTooFewSeats": "A license starts at 10 seats.",
+    "errNotYours": "That checkout belongs to a different account or association.",
+    "errAlreadyClaimed": "That subscription already licenses another association.",
+    "errNotActive": "The payment hasn't gone through yet. Try again in a minute.",
+    "errInvalidSession": "That checkout link isn't valid. Start a new checkout from this page.",
+    "errNotConfigured": "License checkout isn't set up yet.",
+    "errTryAgain": "Something went wrong. Try again."
   }
 }

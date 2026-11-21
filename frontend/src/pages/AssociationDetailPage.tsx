@@ -10,6 +10,9 @@ import { contentService, type Article } from "../services/content";
 import { Principal } from "@icp-sdk/core/principal";
 import { useSport } from "../lib/sport";
 import { toCsv } from "../lib/csv";
+import { LicenseRequired } from "../lib/license";
+import { purchasesAllowed } from "../lib/purchases";
+import LicensePrompt from "../components/LicensePrompt";
 
 type RosterRow = { principal: string; displayName: string; accuracy: number; streak: number };
 
@@ -51,6 +54,7 @@ export default function AssociationDetailPage() {
   const [targetSubset, setTargetSubset] = useState<string[]>([]);
   const [assigning,  setAssigning]  = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [licenseNeeded, setLicenseNeeded] = useState(false);
 
   const [completionsByAssignment, setCompletionsByAssignment] = useState<Record<string, Completion[]>>({});
 
@@ -107,6 +111,7 @@ export default function AssociationDetailPage() {
       setShowAssignForm(false);
       load();
     } catch (e: any) {
+      if (e instanceof LicenseRequired) { setLicenseNeeded(true); return; }
       setAssignError(e.message ?? t("assocDetail.assignFailed"));
     } finally {
       setAssigning(false);
@@ -175,6 +180,14 @@ export default function AssociationDetailPage() {
             style={{ width: "100%", padding: "12px 14px", background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 16 }}
           >
             ⏱️ {t("assocDetail.viewTrainingHours")}
+          </button>
+        )}
+        {isCoordinator && purchasesAllowed() && (
+          <button
+            onClick={() => navigate(`/association/${assoc.id}/license`)}
+            style={{ width: "100%", padding: "12px 14px", background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 700, marginBottom: 16 }}
+          >
+            🎟️ {t("assocDetail.manageLicense")}
           </button>
         )}
         {/* Roster / leaderboard — visible to coordinator and all members */}
@@ -263,6 +276,7 @@ export default function AssociationDetailPage() {
                 })}
               </div>
             )}
+            {licenseNeeded && <LicensePrompt associationId={assoc.id} />}
             {assignError && <div style={{ color: T.wrong, fontSize: 12, marginBottom: 8 }}>{assignError}</div>}
             <button
               onClick={handleAssign}

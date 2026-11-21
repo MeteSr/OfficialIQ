@@ -9,14 +9,16 @@ import { associationService, SetRequirementFailed, type AssociationRec, type Tra
 import { examService } from "../services/exam";
 import { userService } from "../services/user";
 import { toCsv } from "../lib/csv";
+import { LicenseRequired } from "../lib/license";
+import LicensePrompt from "../components/LicensePrompt";
 import {
   buildEntries, formatDuration, hours, parseRequirementInput, requirementErrorKey, requirementStatus, seasonWindow, totalIn,
 } from "../lib/transcript";
 
 const DEFAULT_SEASON_START = 8;
 
-type MemberRow = { principal: string; displayName: string; seasonSec: number; met: boolean | null; failed: boolean };
-type Loaded = { assoc: AssociationRec; requirement: TrainingRequirement | null; rows: MemberRow[] };
+type MemberRow = { principal: string; displayName: string; seasonSec: number; met: boolean | null; failed: boolean; licenseRequired?: boolean };
+type Loaded = { assoc: AssociationRec; requirement: TrainingRequirement | null; rows: MemberRow[]; licenseNeeded?: boolean };
 
 /**
  * Coordinator view of an association's training hours (issue #67): set the
@@ -51,17 +53,18 @@ export default function AssociationTrainingPage() {
           seasonSec: totalIn(entries, season.from, season.to).seconds,
           met: requirement ? requirementStatus(entries, { hoursPerSeason: Number(requirement.hoursPerSeason), seasonStartMonth: Number(requirement.seasonStartMonth) }, now).met : null,
         };
-      } catch {
-        return { principal: p.toString(), displayName, seasonSec: 0, met: null, failed: true };
+      } catch (e) {
+        return { principal: p.toString(), displayName, seasonSec: 0, met: null, failed: true, licenseRequired: e instanceof LicenseRequired };
       }
     }));
-    return { assoc, requirement, rows: rows.sort((a, b) => a.seasonSec - b.seasonSec) };
+    return { assoc, requirement, rows: rows.sort((a, b) => a.seasonSec - b.seasonSec), licenseNeeded: rows.some(r => r.licenseRequired) };
   }, [isAuthenticated, id, principal]);
 
   const [hoursInput, setHoursInput] = useState("");
   const [monthInput, setMonthInput] = useState(DEFAULT_SEASON_START);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveNeedsLicense, setSaveNeedsLicense] = useState(false);
 
   useEffect(() => {
     const r = q.data?.requirement;
@@ -87,6 +90,7 @@ export default function AssociationTrainingPage() {
       await associationService.setTrainingRequirement(assoc.id, parsed.ok);
       q.reload();
     } catch (e) {
+      if (e instanceof SetRequirementFailed && "licenseRequired" in e.reason) { setSaveNeedsLicense(true); return; }
       setSaveError(e instanceof SetRequirementFailed ? t(requirementErrorKey(e.reason)) : t("assocTraining.saveFailed"));
     } finally {
       setSaving(false);
@@ -122,6 +126,7 @@ export default function AssociationTrainingPage() {
       </div>
 
       <div style={{ padding: 16 }}>
+        {(q.data.licenseNeeded || saveNeedsLicense) && <LicensePrompt associationId={assoc.id} />}
         <div style={{ padding: 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t("assocTraining.requirementTitle")}</div>
           <label style={{ display: "block", fontSize: 12, color: T.muted, marginBottom: 4 }}>{t("assocTraining.hoursLabel")}</label>

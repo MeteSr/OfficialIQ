@@ -138,12 +138,13 @@ export function parseRequirementInput(
 
 export type SetRequirementError =
   | { associationNotFound: null } | { notCoordinator: null }
-  | { invalidHours: null } | { invalidSeasonStartMonth: null };
+  | { invalidHours: null } | { invalidSeasonStartMonth: null } | { licenseRequired: null };
 
 /** The message key for an error from association.setTrainingRequirement. */
 export function requirementErrorKey(e: SetRequirementError): string {
   if ("associationNotFound" in e) return "assocAnalytics.notFound";
   if ("notCoordinator" in e) return "assocTraining.errNotCoordinator";
   if ("invalidHours" in e) return "assocTraining.invalidHours";
+  if ("licenseRequired" in e) return "license.requiredTitle";
   return "assocTraining.errInvalidMonth";
 }
