@@ -4,67 +4,179 @@ type TrainingRequirement =
    seasonStartMonth: nat;
    updatedAt: int;
  };
+type StripeConfig = 
+ record {
+   appUrl: text;
+   key: text;
+   priceId: text;
+ };
+type Source = 
+ variant {
+   manual;
+   stripe: text;
+   trial;
+ };
 type SetRequirementError = 
  variant {
    associationNotFound;
    invalidHours;
    invalidSeasonStartMonth;
+   licenseRequired;
    notCoordinator;
  };
-type Result_8 = 
- variant {
-   err: text;
-   ok: Assignment;
- };
-type Result_7 = 
- variant {
-   err: text;
-   ok: vec Completion;
- };
-type Result_6 = 
- variant {
-   err: text;
-   ok: vec Assignment;
- };
-type Result_5 = 
- variant {
-   err: text;
-   ok: vec principal;
- };
-type Result_4 = 
+type Result_9 = 
  variant {
    err: GetRequirementError;
    ok: opt TrainingRequirement;
  };
-type Result_3 = 
+type Result_8 = 
+ variant {
+   err: LicenseAdminError;
+   ok: LicenseInfo;
+ };
+type Result_7 = 
  variant {
    err: text;
    ok: AssociationRec;
+ };
+type Result_6 = 
+ variant {
+   err: MoveSeatError;
+   ok: LicenseView;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: Completion;
+ };
+type Result_4 = 
+ variant {
+   err: LicenseClaimError;
+   ok: LicenseView;
+ };
+type Result_3 = 
+ variant {
+   err: LicenseAdminError;
+   ok;
  };
 type Result_2 = 
  variant {
    err: text;
    ok;
  };
-type Result_1 = 
+type Result_14 = 
+ variant {
+   err: AssignmentError;
+   ok: Assignment;
+ };
+type Result_13 = 
  variant {
    err: text;
-   ok: Completion;
+   ok: vec Completion;
  };
-type Result = 
+type Result_12 = 
+ variant {
+   err: text;
+   ok: vec Assignment;
+ };
+type Result_11 = 
+ variant {
+   err: text;
+   ok: vec principal;
+ };
+type Result_10 = 
+ variant {
+   err: LicenseAccessError;
+   ok: LicenseView;
+ };
+type Result_1 = 
  variant {
    err: SetRequirementError;
    ok: opt TrainingRequirement;
+ };
+type Result = 
+ variant {
+   err: CheckoutError;
+   ok: text;
  };
 type RequirementInput = 
  record {
    hoursPerSeason: nat;
    seasonStartMonth: nat;
  };
+type MoveSeatError = 
+ variant {
+   alreadyHasSeat;
+   associationNotFound;
+   noSeat;
+   notCoordinator;
+   notMember;
+ };
+type LicenseView = 
+ record {
+   active: bool;
+   checkoutReady: bool;
+   holders: vec principal;
+   license: opt LicenseInfo;
+   memberCount: nat;
+   minSeats: nat;
+   paywallOn: bool;
+ };
+type LicenseInfo = 
+ record {
+   expiresAt: int;
+   seats: nat;
+   source: Source;
+   updatedAt: int;
+ };
+type LicenseClaimError = 
+ variant {
+   alreadyClaimed;
+   associationNotFound;
+   invalidSession;
+   malformed;
+   notActive;
+   notComplete;
+   notConfigured;
+   notCoordinator;
+   notSubscription;
+   notYours;
+   stripeUnavailable;
+   tooFewSeats;
+ };
+type LicenseAdminError = 
+ variant {
+   associationNotFound;
+   invalidConfig;
+   notAdmin;
+ };
+type LicenseAccessError = 
+ variant {
+   associationNotFound;
+   notCoordinator;
+ };
+type HttpRequestResult = 
+ record {
+   body: blob;
+   headers: vec HttpHeader;
+   status: nat;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
 type GetRequirementError = 
  variant {
    associationNotFound;
    notAuthorized;
+ };
+type CoordinatorLicense = 
+ variant {
+   active;
+   lapsed;
+   none;
+   unlicensed;
  };
 type Completion = 
  record {
@@ -72,6 +184,14 @@ type Completion =
    completedAt: int;
    member: principal;
    score: nat;
+ };
+type CheckoutError = 
+ variant {
+   associationNotFound;
+   notConfigured;
+   notCoordinator;
+   stripeUnavailable;
+   tooFewSeats;
  };
 type AssociationRec = 
  record {
@@ -81,6 +201,12 @@ type AssociationRec =
    joinCode: text;
    name: text;
    sport: text;
+ };
+type AssignmentError = 
+ variant {
+   associationNotFound;
+   licenseRequired;
+   notCoordinator;
  };
 type Assignment = 
  record {
@@ -94,30 +220,45 @@ type Assignment =
    title: text;
  };
 service : {
+  /// Licenses the association from a finished Stripe Checkout: the caller
+  /// coordinates it, the session names them and this association, is
+  /// complete and started a subscription nobody has claimed, and that
+  /// subscription is active with at least 10 seats.
+  claimLicense: (associationId: text, sessionId: text) -> (Result_4);
   /// For other canisters: the associations `p` coordinates.
   coordinatedBy: (p: principal) -> (vec text) query;
+  coordinatorLicense: (coordinator: principal, member: principal) ->
+   (CoordinatorLicense) query;
   createAssignment: (associationId: text, title: text, articleIds: vec text,
-   casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_8);
-  createAssociation: (name: text, sport: text) -> (Result_3);
+   casebook: bool, dueAt: int, targetMembers: vec principal) -> (Result_14);
+  createAssociation: (name: text, sport: text) -> (Result_7);
   /// Called by the user canister when an official deletes their account:
   /// removes them from every association and its assignments, drops their
   /// completions, and deletes the associations they coordinate (with their
   /// assignments and everyone's completions of them). Safe to repeat.
   forgetUser: (p: principal) -> (Result_2);
-  getAssignmentCompletions: (assignmentId: text) -> (Result_7) query;
+  getAssignmentCompletions: (assignmentId: text) -> (Result_13) query;
   getAssociation: (id: text) -> (opt AssociationRec) query;
-  getAssociationAssignments: (id: text) -> (Result_6) query;
-  getAssociationMembers: (id: text) -> (Result_5) query;
+  getAssociationAssignments: (id: text) -> (Result_12) query;
+  getAssociationMembers: (id: text) -> (Result_11) query;
+  getLicense: (associationId: text) -> (Result_10) query;
   getMyAssignments: () -> (vec Assignment) query;
   getMyAssociations: () -> (vec AssociationRec) query;
   getMyCompletions: () -> (vec Completion) query;
   getMyCoordinatedAssociations: () -> (vec AssociationRec) query;
   /// The association's requirement, for its coordinator and members. null
   /// when none is set.
-  getTrainingRequirement: (associationId: text) -> (Result_4) query;
+  getTrainingRequirement: (associationId: text) -> (Result_9) query;
+  /// A license granted by hand (invoices, POs, test accounts), until
+  /// `until` (nanoseconds). Any number of seats. Replaces the current one.
+  grantLicense: (associationId: text, seats: nat, until: int) -> (Result_8);
+  isAdminCaller: () -> (bool) query;
   isCoordinatorOf: (coordinator: principal, member: principal) ->
    (bool) query;
-  joinAssociation: (joinCode: text) -> (Result_3);
+  joinAssociation: (joinCode: text) -> (Result_7);
+  /// A member leaves an association (the coordinator can't). Their seat,
+  /// if they had one, goes to the next member in join order.
+  leaveAssociation: (associationId: text) -> (Result_2);
   /// For other canisters (content's clip library): an official's place in
   /// an association.
   membershipOf: (associationId: text, p: principal) ->
@@ -126,17 +267,48 @@ service : {
       member;
       none;
     }) query;
-  metrics: () -> (record {
-                    assignmentCount: nat;
-                    associationCount: nat;
-                  }) query;
+  metrics: () ->
+   (record {
+      assignmentCount: nat;
+      associationCount: nat;
+      licensedAssociations: nat;
+      totalSeats: nat;
+      trials: nat;
+    }) query;
+  /// Moves a seat (and the Pro it carries) from one member to another.
+  moveSeat: (associationId: text, from: principal, to: principal) ->
+   (Result_6);
   recordCompletion: (_assignmentId: text, _score: nat) -> (Result_2);
   /// Records an assignment completion from a finished exam session graded by
   /// the exam canister, taken on the assignment's articles. Each session
   /// counts once; retaking replaces the earlier completion.
-  recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result_1);
+  recordGradedCompletion: (assignmentId: text, sessionId: text) -> (Result_5);
+  /// Re-reads the association's Stripe subscription now (after a seat
+  /// change in the customer portal, say) rather than at the next daily
+  /// check. At most once a minute.
+  refreshLicense: (associationId: text) -> (Result_4);
+  /// Removes the license (not the Stripe subscription: cancel that in
+  /// Stripe). Its seat holders lose the Pro it gave them.
+  revokeLicense: (associationId: text) -> (Result_3);
+  setAdmin: (p: principal) -> (Result_2);
+  /// Stripe for license checkout: a restricted key (see stripeConfig), the
+  /// per-seat yearly Price, and the app's https origin that Checkout returns
+  /// to. null switches checkout off.
+  setLicenseStripe: (config: opt StripeConfig) -> (Result_3);
+  /// From the user canister's setPaywallEnabled. Switching it on starts the
+  /// 30-day trial for every association that has never had a license.
+  setPaywallFlag: (on: bool) -> (Result_2);
   /// Sets the association's requirement, or clears it with null.
   /// Coordinator only.
   setTrainingRequirement: (associationId: text, input:
-   opt RequirementInput) -> (Result);
+   opt RequirementInput) -> (Result_1);
+  /// Starts a Stripe Checkout for `seats` seats (10 or more) of the yearly
+  /// per-seat Price and returns its URL. The seat count that counts is the
+  /// one on the subscription Stripe creates, read back by claimLicense.
+  startLicenseCheckout: (associationId: text, seats: nat) -> (Result);
+  transformLicenseStripe:
+   (record {
+      context: blob;
+      response: HttpRequestResult;
+    }) -> (HttpRequestResult) query;
 }

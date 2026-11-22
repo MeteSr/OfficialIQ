@@ -319,7 +319,9 @@
     "vsPriorSeason": "{{delta}}pt vs. temporada anterior",
     "mostMissedTitle": "Preguntas Más Falladas",
     "notEnoughAnswerData": "Aún no hay suficientes datos de respuestas.",
-    "missedOf": "Falladas {{wrong}} de {{total}} intentos ({{pct}}%)"
+    "missedOf": "Falladas {{wrong}} de {{total}} intentos ({{pct}}%)",
+    "readinessByMember": "Preparación por miembro",
+    "readinessScore": "{{score}}% de media reciente"
   },
   "audioMode": {
     "loadFailed": "No se pudo cargar el audio de este artículo.",
@@ -623,7 +625,8 @@
     "csvCompletedAt": "Completado el",
     "csvCompleted": "Completado",
     "csvPending": "Pendiente",
-    "viewTrainingHours": "Ver Horas de Capacitación"
+    "viewTrainingHours": "Ver Horas de Capacitación",
+    "manageLicense": "Licencia y plazas"
   },
   "home": {
     "anOfficial": "un oficial",
@@ -1351,5 +1354,41 @@
     "reject": "Rechazar",
     "waiting": "En revisión",
     "none": "Aún no hay clips para este deporte. Sube el primero."
+  },
+  "license": {
+    "title": "Licencia y plazas",
+    "requiredTitle": "Esto requiere una licencia de asociación",
+    "requiredDesc": "Las tareas, los requisitos de formación, los historiales y la preparación del equipo vienen con una licencia de asociación o su prueba de 30 días.",
+    "seeLicense": "Ver la licencia",
+    "status_none": "Aún no hay licencia",
+    "status_trial": "Prueba gratuita hasta el {{date}}",
+    "status_active": "Con licencia hasta el {{date}}",
+    "status_lapsed": "La licencia terminó el {{date}}. Los datos existentes siguen visibles; las tareas nuevas y la vista de preparación necesitan una licencia de nuevo.",
+    "seatsUsed": "{{used}} de {{seats}} plazas en uso",
+    "paywallOff": "La facturación aún no está activada, así que todo está disponible por ahora.",
+    "unlocks": "Cada plaza da OfficialIQ Pro a su árbitro. Las plazas se asignan a los miembros por orden de llegada y puedes moverlas.",
+    "seatHolders": "Titulares de plaza",
+    "noHolders": "Nadie tiene plaza todavía.",
+    "moveSeatOf": "Mover la plaza de {{name}}",
+    "moveTo": "Mover a…",
+    "noSeat": "{{name}} · sin plaza",
+    "you": "Tú",
+    "buyTitle": "Comprar una licencia",
+    "buyMoreTitle": "Cambiar plazas",
+    "pricing": "${{price}} por plaza al año, {{min}} plazas o más.",
+    "seatsLabel": "Plazas a comprar",
+    "total": "${{total}} al año por {{seats}} plazas",
+    "buy": "Comprar {{seats}} plazas",
+    "working": "Procesando…",
+    "manage": "Cambiar plazas o cancelar",
+    "refresh": "Cambié mis plazas, comprobar de nuevo",
+    "claimed": "Tu licencia está activa. Las plazas se asignan ya a tus miembros.",
+    "errTooFewSeats": "Una licencia empieza en 10 plazas.",
+    "errNotYours": "Ese pago pertenece a otra cuenta u otra asociación.",
+    "errAlreadyClaimed": "Esa suscripción ya da licencia a otra asociación.",
+    "errNotActive": "El pago aún no se ha completado. Inténtalo de nuevo en un minuto.",
+    "errInvalidSession": "Ese enlace de pago no es válido. Empieza un pago nuevo desde esta página.",
+    "errNotConfigured": "El pago de licencias aún no está configurado.",
+    "errTryAgain": "Algo salió mal. Inténtalo de nuevo."
   }
 }

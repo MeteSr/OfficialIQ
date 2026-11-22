@@ -10,6 +10,8 @@ import { userService } from "../services/user";
 import { associationService } from "../services/association";
 import { exportOrPrint } from "../lib/exportPdf";
 import { toCsv } from "../lib/csv";
+import { LicenseRequired } from "../lib/license";
+import LicensePrompt from "../components/LicensePrompt";
 import {
   buildEntries, formatDuration, hours, monthlyTotals, requirementStatus, seasonWindow, totalIn,
   type EntryKind, type Requirement, type RequirementStatus, type TranscriptEntry,
@@ -87,6 +89,7 @@ export default function TranscriptPage() {
     );
   }
   if (q.loading) return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
+  if (q.error instanceof LicenseRequired && associationId) return <div style={{ padding: "80px 16px 24px" }}><LicensePrompt associationId={associationId} /></div>;
   if (q.error || !q.data) return <LoadError onRetry={q.reload} />;
 
   const { name, entries, requirements } = q.data;

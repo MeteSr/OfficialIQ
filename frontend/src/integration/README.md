@@ -14,7 +14,7 @@ cd frontend && npm run test:integration
 ```
 
 `globalSetup.ts` looks up the canister IDs and makes a fixed test identity
-the admin of question, user, exam and ranking (the first `setAdmin` must
+the admin of question, user, exam, ranking, content, ai_proxy and association (the first `setAdmin` must
 come from a controller, which is your icp identity). Each test file seeds its
 own question bank under a unique sport id and uses fresh identities, so
 re-running against the same network is fine.

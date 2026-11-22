@@ -27,3 +27,15 @@ export function computeReadiness(scoresChronological: number[], passThresholdPct
     avgRecent >= passThresholdPct - 5 ? "Borderline" : "Needs Work";
   return { score: Math.round(avgRecent), label, trend };
 }
+
+const ORDER: Record<Readiness["label"], number> = { "Needs Work": 0, "Borderline": 1, "On Track": 2, "Not Enough Data": 3 };
+
+/**
+ * A coordinator's per-member readiness list (issue #78): those who most
+ * need work first, then by recent average, lowest first; members without
+ * enough exams last. Returns a new array.
+ */
+export function sortByReadiness<T extends { readiness: Readiness }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) =>
+    ORDER[a.readiness.label] - ORDER[b.readiness.label] || a.readiness.score - b.readiness.score);
+}

@@ -283,7 +283,12 @@ persistent actor Exam {
     ASSOCIATION_ID == ?p or RANKING_ID == ?p or CHALLENGE_ID == ?p
   };
 
-  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+  type AssociationCheck = actor {
+    coordinatorLicense : shared query (Principal, Principal) -> async { #none; #unlicensed; #lapsed; #active };
+  };
+
+  func associationCheck() : ?AssociationCheck =
+    switch (ASSOCIATION_ID) { case (?id) ?(actor (id.toText()) : AssociationCheck); case null null };
 
   public shared query ({ caller }) func getExamsFor(p : Principal) : async [ExamSession] {
     if (isAdmin(caller)) return examsOf(p);
@@ -293,12 +298,14 @@ persistent actor Exam {
 
   public shared composite query ({ caller }) func getMemberExams(p : Principal) : async [ExamSession] {
     if (caller != p) {
-      let allowed = switch (ASSOCIATION_ID) {
-        case (?id) { await (actor (Principal.toText(id)) : AssociationCheck).isCoordinatorOf(caller, p) };
-        case null false;
+      // Coordinators see their members' full history (crew readiness);
+      // once the paywall is on, only with an active seat license (#78).
+      let standing = switch (associationCheck()) { case (?a) await a.coordinatorLicense(caller, p); case null #none };
+      switch standing {
+        case (#active) {};
+        case (#none) return [];
+        case (#unlicensed or #lapsed) { if (paywallOn) return [] };
       };
-      if (not allowed) return [];
-      // Coordinators see their members' full history.
       return examsOf(p);
     };
     let access : Billing.Access = switch (userAccess()) {
@@ -332,7 +339,7 @@ persistent actor Exam {
     finishedAt    : Int;
   };
 
-  public type TrainingAccessError = { #notAuthorized };
+  public type TrainingAccessError = { #notAuthorized; #licenseRequired };
 
   func trainingOf(p : Principal) : [TrainingSession] {
     let out = List.empty<TrainingSession>();
@@ -357,14 +364,17 @@ persistent actor Exam {
   };
 
   /// A member's training sessions, for the coordinator of an association
-  /// they belong to (same check as getMemberExams).
+  /// they belong to. Once the paywall is on, that association needs a seat
+  /// license (#78); one that lapsed keeps reading what's there, so its
+  /// transcript can still be exported.
   public shared composite query ({ caller }) func getMemberTraining(p : Principal) : async Result.Result<[TrainingSession], TrainingAccessError> {
     if (caller != p) {
-      let allowed = switch (ASSOCIATION_ID) {
-        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
-        case null false;
+      let standing = switch (associationCheck()) { case (?a) await a.coordinatorLicense(caller, p); case null #none };
+      switch standing {
+        case (#none) return #err(#notAuthorized);
+        case (#unlicensed) { if (paywallOn) return #err(#licenseRequired) };
+        case (#lapsed or #active) {};
       };
-      if (not allowed) return #err(#notAuthorized);
     };
     #ok(trainingOf(p))
   };

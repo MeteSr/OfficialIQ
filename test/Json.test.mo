@@ -72,3 +72,39 @@ suite("getObject", func() {
     expect.bool(errs == null).isTrue();
   });
 });
+
+func intEq(a : Int, b : Int) : Bool = a == b;
+
+suite("getIntPath", func() {
+  // A Stripe Subscription keeps its seat count in its first item.
+  let sub = "{\"id\": \"sub_1\", \"items\": {\"object\": \"list\", \"data\": [{\"id\": \"si_1\", \"quantity\": 12, \"price\": {\"id\": \"price_1\"}}, {\"quantity\": 3}]}, \"status\": \"active\"}";
+
+  test("follows nested objects and array indexes", func() {
+    expect.option(Json.getIntPath(sub, ["items", "data", "0", "quantity"]), func i = debug_show i, intEq).equal(?12);
+    expect.option(Json.getIntPath(sub, ["items", "data", "1", "quantity"]), func i = debug_show i, intEq).equal(?3);
+  });
+  test("reads a top-level integer with a one-step path", func() {
+    expect.option(Json.getIntPath("{\"n\": 7}", ["n"]), func i = debug_show i, intEq).equal(?7);
+  });
+  test("gives null for a missing key or index", func() {
+    expect.bool(Json.getIntPath(sub, ["items", "data", "2", "quantity"]) == null).isTrue();
+    expect.bool(Json.getIntPath(sub, ["items", "nope", "0", "quantity"]) == null).isTrue();
+    expect.bool(Json.getIntPath(sub, []) == null).isTrue();
+  });
+  test("gives null for the wrong type along the way or at the end", func() {
+    expect.bool(Json.getIntPath(sub, ["status", "x"]) == null).isTrue();
+    expect.bool(Json.getIntPath(sub, ["items", "data", "0", "price"]) == null).isTrue();
+    expect.bool(Json.getIntPath(sub, ["items", "object"]) == null).isTrue();
+    // An index into an object, and a key into an array.
+    expect.bool(Json.getIntPath(sub, ["items", "0"]) == null).isTrue();
+    expect.bool(Json.getIntPath(sub, ["items", "data", "first", "quantity"]) == null).isTrue();
+  });
+  test("gives null for malformed JSON", func() {
+    expect.bool(Json.getIntPath("{\"items\": {\"data\": [{\"quantity\": 1}", ["items", "data", "0", "quantity"]) == null).isTrue();
+    expect.bool(Json.getIntPath("[1, 2]", ["0"]) == null).isTrue();
+  });
+  test("isn't fooled by brackets inside strings", func() {
+    let j = "{\"a\": {\"data\": [\"x]\", {\"q\": 5}]}}";
+    expect.option(Json.getIntPath(j, ["a", "data", "1", "q"]), func i = debug_show i, intEq).equal(?5);
+  });
+});

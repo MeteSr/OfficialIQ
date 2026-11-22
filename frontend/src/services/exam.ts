@@ -1,6 +1,7 @@
 import { canisterId } from "../lib/icEnv";
 import { createActor } from "./actor";
 import { idlFactory, type _SERVICE } from "../declarations/exam";
+import { LicenseRequired } from "../lib/license";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ export const examService = {
   async getMemberTraining(p: any): Promise<TrainingSession[]> {
     if (!CANISTER_ID) return [];
     const res = await actor().getMemberTraining(p);
-    if ("err" in res) throw new Error("Not authorized");
+    if ("err" in res) throw "licenseRequired" in res.err ? new LicenseRequired() : new Error("Not authorized");
     return res.ok;
   },
 

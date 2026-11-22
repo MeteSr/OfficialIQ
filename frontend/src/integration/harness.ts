@@ -40,7 +40,7 @@ export async function canister(name: keyof typeof appIdl, identity: Identity): P
   return Actor.createActor(appIdl[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
 }
 
-export async function adminCall(name: "question" | "user" | "content" | "ai_proxy", identity: Identity = adminIdentity()): Promise<AnyActor> {
+export async function adminCall(name: "question" | "user" | "content" | "ai_proxy" | "association", identity: Identity = adminIdentity()): Promise<AnyActor> {
   return Actor.createActor(appIdl[name], { agent: await agentFor(identity), canisterId: inject("canisterIds")[name] });
 }
 

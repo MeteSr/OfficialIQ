@@ -378,7 +378,7 @@ persistent actor User {
     monthlyQuizzes : [MonthlyQuizResult];
   };
 
-  public type TrainingAccessError = { #notAuthorized };
+  public type TrainingAccessError = { #notAuthorized; #licenseRequired };
 
   func activityOf(p : Principal) : TrainingActivity {
     {
@@ -416,17 +416,24 @@ persistent actor User {
   // then refreshed by update calls.
   transient let _envTimer : Timer.TimerId = Timer.setTimer<system>(#seconds 0, func() : async () { refreshEnv<system>() });
 
-  type AssociationCheck = actor { isCoordinatorOf : shared query (Principal, Principal) -> async Bool };
+  type AssociationCheck = actor {
+    coordinatorLicense : shared query (Principal, Principal) -> async { #none; #unlicensed; #lapsed; #active };
+  };
 
   /// A member's training activity, for the coordinator of an association
-  /// they belong to.
+  /// they belong to. Once the paywall is on, that association needs a
+  /// seat license (issue #78); one that lapsed keeps reading what's there.
   public shared composite query ({ caller }) func getMemberTrainingActivity(p : Principal) : async Result.Result<TrainingActivity, TrainingAccessError> {
     if (caller != p and not isAdmin(caller)) {
-      let allowed = switch (ASSOCIATION_ID) {
-        case (?id) { await (actor (id.toText()) : AssociationCheck).isCoordinatorOf(caller, p) };
-        case null false;
+      let standing = switch (ASSOCIATION_ID) {
+        case (?id) { await (actor (id.toText()) : AssociationCheck).coordinatorLicense(caller, p) };
+        case null #none;
       };
-      if (not allowed) return #err(#notAuthorized);
+      switch standing {
+        case (#none) return #err(#notAuthorized);
+        case (#unlicensed) { if (paywallEnabled) return #err(#licenseRequired) };
+        case (#lapsed or #active) {};
+      };
     };
     #ok(activityOf(p))
   };
@@ -760,19 +767,32 @@ persistent actor User {
 
   public type PaywallError = { #notAdmin; #examNotUpdated };
 
-  type ExamPaywall = actor { setPaywallFlag : shared Bool -> async Result.Result<(), Text> };
+  type PaywallCopy = actor { setPaywallFlag : shared Bool -> async Result.Result<(), Text> };
 
-  /// Switches billing on or off. The exam canister keeps a copy for its
-  /// plain-query history methods; if it can't be told, the switch still
-  /// changes here and the call reports #examNotUpdated, so try again.
+  // The canisters that keep a copy of the switch: exam for its plain-query
+  // history methods, association for its license gates (issue #78).
+  transient let PAYWALL_COPIES : [Text] = ["exam", "association"];
+
+  /// Switches billing on or off and tells the canisters that keep a copy.
+  /// If one can't be told, the switch still changes here and the call
+  /// reports #examNotUpdated (any copy, not only exam's), so try again.
   public shared ({ caller }) func setPaywallEnabled(on : Bool) : async Result.Result<(), PaywallError> {
     if (not isAdmin(caller)) return #err(#notAdmin);
     refreshEnv<system>();
     paywallEnabled := on;
-    let examId = switch (Env.canisterId<system>("exam")) { case (?id) id; case null return #err(#examNotUpdated) };
-    try {
-      switch (await (actor (examId.toText()) : ExamPaywall).setPaywallFlag(on)) { case (#ok) #ok(()); case (#err(_)) #err(#examNotUpdated) }
-    } catch (_) { #err(#examNotUpdated) }
+    var allTold = true;
+    for (name in PAYWALL_COPIES.values()) {
+      let told = switch (Env.canisterId<system>(name)) {
+        case (?id) {
+          try {
+            switch (await (actor (id.toText()) : PaywallCopy).setPaywallFlag(on)) { case (#ok) true; case (#err(_)) false }
+          } catch (_) { false }
+        };
+        case null false;
+      };
+      if (not told) allTold := false;
+    };
+    if (allTold) #ok(()) else #err(#examNotUpdated)
   };
 
   /// Pro for support cases, reviewers and the App Store review account,
@@ -923,9 +943,46 @@ persistent actor User {
 
   func forgetEntitlements(p : Principal) {
     for (e in entitlementsOf(p).values()) {
-      switch (e.source) { case (#web subId) webSubscriptionOwner.remove(Text.compare, subId); case _ {} };
+      switch (e.source) {
+        case (#web subId) webSubscriptionOwner.remove(Text.compare, subId);
+        case (#association id) {
+          switch (associationSeats.get(Text.compare, id)) {
+            case (?ps) associationSeats.add(Text.compare, id, ps.filter(func x = x != p));
+            case null {};
+          };
+        };
+        case _ {};
+      };
     };
     entitlements.remove(Principal.compare, p);
+  };
+
+  // ─── Association seats (issue #78) ─────────────────────────────────────────
+  //
+  // The association canister pushes who holds each association's license
+  // seats; each holder gets an #association(id) entitlement until the
+  // license expires. Pushed rather than asked for, so accessFor stays a
+  // plain query. An official who also bought Pro keeps that entitlement.
+
+  // associationId -> who it last said holds its seats.
+  let associationSeats : Map.Map<Text, [Principal]> = Map.empty<Text, [Principal]>();
+
+  /// From the association canister only: `holders` hold the association's
+  /// seats until `expiresAt`. Anyone it listed before and not now loses
+  /// that entitlement. Safe to repeat.
+  public shared ({ caller }) func syncAssociationSeats(associationId : Text, holders : [Principal], expiresAt : Int) : async Result.Result<(), SiblingError> {
+    if (not Env.isCanister<system>(caller, "association")) return #err(#notSibling);
+    let source : EntitlementSource = #association associationId;
+    let previous = switch (associationSeats.get(Text.compare, associationId)) { case (?ps) ps; case null [] };
+    for (p in previous.values()) {
+      if (holders.find(func h = h == p) == null) dropEntitlement(p, source);
+    };
+    // Officials whose account deletion is under way aren't given anything.
+    let kept = holders.filter(func p = Map.get(erasures, Principal.compare, p) == null);
+    let now = Time.now();
+    for (p in kept.values()) putEntitlement(p, { tier = #pro; source; expiresAt; updatedAt = now });
+    if (kept.size() == 0) associationSeats.remove(Text.compare, associationId) else associationSeats.add(Text.compare, associationId, kept);
+    #ok(())
   };
 
   func proBySource() : [(Text, Nat)] {

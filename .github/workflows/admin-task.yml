@@ -29,10 +29,15 @@ name: Admin task
 #   set-ai-config   — store the Anthropic key from the ANTHROPIC_API_KEY
 #                     secret in ai_proxy (re-run to rotate it). The optional
 #                     ANTHROPIC_MODEL variable overrides the model.
+#   set-license-stripe — store the Stripe settings for association seat
+#                     licenses (issue #78) in association: the
+#                     STRIPE_LICENSE_KEY secret and the STRIPE_LICENSE_PRICE_ID
+#                     variable (NATIVE_WEB_ORIGIN, when set, is where Checkout
+#                     returns to). Re-run to rotate the key or change the price.
 #
 # Secrets on the chosen environment: ICP_IDENTITY_PEM, plus
-# PUSH_RELAY_IDENTITY_PEM for set-push-relay and ANTHROPIC_API_KEY for
-# set-ai-config.
+# PUSH_RELAY_IDENTITY_PEM for set-push-relay, ANTHROPIC_API_KEY for
+# set-ai-config and STRIPE_LICENSE_KEY for set-license-stripe.
 
 on:
   workflow_dispatch:
@@ -47,7 +52,7 @@ on:
         description: "Task"
         required: true
         type: choice
-        options: [set-role, set-push-relay, seed-content, seed-ncaa, generate-questions, set-ai-config, set-video-config]
+        options: [set-role, set-push-relay, seed-content, seed-ncaa, generate-questions, set-ai-config, set-video-config, set-license-stripe]
       principal:
         description: "Principal (set-role: the official; set-push-relay: empty = the relay secret's principal, or none; unused otherwise)"
         required: false
@@ -128,6 +133,9 @@ jobs:
           CLOUDFLARE_STREAM_TOKEN: ${{ inputs.task == 'set-video-config' && secrets.CLOUDFLARE_STREAM_TOKEN || '' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ inputs.task == 'set-video-config' && vars.CLOUDFLARE_ACCOUNT_ID || '' }}
           CLOUDFLARE_STREAM_CUSTOMER_CODE: ${{ inputs.task == 'set-video-config' && vars.CLOUDFLARE_STREAM_CUSTOMER_CODE || '' }}
+          STRIPE_LICENSE_KEY: ${{ inputs.task == 'set-license-stripe' && secrets.STRIPE_LICENSE_KEY || '' }}
+          STRIPE_LICENSE_PRICE_ID: ${{ inputs.task == 'set-license-stripe' && vars.STRIPE_LICENSE_PRICE_ID || '' }}
+          APP_ORIGIN: ${{ inputs.task == 'set-license-stripe' && vars.NATIVE_WEB_ORIGIN || '' }}
         run: |
           # Inputs arrive through env, never interpolated into the script.
           cd frontend
@@ -154,6 +162,14 @@ jobs:
                 exit 1
               fi
               node --no-warnings scripts/set-video-config.mjs "$ENVIRONMENT"
+              exit 0
+              ;;
+            set-license-stripe)
+              if [ -z "$STRIPE_LICENSE_KEY" ] || [ -z "$STRIPE_LICENSE_PRICE_ID" ]; then
+                echo "::error::Set the STRIPE_LICENSE_KEY secret and the STRIPE_LICENSE_PRICE_ID variable on this environment (docs/DEPLOYMENT.md, Association licenses)."
+                exit 1
+              fi
+              node --no-warnings scripts/set-license-stripe.mjs "$ENVIRONMENT"
               exit 0
               ;;
             set-ai-config)

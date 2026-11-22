@@ -11,7 +11,11 @@ type TrainingSession =
    sportId: text;
    startedAt: int;
  };
-type TrainingAccessError = variant {notAuthorized;};
+type TrainingAccessError = 
+ variant {
+   licenseRequired;
+   notAuthorized;
+ };
 type Result_7 = 
  variant {
    err: text;
@@ -208,7 +212,9 @@ service : {
   getExamsFor: (p: principal) -> (vec ExamSession) query;
   getMemberExams: (p: principal) -> (vec ExamSession) composite_query;
   /// A member's training sessions, for the coordinator of an association
-  /// they belong to (same check as getMemberExams).
+  /// they belong to. Once the paywall is on, that association needs a seat
+  /// license (#78); one that lapsed keeps reading what's there, so its
+  /// transcript can still be exported.
   getMemberTraining: (p: principal) -> (Result_5) composite_query;
   /// The caller's exam history (issue #71): the last 30 days for a free
   /// official, everything kept (12 months) for Pro or while the paywall is

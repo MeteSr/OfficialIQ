@@ -1,8 +1,9 @@
 /// Just enough JSON to read flat fields from an API response (Stripe's, in
-/// lib/Billing.mo; Cloudflare's, in lib/Clips.mo): the scalar fields at the
-/// top level of an object, and a nested object's fields on request
-/// (getObject). Arrays are skipped whole, and a key inside a nested value
-/// can never be mistaken for a top-level one. Unit-tested in test/Json.test.mo.
+/// lib/Billing.mo and lib/License.mo; Cloudflare's, in lib/Clips.mo): the
+/// scalar fields at the top level of an object, a nested object's fields on
+/// request (getObject), and an integer at a path through nested objects and
+/// arrays (getIntPath). A key inside a nested value can never be mistaken
+/// for a top-level one. Unit-tested in test/Json.test.mo.
 import Char "mo:core/Char";
 import Int "mo:core/Int";
 import List "mo:core/List";
@@ -17,13 +18,20 @@ module {
     #bool : Bool;
     #null_;
     #obj : Text; // a nested object, as its raw JSON (read it with getObject)
-    #other; // an array, or a non-integer number
+    #arr : Text; // an array, as its raw JSON (read into it with getIntPath)
+    #other; // a non-integer number
   };
 
   public type Fields = [(Text, Value)];
 
   /// The top-level fields of a JSON object, or null if `json` isn't one.
-  public func fields(json : Text) : ?Fields {
+  public func fields(json : Text) : ?Fields = members(json, false);
+
+  /// The elements of a JSON array keyed "0", "1", ..., or null if `json`
+  /// isn't one.
+  func elements(json : Text) : ?Fields = members(json, true);
+
+  func members(json : Text, array : Bool) : ?Fields {
     let cs = json.toArray();
     let n = cs.size();
     var i = 0;
@@ -123,18 +131,21 @@ module {
       false
     };
 
+    // A nested object or array, as its raw text.
+    func nested() : ?Text {
+      let start = i;
+      if (not skipNested()) return null;
+      var raw = "";
+      var k = start;
+      while (k < i) { raw #= cs[k].toText(); k += 1 };
+      ?raw
+    };
+
     func value() : ?Value {
       switch (peek()) {
         case (?'\"') switch (str()) { case (?t) ?#text(t); case null null };
-        case (?'{') {
-          let start = i;
-          if (not skipNested()) return null;
-          var raw = "";
-          var k = start;
-          while (k < i) { raw #= cs[k].toText(); k += 1 };
-          ?#obj(raw)
-        };
-        case (?'[') if (skipNested()) ?#other else null;
+        case (?'{') switch (nested()) { case (?raw) ?#obj(raw); case null null };
+        case (?'[') switch (nested()) { case (?raw) ?#arr(raw); case null null };
         case (?'t') if (word("true")) ?#bool(true) else null;
         case (?'f') if (word("false")) ?#bool(false) else null;
         case (?'n') if (word("null")) ?#null_ else null;
@@ -142,21 +153,24 @@ module {
       }
     };
 
+    let (open, close) = if array ('[', ']') else ('{', '}');
     ws();
-    if (not eat('{')) return null;
+    if (not eat(open)) return null;
     ws();
-    if (not eat('}')) {
-      label members loop {
+    if (not eat(close)) {
+      var index = 0;
+      label items loop {
         ws();
-        let k = switch (str()) { case (?k) k; case null return null };
+        let k = if array { index.toText() } else switch (str()) { case (?k) k; case null return null };
+        index += 1;
         ws();
-        if (not eat(':')) return null;
+        if (not array and not eat(':')) return null;
         ws();
         let v = switch (value()) { case (?v) v; case null return null };
         out.add((k, v));
         ws();
-        if (eat(',')) continue members;
-        if (eat('}')) break members;
+        if (eat(',')) continue items;
+        if (eat(close)) break items;
         return null;
       };
     };
@@ -176,6 +190,24 @@ module {
 
   /// The fields of a nested object (`{"result": {...}}`).
   public func getObject(f : Fields, key : Text) : ?Fields = switch (get(f, key)) { case (?#obj(raw)) fields(raw); case _ null };
+
+  /// The integer at `path` through nested objects (by key) and arrays (by
+  /// index, as text: ["items", "data", "0", "quantity"]), starting from the
+  /// object `json`. null when any step is missing or the wrong type.
+  public func getIntPath(json : Text, path : [Text]) : ?Int {
+    if (path.size() == 0) return null;
+    var current : Fields = switch (fields(json)) { case (?f) f; case null return null };
+    var step = 0;
+    while (step + 1 < path.size()) {
+      current := switch (get(current, path[step])) {
+        case (?#obj(raw)) switch (fields(raw)) { case (?f) f; case null return null };
+        case (?#arr(raw)) switch (elements(raw)) { case (?f) f; case null return null };
+        case _ return null;
+      };
+      step += 1;
+    };
+    getInt(current, path[step])
+  };
 
   func escape(t : Text) : Text {
     var out = "";
@@ -201,7 +233,11 @@ module {
   /// A compact object holding only `keys` that are top-level scalars of
   /// `json`, in the order given. Used to reduce an outcall response to a
   /// canonical form every replica agrees on. "{}" for malformed input.
-  public func project(json : Text, keys : [Text]) : Text {
+  public func project(json : Text, keys : [Text]) : Text = projectWithPaths(json, keys, []);
+
+  /// project, plus integers read from deeper in `json` (getIntPath), each
+  /// added at the top level under its alias.
+  public func projectWithPaths(json : Text, keys : [Text], paths : [(Text, [Text])]) : Text {
     let f = switch (fields(json)) { case (?f) f; case null return "{}" };
     let parts = List.empty<Text>();
     for (k in keys.values()) {
@@ -213,6 +249,9 @@ module {
         case _ null;
       };
       switch rendered { case (?r) parts.add("\"" # escape(k) # "\":" # r); case null {} };
+    };
+    for ((alias, path) in paths.values()) {
+      switch (getIntPath(json, path)) { case (?v) parts.add("\"" # escape(alias) # "\":" # v.toText()); case null {} };
     };
     "{" # parts.values().join(",") # "}"
   };
