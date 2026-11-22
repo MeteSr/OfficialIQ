@@ -47,8 +47,8 @@ test("cases 15 to 17: a coordinator creates an association, an official joins an
   await coord.page.locator('input[type="date"]').fill(due);
   await coord.page.getByRole("button", { name: en.assocDetail.assignModuleButton, exact: true }).click();
   await expect(coord.page.getByText(title)).toBeVisible();
-  // "All members" includes the coordinator, who is listed as a member.
-  await expect(coord.page.getByText(en.assocDetail.completedCount.replace("{{done}}", "0").replace("{{target}}", "2").replace("{{pct}}", "0"))).toBeVisible();
+  // "All members" means the officials, not the coordinator.
+  await expect(coord.page.getByText(en.assocDetail.completedCount.replace("{{done}}", "0").replace("{{target}}", "1").replace("{{pct}}", "0"))).toBeVisible();
 
   await navTab(member.page, "study").click();
   await expect(member.page.getByText(en.study.assignedModules)).toBeVisible();
@@ -57,7 +57,7 @@ test("cases 15 to 17: a coordinator creates an association, an official joins an
   await playQuiz(member.page, { correct: (i) => i % 3 !== 0 });
 
   await coord.page.reload();
-  await expect(coord.page.getByText(en.assocDetail.completedCount.replace("{{done}}", "1").replace("{{target}}", "2").replace("{{pct}}", "50"))).toBeVisible({ timeout: 30_000 });
+  await expect(coord.page.getByText(en.assocDetail.completedCount.replace("{{done}}", "1").replace("{{target}}", "1").replace("{{pct}}", "100"))).toBeVisible({ timeout: 30_000 });
   // Most-missed needs three answers to a question. The assignment covered
   // all of Art. 1 once; two more passes, all wrong, make sure of it however
   // the other tests ran.

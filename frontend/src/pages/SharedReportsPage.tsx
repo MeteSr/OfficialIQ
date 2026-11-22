@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { reportService, type ReportShare, type ReportSnapshot } from "../services/report";
@@ -19,15 +20,22 @@ export default function SharedReportsPage() {
   const [rows,    setRows]    = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
+    setLoading(true);
+    setLoadFailed(false);
     reportService.getSharedWithMe().then(async (shares) => {
       const sorted = [...shares].sort((a, b) => Number(b.sharedAt - a.sharedAt));
       const reports = await Promise.all(sorted.map(s => reportService.getReport(s.reportId).catch(() => null)));
       setRows(sorted.map((share, i) => ({ share, report: reports[i] })));
-      await Promise.all(sorted.filter(s => !s.seen).map(s => reportService.markShareSeen(s.id)));
-    }).finally(() => setLoading(false));
-  }, [isAuthenticated]);
+      // Opening the page clears the notices; a failure here only leaves them for next time.
+      Promise.all(sorted.filter(s => !s.seen).map(s => reportService.markShareSeen(s.id))).catch(() => {});
+    }).catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
+  }, [isAuthenticated, attempt]);
 
   if (!isAuthenticated) {
     return (
@@ -53,7 +61,9 @@ export default function SharedReportsPage() {
       </div>
 
       <div style={{ padding: 16 }}>
-        {loading ? (
+        {loadFailed ? (
+          <LoadError onRetry={() => setAttempt(n => n + 1)} />
+        ) : loading ? (
           <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : rows.length === 0 ? (
           <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>{t("sharedReports.empty")}</div>

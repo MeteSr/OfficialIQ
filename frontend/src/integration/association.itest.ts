@@ -55,6 +55,24 @@ describe("associations", () => {
     expect(viaStranger).toEqual([]);
   });
 
+  it("gives an all-members assignment to the members, not the coordinator", async () => {
+    const coord = await makeCoordinator();
+    const member = newIdentity();
+    const assocC = await canister("association", coord);
+    const assoc = ok(await assocC.createAssociation("All Members Assoc", bank.sportId)) as { id: string; joinCode: string };
+    const assocM = await canister("association", member);
+    ok(await assocM.joinAssociation(assoc.joinCode));
+
+    const due = BigInt(Date.now() + 7 * 86_400_000) * 1_000_000n;
+    const asg = ok(await assocC.createAssignment(assoc.id, "Everyone", [bank.art1], false, due, [])) as { id: string };
+    expect(((await assocM.getMyAssignments()) as { id: string }[]).map(a => a.id)).toContain(asg.id);
+    expect(((await assocC.getMyAssignments()) as { id: string }[]).map(a => a.id)).not.toContain(asg.id);
+
+    const s = await start(coord, bank, 5);
+    await play(coord, bank, s, 5);
+    expect(err(await assocC.recordGradedCompletion(asg.id, s.session.id))).toMatch(/wasn't assigned to you/);
+  });
+
   it("only lets admin-made coordinators create associations", async () => {
     const official = newIdentity();
     expect(err(await (await canister("association", official)).createAssociation("Nope", bank.sportId))).toMatch(/coordinator access/);

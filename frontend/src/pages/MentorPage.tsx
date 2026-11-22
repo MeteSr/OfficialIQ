@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
-import { mentorshipService, type MentorLink, type Annotation } from "../services/mentorship";
+import { useCanisterQuery } from "../hooks/useCanisterQuery";
+import LoadError from "../components/LoadError";
+import { mentorshipService, type Annotation } from "../services/mentorship";
 
 function fmtDate(ns: bigint): string {
   return new Date(Number(ns / 1_000_000n)).toLocaleDateString();
@@ -14,26 +16,29 @@ export default function MentorPage() {
   const { isAuthenticated } = useAuthStore();
   const { t } = useTranslation();
 
-  const [myShares,    setMyShares]    = useState<MentorLink[]>([]);
-  const [dashboard,   setDashboard]   = useState<MentorLink[]>([]);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [loading,     setLoading]     = useState(true);
-
-  useEffect(() => {
-    if (!isAuthenticated) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([
+  const query = useCanisterQuery(async () => {
+    if (!isAuthenticated) return null;
+    const [shares, board, notes] = await Promise.all([
       mentorshipService.getMyMentorLinks(),
       mentorshipService.getMentorDashboard(),
       mentorshipService.getMyAnnotations(),
-    ]).then(async ([shares, board, notes]) => {
-      setMyShares([...shares].sort((a, b) => Number(b.createdAt - a.createdAt)));
-      setDashboard([...board].sort((a, b) => Number(b.createdAt - a.createdAt)));
-      setAnnotations(notes);
-      // Viewing this page acknowledges any pending mentor notes.
-      await Promise.all(notes.filter(n => !n.seen).map(n => mentorshipService.markAnnotationSeen(n.id)));
-    }).finally(() => setLoading(false));
+    ]);
+    return {
+      myShares: [...shares].sort((a, b) => Number(b.createdAt - a.createdAt)),
+      dashboard: [...board].sort((a, b) => Number(b.createdAt - a.createdAt)),
+      annotations: notes,
+    };
   }, [isAuthenticated]);
+  const myShares = query.data?.myShares ?? [];
+  const dashboard = query.data?.dashboard ?? [];
+  const annotations: Annotation[] = query.data?.annotations ?? [];
+  const loading = isAuthenticated && query.loading;
+
+  // Viewing this page acknowledges any pending mentor notes.
+  useEffect(() => {
+    const unseen = query.data?.annotations.filter(n => !n.seen) ?? [];
+    Promise.all(unseen.map(n => mentorshipService.markAnnotationSeen(n.id))).catch(() => {});
+  }, [query.data]);
 
   if (!isAuthenticated) {
     return (
@@ -63,7 +68,9 @@ export default function MentorPage() {
         </div>
       </div>
 
-      {loading ? (
+      {query.error ? (
+        <LoadError onRetry={query.reload} />
+      ) : loading ? (
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>

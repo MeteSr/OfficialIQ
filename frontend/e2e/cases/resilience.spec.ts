@@ -91,17 +91,23 @@ const ROUTES = [
 ];
 
 test("case 24: no screen crashes or goes blank when the canisters can't be reached", async ({ newOfficial }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   const o = await newOfficial();
   await signUp(o);
   const crashes: string[] = [];
-  o.page.on("pageerror", (e) => crashes.push(`${o.page.url()}: ${e.message}`));
+  // The app's own frame in the stack says which screen left a call uncaught
+  // (the URL alone can be the next screen, as a failing call takes a while).
+  const appFrame = (stack = "") => stack.split("\n").find(l => l.includes("/src/") && !l.includes("/src/services/") && !l.includes("/src/declarations/"))?.trim() ?? stack.split("\n")[1]?.trim() ?? "";
+  o.page.on("pageerror", (e) => crashes.push(`${o.page.url()}: ${e.message} ${appFrame(e.stack)}`));
 
   await o.page.route("**/api/**", (route) => route.abort("failed"));
   const unexplained: string[] = [];
   for (const path of ROUTES) {
     await goInApp(o.page, path);
-    await o.page.waitForTimeout(4_000);
+    await o.page.waitForTimeout(2_000);
+    // A failing call takes a few seconds (the agent retries); give the
+    // screen time to settle on its error before judging it.
+    await expect(o.page.getByText(/^(Loading…|Loading questions…)$/)).toHaveCount(0, { timeout: 30_000 }).catch(() => {});
     // The error boundary's text; LoadError's "Something went wrong." is fine.
     await expect(o.page.getByText(en.errorBoundary.body), `${path} crashed`).toHaveCount(0);
     const text = (await o.page.locator("body").innerText()).replace(/\s+/g, " ").trim();
@@ -110,9 +116,7 @@ test("case 24: no screen crashes or goes blank when the canisters can't be reach
     expect(own.length, `${path} is blank`).toBeGreaterThan(0);
     if (!own.includes(en.common.retry) && /^(Loading…|Loading questions…)?$/.test(own)) unexplained.push(path);
   }
-  if (unexplained.length) test.info().annotations.push({ type: "spinner only, no explanation", description: unexplained.join(", ") });
-  // eslint-disable-next-line no-console
-  console.log(`Screens with only a spinner when offline: ${unexplained.join(", ") || "none"}`);
+  expect(unexplained, "screens that only show a spinner").toEqual([]);
 
   // Ranks uses useCanisterQuery: it offers a retry, and retrying recovers.
   await goInApp(o.page, "/ranks");
@@ -121,9 +125,7 @@ test("case 24: no screen crashes or goes blank when the canisters can't be reach
   // Ranks may already have retried by itself once the canisters are back.
   await o.page.getByRole("button", { name: en.common.retry }).click({ timeout: 5_000 }).catch(() => {});
   await expect(o.page.getByRole("button", { name: en.common.retry })).toHaveCount(0, { timeout: 30_000 });
-  // Uncaught errors (often a canister call with no .catch) don't break a
-  // screen on their own; they're listed for follow-up rather than failing.
-  if (crashes.length) test.info().annotations.push({ type: "uncaught errors while offline", description: crashes.join("\n") });
-  // eslint-disable-next-line no-console
-  console.log(`Uncaught errors while offline: ${crashes.length ? `\n${crashes.join("\n")}` : "none"}`);
+  // An uncaught error is a canister call nothing handles: the screen it
+  // belongs to shows stale or empty data instead of saying it failed.
+  expect(crashes, "uncaught errors while offline").toEqual([]);
 });

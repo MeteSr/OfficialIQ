@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { reportService, type ReportSnapshot, type ArticleStat } from "../services/report";
@@ -30,12 +31,17 @@ export default function ReportCardPage() {
   const [sharing,    setSharing]    = useState(false);
   const [shared,     setShared]     = useState(false);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+
   function loadHistory() {
+    setLoading(true);
+    setLoadFailed(false);
     reportService.getMyReports().then((rs) => {
       const sorted = [...rs].sort((a, b) => Number(b.generatedAt - a.generatedAt));
       setHistory(sorted);
       if (sorted.length > 0) setCurrent(sorted[0]);
-    }).finally(() => setLoading(false));
+    }).catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -171,7 +177,9 @@ export default function ReportCardPage() {
       </div>
 
       <div style={{ padding: 16 }}>
-        {loading ? (
+        {loadFailed ? (
+          <LoadError onRetry={loadHistory} />
+        ) : loading ? (
           <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : (
           <>

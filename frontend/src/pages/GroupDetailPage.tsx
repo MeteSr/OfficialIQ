@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { rankingService, type Group, type GroupChallenge, type GroupLeaderboardEntry } from "../services/ranking";
 import { useAuthStore } from "../store/authStore";
@@ -21,9 +22,12 @@ export default function GroupDetailPage() {
   const [posting, setPosting] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+
   function refresh() {
     if (!id) return;
     setLoading(true);
+    setLoadFailed(false);
     Promise.all([
       rankingService.getGroup(id),
       rankingService.getGroupLeaderboard(id).catch(() => []),
@@ -32,7 +36,8 @@ export default function GroupDetailPage() {
       setGroup(g);
       setLeaderboard(lb);
       setChallenges(ch);
-    }).finally(() => setLoading(false));
+    }).catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
   }
 
   useEffect(refresh, [id]);
@@ -69,6 +74,8 @@ export default function GroupDetailPage() {
   if (loading) {
     return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
+
+  if (loadFailed) return <div style={{ paddingTop: 80 }}><LoadError onRetry={refresh} /></div>;
 
   if (!group) {
     return (

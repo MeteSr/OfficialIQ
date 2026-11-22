@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { associationService, type AssociationRec } from "../services/association";
@@ -26,12 +27,17 @@ export default function AssociationPage() {
   const [joining,    setJoining]    = useState(false);
   const [joinError,  setJoinError]  = useState<string | null>(null);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+
   function refresh() {
     setLoading(true);
+    setLoadFailed(false);
     Promise.all([
       associationService.getMyAssociations(),
       associationService.getMyCoordinatedAssociations(),
-    ]).then(([m, c]) => { setMine(m); setCoordinated(c); }).finally(() => setLoading(false));
+    ]).then(([m, c]) => { setMine(m); setCoordinated(c); })
+      .catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -92,7 +98,9 @@ export default function AssociationPage() {
         </div>
       </div>
 
-      {loading ? (
+      {loadFailed ? (
+        <LoadError onRetry={refresh} />
+      ) : loading ? (
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>

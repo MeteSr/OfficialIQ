@@ -64,7 +64,7 @@ the seed only adds what's missing.
 | 21 | Report a question | Partly | `cases/study.spec.ts` | Reaching the moderation queue and resolving it are tested. The plan says it also appears on Me, which the app doesn't do. |
 | 22 | Offline | Partly | `cases/resilience.spec.ts` | Synced content and queued answers are tested in the browser. Installing the app (PWA) and its service worker need a production build on a phone. |
 | 23 | Spanish | Partly | `cases/spanish.spec.ts` | No English left on any tab is tested. Whether the Spanish reads well needs a native speaker. |
-| 24 | Error screens | Partly | `cases/resilience.spec.ts` | Every screen is opened with the canisters unreachable: none may crash or go blank, and retry recovers. Screens that only show a spinner are listed in the run's log for a person to judge. |
+| 24 | Error screens | Yes | `cases/resilience.spec.ts` | Every screen is opened with the canisters unreachable: none may crash, go blank, stay on a spinner or leave a call uncaught, and retry recovers. |
 | 25 | Privacy and terms | Yes | `cases/legal-account.spec.ts` | |
 | 26 | Delete account | Yes | `cases/legal-account.spec.ts` | |
 | 27 | Pro | Partly | `billing/pro.spec.ts` | The upgrade link, Pro after checkout, the higher assistant limit and the portal link are tested. Paying on Stripe's page needs Stripe test keys, and the longer exam history needs exams older than 30 days. |

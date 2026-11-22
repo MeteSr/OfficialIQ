@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { contentService, type VideoSubmission, type CasebookPlay } from "../services/content";
@@ -23,13 +24,22 @@ export default function ModerationQueuePage() {
   const [loading,       setLoading]       = useState(true);
   const [tab,           setTab]           = useState<Tab>("questions");
 
+  const [adminCheck, setAdminCheck] = useState(0);
+  const [adminCheckFailed, setAdminCheckFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+
   useEffect(() => {
     if (!isAuthenticated) { setCheckingAdmin(false); return; }
-    contentService.isAdmin().then(setIsAdmin).finally(() => setCheckingAdmin(false));
-  }, [isAuthenticated]);
+    setCheckingAdmin(true);
+    setAdminCheckFailed(false);
+    contentService.isAdmin().then(setIsAdmin)
+      .catch(() => setAdminCheckFailed(true))
+      .finally(() => setCheckingAdmin(false));
+  }, [isAuthenticated, adminCheck]);
 
   function load() {
     setLoading(true);
+    setLoadFailed(false);
     // Moderators may need to link clips to any sport's plays, not just
     // their own profile's — so this pulls articles across the whole
     // sport registry rather than a single hardcoded sport/level.
@@ -44,7 +54,8 @@ export default function ModerationQueuePage() {
       const articles = articleLists.flat();
       const playLists = await Promise.all(articles.map(a => contentService.listPlays(a.id)));
       setPlays(playLists.flat());
-    }).finally(() => setLoading(false));
+    }).catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => { if (isAdmin && features.clipSubmissions) load(); }, [isAdmin]);
@@ -90,6 +101,8 @@ export default function ModerationQueuePage() {
     return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
 
+  if (adminCheckFailed) return <div style={{ paddingTop: 80 }}><LoadError onRetry={() => setAdminCheck(n => n + 1)} /></div>;
+
   if (!isAdmin) {
     return (
       <div style={{ padding: 24, textAlign: "center", paddingTop: 80 }}>
@@ -128,7 +141,9 @@ export default function ModerationQueuePage() {
       {tab === "errors" && <div style={{ padding: 16 }}><AppErrorsPanel /></div>}
       {tab === "clips" && <div style={{ padding: 16 }}>
         <div style={{ fontSize: 13, color: T.muted, marginBottom: 12 }}>{t("moderation.pendingCount", { count: pending.length })}</div>
-        {loading ? (
+        {loadFailed ? (
+          <LoadError onRetry={load} />
+        ) : loading ? (
           <div style={{ textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
         ) : pending.length === 0 ? (
           <div style={{ fontSize: 13, color: T.muted, textAlign: "center" }}>{t("moderation.nothingPending")}</div>
