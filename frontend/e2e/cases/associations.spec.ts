@@ -1,6 +1,9 @@
 import { test, expect, en, signUp, navTab } from "../support/fixtures";
 import { canister, grantRole, identityFromHex } from "../support/backend";
 import { playQuiz } from "../support/quiz";
+import { BASKETBALL, RULE_QUESTIONS, CASEBOOK_QUESTIONS } from "../support/seed";
+
+const QUESTIONS_PER_ARTICLE = RULE_QUESTIONS + CASEBOOK_QUESTIONS;
 
 // Manual test plan cases 15 to 17: a coordinator's association, its study
 // assignments and its seat license page.
@@ -55,10 +58,21 @@ test("cases 15 to 17: a coordinator creates an association, an official joins an
 
   await coord.page.reload();
   await expect(coord.page.getByText(en.assocDetail.completedCount.replace("{{done}}", "1").replace("{{target}}", "2").replace("{{pct}}", "50"))).toBeVisible({ timeout: 30_000 });
+  // Most-missed needs three answers to a question. The assignment covered
+  // all of Art. 1 once; two more passes, all wrong, make sure of it however
+  // the other tests ran.
+  for (let pass = 0; pass < 2; pass++) {
+    await member.page.goto(`/quiz/${BASKETBALL.id}:art1?count=${QUESTIONS_PER_ARTICLE}`);
+    await playQuiz(member.page, { correct: () => false });
+  }
   await coord.page.getByRole("button", { name: new RegExp(en.assocDetail.viewAnalytics) }).click();
   await expect(coord.page.getByText(en.assocAnalytics.pageTitle.replace("{{name}}", assocName))).toBeVisible();
   await expect(coord.page.getByText(en.assocAnalytics.mostMissedTitle)).toBeVisible();
-  await expect(coord.page.getByText(/Missed \d+ of \d+ attempts/).first()).toBeVisible({ timeout: 30_000 });
+  // The exam canister passes answers on to the question bank shortly after a quiz.
+  await expect(async () => {
+    await coord.page.reload();
+    await expect(coord.page.getByText(/Missed \d+ of \d+ attempts/).first()).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
 
   // Case 17: the seat license page, on the website.
   await coord.page.goto(`/association/${encodeURIComponent(assocId)}/license`);
