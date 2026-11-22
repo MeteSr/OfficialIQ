@@ -13,6 +13,10 @@ make clean      # reset local network state
 make status     # show canister status
 ```
 
+Browser end-to-end tests (Playwright, `frontend/e2e/README.md`) cover the
+manual test plan's cases against a local network: `cd frontend && npx
+playwright test --project=cases`. A new user-facing flow gets a case there.
+
 Tooling is icp-cli (`icp`, config in `icp.yaml`) and mops (`mops.toml`) —
 never dfx. Follow DFINITY's ICP skills (https://skills.internetcomputer.org);
 they win over older patterns in this file or the code. The weekly

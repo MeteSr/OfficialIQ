@@ -218,6 +218,9 @@ export default function ReportCardPage() {
                     <button
                       onClick={handleTogglePublic}
                       disabled={publicBusy}
+                      role="switch"
+                      aria-checked={current.isPublic}
+                      aria-label={t("reportCard.publicProfile")}
                       style={{
                         width: 48, height: 26, borderRadius: 13, flexShrink: 0,
                         background: current.isPublic ? T.navy : T.border, position: "relative",

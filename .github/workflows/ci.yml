@@ -46,6 +46,9 @@ jobs:
       - name: Type-check + build
         run: npm run build
 
+      - name: Type-check the browser tests
+        run: npx tsc -p e2e
+
   backend:
     name: Backend canisters build
     # Type-checks and builds every Motoko canister with the pinned toolchain
@@ -126,6 +129,58 @@ jobs:
       - name: Integration tests
         working-directory: frontend
         run: npm run test:integration
+
+      - name: Stop the local network
+        if: always()
+        run: icp network stop || true
+
+  e2e:
+    name: Browser end-to-end tests
+    # The manual test plan's cases that a browser can check (frontend/e2e,
+    # see its README): the app in Chromium, served by `vite dev`, against
+    # every backend canister on a local icp network, signed in with test
+    # identities instead of Internet Identity.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install icp-cli, ic-wasm and mops
+        run: bash scripts/install-icp.sh
+
+      - name: Install Motoko dependencies
+        run: mops install --locked
+
+      - name: Start a local network and deploy the backend
+        run: |
+          source scripts/lib/canisters.sh
+          icp network start -d
+          icp deploy "${BACKEND_CANISTERS[@]}" -e local
+        env:
+          DO_NOT_TRACK: "1"
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Install frontend dependencies and Chromium
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        working-directory: frontend
+        run: npx playwright test --project=cases
+
+      # Switches billing on for everyone while it runs, so it runs alone.
+      - name: Billing browser tests
+        if: success() || failure()
+        working-directory: frontend
+        run: npx playwright test --project=billing
 
       - name: Stop the local network
         if: always()

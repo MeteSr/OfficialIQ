@@ -1,9 +1,6 @@
 import { Actor, HttpAgent, type Identity } from "@icp-sdk/core/agent";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
+import { devIdentity } from "../lib/devIdentity";
 import { IC_HOST, IC_ROOT_KEY } from "../lib/icEnv";
-
-// Fixed-seed dev identity — survives hot-reloads without re-auth
-const DEV_SEED = new Uint8Array(32).fill(0xab);
 
 let _agent: HttpAgent | null = null;
 
@@ -22,7 +19,7 @@ export function initAgent(identity: Identity): void {
 /** Returns the current agent, creating a dev/anonymous one if not yet initialised. */
 export function getAgent(): HttpAgent {
   if (_agent) return _agent;
-  _agent = makeAgent(import.meta.env.DEV ? Ed25519KeyIdentity.generate(DEV_SEED) : undefined);
+  _agent = makeAgent(import.meta.env.DEV ? devIdentity() : undefined);
   return _agent;
 }
 
