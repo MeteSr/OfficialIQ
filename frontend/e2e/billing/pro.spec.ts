@@ -1,7 +1,7 @@
 import { test, expect, en, signUp, navTab } from "../support/fixtures";
-import { grantPro, setPaywall } from "../support/backend";
+import { grantPro, grantRole, setLicenseStripe, setPaywall } from "../support/backend";
 
-// Manual test plan case 27, against a dev server built with the paywall on
+// Manual test plan case 27 (and case 17's seat purchase), against a dev server built with the paywall on
 // and Stripe test links (playwright.config.ts, project "billing"). Billing
 // is switched on for every official while this runs, so it runs on its own.
 //
@@ -11,8 +11,8 @@ import { grantPro, setPaywall } from "../support/backend";
 // does here.
 
 test.describe.configure({ mode: "serial" });
-test.beforeAll(async () => { await setPaywall(true); });
-test.afterAll(async () => { await setPaywall(false); });
+test.beforeAll(async () => { await setPaywall(true); await setLicenseStripe(true); });
+test.afterAll(async () => { await setPaywall(false); await setLicenseStripe(false); });
 
 const usage = (used: number, limit: number) =>
   en.ruleAssistant.usageToday.replace("{{used}}", String(used)).replace("{{limit}}", String(limit));
@@ -44,4 +44,19 @@ test("case 27: upgrade prompt, Pro after checkout, a higher assistant limit and 
   await o.page.goto("/ask");
   await expect(o.page.getByText(usage(0, 50))).toBeVisible();
   await navTab(o.page, "me").click();
+});
+
+test("case 17: with billing on, a coordinator can buy seats for an association", async ({ newOfficial }) => {
+  const coord = await newOfficial();
+  await signUp(coord);
+  await grantRole(coord.principal, "Coordinator");
+  await coord.page.goto("/association");
+  await coord.page.getByPlaceholder(en.association.namePlaceholder).fill(`E2E Licensed ${Date.now() % 100000}`);
+  await coord.page.getByRole("button", { name: en.association.create, exact: true }).click();
+  await expect(coord.page).toHaveURL(/\/association\/[^/]+$/);
+
+  await coord.page.goto(`${new URL(coord.page.url()).pathname}/license`);
+  await expect(coord.page.getByText(en.license.title)).toBeVisible();
+  await expect(coord.page.getByText(en.license.pricing.replace("{{price}}", "36").replace("{{min}}", "10"))).toBeVisible();
+  await expect(coord.page.getByRole("button", { name: en.license.buy.replace("{{seats}}", "10") })).toBeVisible();
 });

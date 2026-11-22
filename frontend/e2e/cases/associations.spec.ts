@@ -74,9 +74,9 @@ test("cases 15 to 17: a coordinator creates an association, an official joins an
     await expect(coord.page.getByText(/Missed \d+ of \d+ attempts/).first()).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 60_000 });
 
-  // Case 17: the seat license page, on the website.
+  // Case 17: the seat license page, on the website. With billing off it
+  // says everything is open; buying seats is in billing/pro.spec.ts.
   await coord.page.goto(`/association/${encodeURIComponent(assocId)}/license`);
   await expect(coord.page.getByText(en.license.title)).toBeVisible();
-  await expect(coord.page.getByText(en.license.pricing.replace("{{price}}", "36").replace("{{min}}", "10"))).toBeVisible();
-  await expect(coord.page.getByRole("button", { name: en.license.buy.replace("{{seats}}", "10") })).toBeVisible();
+  await expect(coord.page.getByText(en.license.paywallOff)).toBeVisible();
 });

@@ -99,6 +99,13 @@ export async function setPaywall(on: boolean): Promise<void> {
   ok(await (await canister("user")).setPaywallEnabled(on));
 }
 
+/** License checkout's Stripe settings (association.setLicenseStripe); null switches it off.
+ *  The tests never reach Stripe: these only make the license page offer to buy. */
+export async function setLicenseStripe(on: boolean): Promise<void> {
+  const config = on ? [{ key: "rk_test_e2e", priceId: "price_e2eSeat", appUrl: "https://e2e.officialiq.test" }] : [];
+  ok(await (await canister("association")).setLicenseStripe(config));
+}
+
 /** Pro until `until` (ms), as an admin comp: what a finished Stripe checkout ends in. */
 export async function grantPro(official: Principal, untilMs: number): Promise<void> {
   ok(await (await canister("user")).grantComp(official, BigInt(untilMs) * 1_000_000n));

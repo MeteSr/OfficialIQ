@@ -57,7 +57,7 @@ the seed only adds what's missing.
 | 14 | Earn a badge | Yes | `cases/social.spec.ts` | |
 | 15 | Create an association, join by code | Yes | `cases/associations.spec.ts` | |
 | 16 | Study assignment and most-missed view | Yes | `cases/associations.spec.ts` | |
-| 17 | Seat license page | Yes | `cases/associations.spec.ts` | That the apps hide it is checked by unit tests (`purchases`). |
+| 17 | Seat license page | Yes | `cases/associations.spec.ts`, `billing/pro.spec.ts` | That the apps hide it is checked by unit tests (`purchases`). |
 | 18 | Mentorship | Yes | `cases/mentorship-reports.spec.ts`, `src/integration/mentorship.itest.ts` | |
 | 19 | Public report card | Yes | `cases/mentorship-reports.spec.ts`, `src/integration/report.itest.ts` | |
 | 20 | Rule assistant | Partly | `cases/ai-assistant.spec.ts` | The daily cap is tested. Real answers need an Anthropic key, and whether they cite the right rule is a person's check. |
