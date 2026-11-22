@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { T, fill } from "../tokens";
 import { examService } from "../services/exam";
-import { questionService } from "../services/question";
+import { available, mixedPicks, splitCount } from "../lib/quizMix";
 import { contentService, type Article } from "../services/content";
 import { useSport } from "../lib/sport";
 
@@ -25,6 +25,7 @@ export default function ExamPage() {
   const [casebook,  setCasebook]  = useState(true);
   const [count,     setCount]     = useState(25);
   const [maxCount,  setMaxCount]  = useState(25);
+  const [avail,     setAvail]     = useState({ rules: 0, plays: 0 });
   const [secPerQ,   setSecPerQ]   = useState(45);
   const [mode,      setMode]      = useState<Mode>("Share Link");
   const [loading,   setLoading]   = useState(false);
@@ -41,11 +42,11 @@ export default function ExamPage() {
 
   useEffect(() => {
     if (selected.length === 0) { setMaxCount(0); return; }
-    questionService.sampleQuiz({
-      sportId, articleIds: selected, casebook, difficulty: [], count: 500n,
-    }).then((qs) => {
-      setMaxCount(qs.length);
-      setCount(c => Math.max(5, Math.min(c, qs.length)));
+    available({ sportId, articleIds: selected }, casebook, 500).then((a) => {
+      setAvail(a);
+      const total = a.rules + a.plays;
+      setMaxCount(total);
+      setCount(c => Math.max(5, Math.min(c, total)));
     }).catch(() => {});
   }, [selected, casebook, sportId]);
 
@@ -68,9 +69,10 @@ export default function ExamPage() {
       // app never sees them before each one is answered.
       const config = { sportId, articleIds: selected, casebook, count: BigInt(count), secPerQ: BigInt(secPerQ), mode: modeMap[mode] };
       if (mode === "Share Link") {
-        const token = await examService.createShareLink(config, [
-          { articleIds: selected, casebook, count: BigInt(count), difficulty: [], adaptive: false, tag: [] },
-        ]);
+        const token = await examService.createShareLink(config, mixedPicks(
+          { articleIds: selected, difficulty: [], adaptive: false, tag: [] },
+          splitCount(count, casebook, avail.rules, avail.plays),
+        ));
         setShareToken(token);
         await navigator.clipboard.writeText(`${window.location.origin}/quiz/share/${token}`).catch(() => {});
       } else {

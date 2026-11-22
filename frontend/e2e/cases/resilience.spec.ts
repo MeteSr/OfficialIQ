@@ -43,7 +43,9 @@ test("case 22: synced content works offline and answers send once back online", 
   // Load the quiz screen once while online (vite dev serves it on demand).
   await o.page.goto(`/quiz/${BASKETBALL.id}:art1?count=5`);
   await expect(o.page.getByRole("button", { name: CORRECT_CHOICE })).toBeVisible();
-  await o.page.goto("/study");
+  // In-app, so the loaded screen stays in this page's module cache (a
+  // production build's service worker precaches it instead).
+  await goInApp(o.page, "/study");
   await expect(o.page.getByText(articleTitle(BASKETBALL, 1))).toBeVisible();
 
   await o.context.setOffline(true);
@@ -100,7 +102,8 @@ test("case 24: no screen crashes or goes blank when the canisters can't be reach
   for (const path of ROUTES) {
     await goInApp(o.page, path);
     await o.page.waitForTimeout(4_000);
-    await expect(o.page.getByText(en.errorBoundary.title), `${path} crashed`).toHaveCount(0);
+    // The error boundary's text; LoadError's "Something went wrong." is fine.
+    await expect(o.page.getByText(en.errorBoundary.body), `${path} crashed`).toHaveCount(0);
     const text = (await o.page.locator("body").innerText()).replace(/\s+/g, " ").trim();
     const navText = (await o.page.getByRole("navigation").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
     const own = text.replace(navText, "").trim();

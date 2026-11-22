@@ -1,5 +1,5 @@
 import { test, expect, en, signUp, navTab } from "../support/fixtures";
-import { canister, grantRole } from "../support/backend";
+import { canister, grantRole, identityFromHex } from "../support/backend";
 import { playQuiz } from "../support/quiz";
 
 // Manual test plan cases 15 to 17: a coordinator's association, its study
@@ -23,8 +23,9 @@ test("cases 15 to 17: a coordinator creates an association, an official joins an
   await coord.page.getByRole("button", { name: en.association.create, exact: true }).click();
   await expect(coord.page).toHaveURL(/\/association\/[^/]+$/);
   const assocId = decodeURIComponent(new URL(coord.page.url()).pathname.split("/").pop()!);
-  const rec = ((await (await canister("association")).getAssociation(assocId)) as { joinCode: string }[])[0];
-  await expect(coord.page.getByText(rec.joinCode, { exact: true })).toBeVisible();
+  // Only the coordinator and members can read an association.
+  const rec = ((await (await canister("association", identityFromHex(coord.seed))).getAssociation(assocId)) as { joinCode: string }[])[0];
+  await expect(coord.page.getByText(rec.joinCode)).toBeVisible();
 
   await member.page.goto("/association");
   await member.page.getByPlaceholder(en.association.joinCodePlaceholder).fill(rec.joinCode);
