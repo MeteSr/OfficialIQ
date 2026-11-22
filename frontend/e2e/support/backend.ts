@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { Actor, HttpAgent, type ActorSubclass, type Identity } from "@icp-sdk/core/agent";
 import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { Principal } from "@icp-sdk/core/principal";
@@ -26,7 +26,8 @@ const IDL = {
 export type CanisterName = keyof typeof IDL;
 export const CANISTERS = Object.keys(IDL) as CanisterName[];
 
-export const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+// Playwright loads these files as CommonJS (package.json has no "type").
+export const REPO_ROOT = resolve(__dirname, "../../..");
 export const ICP_ENVIRONMENT = process.env.ICP_ENVIRONMENT ?? "local";
 export const ICP_HOST = process.env.ICP_HOST ?? "http://localhost:8000";
 
