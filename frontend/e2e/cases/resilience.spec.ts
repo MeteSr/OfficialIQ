@@ -118,7 +118,8 @@ test("case 24: no screen crashes or goes blank when the canisters can't be reach
   await goInApp(o.page, "/ranks");
   await expect(o.page.getByRole("button", { name: en.common.retry })).toBeVisible({ timeout: 30_000 });
   await o.page.unroute("**/api/**");
-  await o.page.getByRole("button", { name: en.common.retry }).click();
+  // Ranks may already have retried by itself once the canisters are back.
+  await o.page.getByRole("button", { name: en.common.retry }).click({ timeout: 5_000 }).catch(() => {});
   await expect(o.page.getByRole("button", { name: en.common.retry })).toHaveCount(0, { timeout: 30_000 });
   // Uncaught errors (often a canister call with no .catch) don't break a
   // screen on their own; they're listed for follow-up rather than failing.

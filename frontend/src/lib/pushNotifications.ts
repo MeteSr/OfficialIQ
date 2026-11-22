@@ -70,8 +70,10 @@ export async function disablePush(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     await PushNotifications.unregister().catch(() => {});
   } else if (isWebPushSupported()) {
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
+    // getRegistration, not .ready: .ready never settles without a service
+    // worker, which used to leave account deletion stuck on "Deleting…".
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+    const sub = await reg?.pushManager.getSubscription().catch(() => null);
     await sub?.unsubscribe().catch(() => {});
   }
   await userService.unregisterPushSubscription();
