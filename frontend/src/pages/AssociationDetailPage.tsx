@@ -294,7 +294,10 @@ export default function AssociationDetailPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {assignments.map((a) => {
               const comps = completionsByAssignment[a.id];
-              const targetCount = a.targetMembers.length > 0 ? a.targetMembers.length : roster.length;
+              // "All members" means the officials, not the coordinator setting it.
+              const targetCount = a.targetMembers.length > 0
+                ? a.targetMembers.length
+                : roster.filter(r => r.principal !== assoc?.coordinator.toString()).length;
               const doneCount = comps?.length ?? 0;
               const pct = targetCount > 0 ? Math.round((doneCount / targetCount) * 100) : 0;
               const buckets = [0, 0, 0, 0, 0]; // <60, 60-69, 70-79, 80-89, 90-100

@@ -17,6 +17,7 @@ import { enqueuePendingAction } from "../lib/offlineDb";
 import { recordAssignmentCompletion } from "../lib/offlineSync";
 import ShareWithMentorButton from "../components/ShareWithMentorButton";
 import { useSport } from "../lib/sport";
+import { mixFor, mixedPicks, sampleMixed } from "../lib/quizMix";
 
 const DEFAULT_SECONDS_PER_Q = 45;
 
@@ -132,8 +133,9 @@ export default function QuizPage() {
           count: BigInt(countFromQuery), secPerQ: BigInt(secFromQuery), mode: navState?.mode ?? { Solo: null },
         };
         try {
+          const mix = await mixFor({ sportId, articleIds: effectiveArticleIds }, countFromQuery, effectiveCasebook);
           const start = await examService.startGradedSession(config, {
-            Picks: [{ articleIds: effectiveArticleIds, casebook: effectiveCasebook, count: BigInt(countFromQuery), difficulty: [], adaptive: isAdaptive, tag: navState?.tag ? [navState.tag] : [] }],
+            Picks: mixedPicks({ articleIds: effectiveArticleIds, difficulty: [], adaptive: isAdaptive, tag: navState?.tag ? [navState.tag] : [] }, mix),
           });
           loadQuestions(start.questions.map(unrevealed), start.session.id);
           setSessionId(start.session.id);
@@ -148,13 +150,12 @@ export default function QuizPage() {
 
       // Practice: both fall back to the IndexedDB content cache when the
       // canister is unreachable, so this can succeed offline too.
-      const quizFilter = {
-        sportId, articleIds: effectiveArticleIds, casebook: effectiveCasebook,
-        difficulty: [] as [], count: BigInt(countFromQuery),
-      };
-      const qs = isAdaptive && principal
-        ? await questionService.getAdaptiveQuiz(quizFilter)
-        : await questionService.sampleQuiz(quizFilter);
+      const quizFilter = { sportId, articleIds: effectiveArticleIds };
+      const qs = await sampleMixed(
+        quizFilter,
+        await mixFor(quizFilter, countFromQuery, effectiveCasebook),
+        isAdaptive && principal ? questionService.getAdaptiveQuiz : questionService.sampleQuiz,
+      );
       if (qs.length === 0) { setError(t("quiz.noCachedQuestions")); return; }
       loadQuestions(qs, null);
       setPracticeReason(principal ? "offline" : "signedOut");

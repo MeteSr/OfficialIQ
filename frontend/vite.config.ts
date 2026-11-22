@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
@@ -151,8 +151,12 @@ export default defineConfig(({ command }) => {
     // scripts/send-pending-push.mjs for the private key, which must never
     // be build-injected or committed).
     VITE_VAPID_PUBLIC_KEY: JSON.stringify(process.env.VAPID_PUBLIC_KEY      ?? ""),
-    // Builds only: `vite dev` and tests leave every feature on (src/lib/features.ts).
-    ...(command === "build" ? { __FEATURES__: JSON.stringify(featuresFromEnv(process.env)) } : {}),
+    // Builds only: `vite dev` and tests leave every feature on (src/lib/features.ts),
+    // unless FEATURES_FROM_ENV=1 asks for a build's switches (the billing
+    // end-to-end tests run a dev server with the paywall on).
+    ...(command === "build" || process.env.FEATURES_FROM_ENV === "1"
+      ? { __FEATURES__: JSON.stringify(featuresFromEnv(process.env)) }
+      : {}),
     __APP_RELEASE__: JSON.stringify(process.env.APP_RELEASE ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "dev"),
   },
   server: {
@@ -163,6 +167,8 @@ export default defineConfig(({ command }) => {
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Browser end-to-end tests run under Playwright (playwright.config.ts).
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
 };
 });

@@ -20,6 +20,7 @@ import { aiProxyService } from "../services/aiProxy";
 import { enablePush, disablePush, isPushConfigured, isPushAvailable } from "../lib/pushNotifications";
 import { features } from "../lib/features";
 import PlanRow from "../components/PlanRow";
+import { setLanguage } from "../i18n";
 
 type FriendRow = { principal: string; displayName: string; accuracy: number; streak: bigint };
 
@@ -70,6 +71,7 @@ function ProfileForm({
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.displayNameLabel")}</div>
         <input
+          aria-label={t("me.displayNameLabel")}
           value={displayName}
           onChange={e => setDisplayName(e.target.value)}
           placeholder={t("me.displayNamePlaceholder")}
@@ -82,6 +84,7 @@ function ProfileForm({
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.sportLabel")}</div>
         <select
+          aria-label={t("me.sportLabel")}
           value={sport}
           onChange={e => handleSportChange(e.target.value)}
           style={{
@@ -95,6 +98,7 @@ function ProfileForm({
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.levelLabel")}</div>
         <select
+          aria-label={t("me.levelLabel")}
           value={level}
           onChange={e => setLevel(e.target.value)}
           style={{
@@ -108,6 +112,7 @@ function ProfileForm({
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.stateLabel")}</div>
         <input
+          aria-label={t("me.stateLabel")}
           value={state}
           onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
           placeholder="TX"
@@ -120,6 +125,7 @@ function ProfileForm({
       <div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 6 }}>{t("me.languageLabel")}</div>
         <select
+          aria-label={t("me.languageLabel")}
           value={preferredLanguage}
           onChange={e => setPreferredLanguage(e.target.value)}
           style={{
@@ -361,6 +367,7 @@ export default function MePage() {
               try {
                 const created = await userService.createProfile(v);
                 setProfile(created);
+                setLanguage(created.preferredLanguage);
                 // Best-effort — a missing pace just means no weekly schedule until
                 // the user sets one later; it shouldn't block onboarding.
                 await userService.setStudyPace(hoursToArticlesPerWeek(hoursPerWeek)).catch(() => {});
@@ -421,6 +428,8 @@ export default function MePage() {
                 const switchingSport = v.sport !== profile.sport;
                 const updated = await userService.updateProfile(v);
                 setProfile(updated);
+                // The UI follows the profile's language at once, not on the next sign-in.
+                setLanguage(updated.preferredLanguage);
                 setEditing(false);
                 if (switchingSport) {
                   // A new sport means the old sport's cached articles/questions

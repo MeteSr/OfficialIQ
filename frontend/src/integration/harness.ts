@@ -8,6 +8,8 @@ import { idlFactory as associationIdl } from "../declarations/association";
 import { idlFactory as userIdl } from "../declarations/user";
 import { idlFactory as aiProxyIdl } from "../declarations/ai_proxy";
 import { idlFactory as contentIdl } from "../declarations/content";
+import { idlFactory as mentorshipIdl } from "../declarations/mentorship";
+import { idlFactory as reportIdl } from "../declarations/report";
 import { adminIdentity } from "./identities";
 
 // Calls go through the IDL the app uses (src/declarations, generated from
@@ -17,7 +19,7 @@ import { adminIdentity } from "./identities";
 const appIdl = {
   exam: examIdl, question: questionIdl, ranking: rankingIdl,
   challenge: challengeIdl, association: associationIdl, user: userIdl,
-  ai_proxy: aiProxyIdl, content: contentIdl,
+  ai_proxy: aiProxyIdl, content: contentIdl, mentorship: mentorshipIdl, report: reportIdl,
 };
 
 const agents = new Map<Identity, Promise<HttpAgent>>();

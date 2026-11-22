@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -53,8 +54,11 @@ export default function SchedulePage() {
     load();
   }, [isAuthenticated, sportId, levelId]);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+
   async function load() {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [acc, gm] = await Promise.all([userService.getMyLinkedAccounts(), userService.getMyUpcomingGames()]);
       setAccounts(acc);
@@ -81,6 +85,8 @@ export default function SchedulePage() {
           setRecommendSource(t("schedule.sourceWeakestArticle"));
         }
       }
+    } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -155,7 +161,9 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {loading ? (
+      {loadFailed ? (
+        <LoadError onRetry={load} />
+      ) : loading ? (
         <div style={{ padding: 24, textAlign: "center", color: T.muted }}>{t("common.loading")}</div>
       ) : (
         <div style={{ padding: 16 }}>

@@ -98,7 +98,12 @@ persistent actor Association {
   };
 
   func isTargeted(a : Assignment, p : Principal) : Bool {
-    if (a.targetMembers.size() == 0) return isMember(a.associationId, p);
+    // Everyone means the officials: the coordinator is listed as a member
+    // but sets the assignment rather than doing it.
+    if (a.targetMembers.size() == 0) {
+      let coordinator = switch (Map.get(associations, Text.compare, a.associationId)) { case (?r) ?r.coordinator; case null null };
+      return isMember(a.associationId, p) and coordinator != ?p;
+    };
     switch (Array.find<Principal>(a.targetMembers, func(m) { m == p })) { case (?_) true; case null false }
   };
 

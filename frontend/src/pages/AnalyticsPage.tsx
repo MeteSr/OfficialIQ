@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import LoadError from "../components/LoadError";
 import { T } from "../tokens";
 import { useAuthStore } from "../store/authStore";
 import { useSport } from "../lib/sport";
@@ -56,9 +57,13 @@ export default function AnalyticsPage() {
   const [percentile, setPercentile] = useState<number | null>(null);
   const [poolSize, setPoolSize] = useState(0);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
     setLoading(true);
+    setLoadFailed(false);
     Promise.all([
       examService.getMyExams(),
       userService.getMyProgress(),
@@ -78,8 +83,8 @@ export default function AnalyticsPage() {
           setPoolSize(leaderboard.length);
         }
       }
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [isAuthenticated, sportId, levelId, principal]);
+    }).catch(() => setLoadFailed(true)).finally(() => setLoading(false));
+  }, [isAuthenticated, sportId, levelId, principal, attempt]);
 
   if (!isAuthenticated) {
     return (
@@ -95,6 +100,8 @@ export default function AnalyticsPage() {
   if (loading) {
     return <div style={{ padding: 24, textAlign: "center", color: T.muted, paddingTop: 80 }}>{t("common.loading")}</div>;
   }
+
+  if (loadFailed) return <div style={{ paddingTop: 80 }}><LoadError onRetry={() => setAttempt(n => n + 1)} /></div>;
 
   const scoredExams = exams
     .filter(e => e.score.length > 0 && e.finishedAt.length > 0)

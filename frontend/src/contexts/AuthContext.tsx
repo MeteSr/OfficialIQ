@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { AuthClient } from "@icp-sdk/auth/client";
-import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
+import { devIdentity } from "../lib/devIdentity";
 import { initAgent, resetAgent } from "../services/actor";
 import { userService, type UserProfile } from "../services/user";
 import { useAuthStore } from "../store/authStore";
@@ -33,9 +33,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // The Capacitor app can't open II's pop-up, so it signs in through the system
 // browser instead (src/lib/nativeAuth.ts); everything after the identity is
 // the same.
-
-// Fixed-seed dev identity — survives hot-reloads without re-auth
-const DEV_SEED = new Uint8Array(32).fill(0xab);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<AuthClient | null>(null);
@@ -90,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // locally — otherwise this fires before you'd ever see it. Use
         // devLogin() (e.g. via the landing page's dev-only button) to get
         // back into the app afterward without a full Internet Identity flow.
-        const identity = Ed25519KeyIdentity.generate(DEV_SEED);
+        const identity = devIdentity();
         initAgent(identity);
         const principal = identity.getPrincipal().toText();
         const profile = await userService.getMyProfile();
@@ -128,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function devLogin() {
     if (!import.meta.env.DEV) return;
-    const identity = Ed25519KeyIdentity.generate(DEV_SEED);
+    const identity = devIdentity();
     initAgent(identity);
     const principal = identity.getPrincipal().toText();
     const profile   = await userService.getMyProfile();

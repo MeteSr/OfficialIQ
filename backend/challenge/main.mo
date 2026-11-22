@@ -12,6 +12,7 @@ import Types "../lib/Types";
 import Index "../lib/Index";
 import Set "mo:core/Set";
 import Token "../lib/Token";
+import ChallengeExpiry "../lib/ChallengeExpiry";
 
 persistent actor Challenge {
 
@@ -56,7 +57,7 @@ persistent actor Challenge {
 
   var nextId : Nat = 0;
 
-  let TTL_NS : Int = 72 * 3600 * 1_000_000_000;
+  let TTL_NS : Int = ChallengeExpiry.TTL_NS;
   let MAX_QUESTIONS : Nat = 200;
 
   // ─── Mutations ────────────────────────────────────────────────────────────
@@ -165,12 +166,18 @@ persistent actor Challenge {
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
+  // An open challenge past its 72 hours reads as #Expired, so it leaves the
+  // inbox on time even if nobody has called since (lib/ChallengeExpiry.mo).
+  func current(ch : Challenge) : Challenge {
+    { ch with status = ChallengeExpiry.status(ch.status, ch.expiresAt, Time.now()) }
+  };
+
   public shared query ({ caller }) func getMyChallenges() : async [Challenge] {
-    Index.rows(challengesByParticipant, Principal.compare, caller, challenges)
+    Array.map<Challenge, Challenge>(Index.rows(challengesByParticipant, Principal.compare, caller, challenges), current)
   };
 
   public query func getChallenge(id : Text) : async ?Challenge {
-    Map.get(challenges, Text.compare, id)
+    switch (Map.get(challenges, Text.compare, id)) { case (?ch) ?current(ch); case null null }
   };
 
   // ─── Crew pregame (#64) ─────────────────────────────────────────────────

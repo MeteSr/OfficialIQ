@@ -12,3 +12,7 @@ tools/node_modules/
 # icp-cli keeps local-network state in .icp/cache/ (ignored above) and the
 # mainnet canister-ID mappings in .icp/data/mappings/<env>.ids.json. Those
 # IDs are permanent and MUST be committed — never ignore .icp/data/.
+
+# Playwright (frontend/e2e) run output
+frontend/test-results/
+frontend/playwright-report/
