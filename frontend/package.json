@@ -24,7 +24,7 @@
     "@icp-sdk/auth": "^11.2.0",
     "@icp-sdk/core": "^6.1.1",
     "@officialiq/native-auth": "file:plugins/native-auth",
-    "i18next": "^27.1.2",
+    "i18next": "^27.2.2",
     "idb": "^8.0.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
