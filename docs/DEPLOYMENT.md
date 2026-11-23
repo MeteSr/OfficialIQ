@@ -399,10 +399,24 @@ bundle on its own, point it at an environment's committed ID mapping:
 cd frontend && ICP_ENVIRONMENT=ic npx vite build && npx cap sync android
 ```
 
-Routing and response headers for the frontend canister live in
-`frontend/public/_redirects` (SPA fallback) and `frontend/public/_headers`
-(caching, security headers). The legacy `.ic-assets.json5` is not read by
-this canister.
+Response headers for the frontend canister live in `frontend/public/_headers`
+(caching, security headers). Routing (`_redirects`), `robots.txt`,
+`sitemap.xml` and the prerendered pages are written by the build
+(`frontend/build-config/seo.ts`): `/`, `/privacy` and `/terms` are rendered to
+static HTML, every route in `src/App.tsx` is rewritten to `app.html` (the
+noindex app shell), and any other path is a real 404. The legacy
+`.ic-assets.json5` is not read by this canister.
+
+### Search indexing (`SITE_URL`)
+
+`SITE_URL` is the website's public origin, e.g. `https://officialiq.app`. It
+is the one switch for search engines: set, the build is indexable, with
+canonical URLs, the sitemap and link-preview images on that origin; unset, the
+build is `noindex` and `robots.txt` blocks everything. The production deploy
+reads it from the `SITE_URL` repository variable; staging never sets it, so
+staging stays out of search. Set it once the custom domain is live (or to the
+frontend canister's `icp0.io` address to launch without one, knowing that
+ranking built there doesn't carry over to a later domain).
 
 ## Canister ID mappings
 
@@ -608,6 +622,8 @@ priority). Once one exists, the IC-side steps are:
    `derivationOrigin` to the canister origin and publish
    `.well-known/ii-alternative-origins` (see the `user-sign-in` skill) —
    otherwise every user gets a different principal on the domain.
+4. Set the `SITE_URL` repository variable to the domain (see "Search
+   indexing" above) and redeploy production.
 
 ## Keeping the ICP stack current
 

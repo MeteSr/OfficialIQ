@@ -1,12 +1,11 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import { useAuthStore } from "./store/authStore";
 import { registerOfflineSync } from "./lib/offlineSync";
 import { registerNativePushListener } from "./lib/pushNotifications";
 import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
-import LandingPage from "./pages/LandingPage";
+import LandingRoute from "./pages/LandingRoute";
 import NativeCallbackPage from "./pages/NativeCallbackPage";
 import HomePage from "./pages/HomePage";
 import StudyPage from "./pages/StudyPage";
@@ -68,16 +67,9 @@ function Gate({ on, children }: { on: boolean; children: ReactNode }) {
   return on ? <>{children}</> : <Navigate to="/home" replace />;
 }
 
-// The landing page is the one route that isn't part of the mobile app
-// shell below — a signed-out visitor at "/" should see a real, full-width
-// desktop-capable page, not the 430px-capped app frame. Everything else
-// stays inside the mobile shell as before.
-function LandingRoute() {
-  const { isAuthenticated, isLoading } = useAuthStore();
-  if (isLoading) return null;
-  if (isAuthenticated) return <Navigate to="/home" replace />;
-  return <LandingPage />;
-}
+// The landing page ("/", see pages/LandingRoute.tsx) is the one route that
+// isn't part of the mobile app shell below: a signed-out visitor should see a
+// real, full-width desktop-capable page, not the 430px-capped app frame.
 
 function PageLoading() {
   return <div role="status" aria-label="Loading" style={{ padding: 24 }} />;
@@ -142,6 +134,8 @@ function AppShell() {
           <Route path="/rule-changes" element={<RuleChangesPage />} />
           <Route path="/readiness" element={<ReadinessPage />} />
           <Route path="/calls/:gameId" element={<CallLogPage />} />
+          {/* A deeper path under a known route that no page matches. */}
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>

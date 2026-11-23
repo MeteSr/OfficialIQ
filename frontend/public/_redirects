@@ -1,8 +1,0 @@
-# Certified-assets canister routing (static-site skill). Netlify syntax.
-# Real files win over these rules, so this only catches client-side routes.
-
-# Missing build assets get a real 404 instead of the HTML shell.
-/assets/*  /404.html    404
-
-# SPA fallback: serve the app shell for every client route (a rewrite).
-/*         /index.html  200
