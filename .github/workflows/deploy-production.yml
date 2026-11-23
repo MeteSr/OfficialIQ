@@ -92,6 +92,9 @@ jobs:
           NATIVE_WEB_ORIGIN: ${{ vars.NATIVE_WEB_ORIGIN }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+          # Public origin for canonical URLs and the sitemap (frontend/build-config/seo.ts).
+          # Unset, the site is noindex. Staging deliberately doesn't pass it.
+          SITE_URL: ${{ vars.SITE_URL }}
           # What the website build switches on (frontend/build-config/features.ts).
           # Unset variables keep the launch defaults: NCAA only, no audio or
           # clip submissions, web push once the VAPID public key exists.

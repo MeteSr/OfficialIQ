@@ -87,6 +87,7 @@ Nothing below is blocked on code. The app can't go live until these are done:
 | FIBA / FIFA / World Rugby content (issue #50): needs licensed rulebooks; Claude won't write rules text without them | Not ready; launch can go NCAA-only if these sports are hidden | Mete |
 | NFHS Basketball is registered with no content | Ready: only `LAUNCH_SPORTS` (default `ncaa_basketball`) is offered | Claude |
 | Privacy policy and terms pages (both stores require a privacy policy URL) | Pages built at `/privacy` and `/terms`, linked from the Me tab and the landing page, with a draft written from what the app stores and sends (`frontend/src/legal/index.ts`). **Mete:** fill in the bracketed fields (operator, contact email, effective date, governing law), review (ideally with a lawyer), then set `LEGAL_DRAFT` to `false` | Mete (text), Claude (pages) |
+| Search indexing: page titles, descriptions, link previews, `robots.txt`, `sitemap.xml`, prerendered landing and legal pages, real 404s, noindex app shell | Ready in code (`frontend/build-config/seo.ts`). Production is noindex until the `SITE_URL` repository variable is set: **Mete:** set it to the custom domain once it's live (`docs/DEPLOYMENT.md`, "Search indexing"), then submit the sitemap in Google Search Console and Bing Webmaster Tools | Claude (code), Mete (variable, Search Console) |
 
 ## 6. Quality and review findings
 

@@ -7,6 +7,7 @@ import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { wellKnownFiles } from "./build-config/wellKnown";
 import { featuresFromEnv } from "./build-config/features";
+import { seoBuildFiles, siteUrlFromEnv } from "./build-config/seo";
 
 // Backend canisters the frontend calls (names as in icp.yaml).
 const CANISTER_NAMES = [
@@ -78,6 +79,50 @@ function wellKnownPlugin(origin: string): Plugin {
   };
 }
 
+// Prerendered pages, robots.txt, sitemap.xml and _redirects
+// (build-config/seo.ts). Runs after Vite has written the hashed script tags
+// into index.html and before the service worker's precache list is built, so
+// the precache revisions match the files that ship. The pages are rendered by
+// src/prerender.tsx through Vite's SSR loader, with the build's own defines.
+function seoPlugin(siteUrl: string, define: Record<string, string>): Plugin {
+  return {
+    name: "officialiq-seo",
+    apply: "build",
+    enforce: "post",
+    async generateBundle(_options, bundle) {
+      const index = bundle["index.html"];
+      if (!index || index.type !== "asset") return;
+      const { createServer } = await import("vite");
+      const server = await createServer({
+        configFile: false,
+        root: __dirname,
+        mode: "production",
+        logLevel: "error",
+        appType: "custom",
+        server: { middlewareMode: true, hmr: false, ws: false },
+        plugins: [react()],
+        resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+        define,
+      });
+      try {
+        const { renderPage } = (await server.ssrLoadModule("/src/prerender.tsx")) as { renderPage: (p: string) => string };
+        const files = seoBuildFiles({
+          indexHtml: String(index.source),
+          appSource: readFileSync(path.resolve(__dirname, "src/App.tsx"), "utf-8"),
+          siteUrl,
+          render: renderPage,
+        });
+        for (const [fileName, source] of Object.entries(files)) {
+          if (fileName === "index.html") index.source = source;
+          else this.emitFile({ type: "asset", fileName, source });
+        }
+      } finally {
+        await server.close();
+      }
+    },
+  };
+}
+
 // `vite dev` stands in for the frontend canister: it sets the same `ic_env`
 // cookie (canister IDs + root key) and proxies /api to the local network
 // (icp-cli skill, references/dev-server.md). Needs `icp network start -d` and
@@ -106,10 +151,27 @@ function devServerConfig() {
 
 export default defineConfig(({ command }) => {
   const webOrigin = command === "build" ? nativeWebOrigin() : "";
+  const define = {
+    __ICP_CANISTER_IDS__: JSON.stringify(command === "build" ? buildTimeCanisterIds() : {}),
+    __NATIVE_WEB_ORIGIN__: JSON.stringify(webOrigin),
+    // VAPID public key is not secret (it's the whole point of VAPID — see
+    // scripts/send-pending-push.mjs for the private key, which must never
+    // be build-injected or committed).
+    VITE_VAPID_PUBLIC_KEY: JSON.stringify(process.env.VAPID_PUBLIC_KEY      ?? ""),
+    // Builds only: `vite dev` and tests leave every feature on (src/lib/features.ts),
+    // unless FEATURES_FROM_ENV=1 asks for a build's switches (the billing
+    // end-to-end tests run a dev server with the paywall on).
+    ...(command === "build" || process.env.FEATURES_FROM_ENV === "1"
+      ? { __FEATURES__: JSON.stringify(featuresFromEnv(process.env)) }
+      : {}),
+    __APP_RELEASE__: JSON.stringify(process.env.APP_RELEASE ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "dev"),
+  };
   return {
   plugins: [
     react(),
     wellKnownPlugin(webOrigin),
+    // The public origin for canonical URLs and the sitemap; unset, the build is noindex.
+    seoPlugin(siteUrlFromEnv(process.env), define),
     VitePWA({
       registerType: "autoUpdate",
       // injectManifest (not the default generateSW) — issue #28 needs a
@@ -144,21 +206,7 @@ export default defineConfig(({ command }) => {
       "@": path.resolve(__dirname, "src"),
     },
   },
-  define: {
-    __ICP_CANISTER_IDS__: JSON.stringify(command === "build" ? buildTimeCanisterIds() : {}),
-    __NATIVE_WEB_ORIGIN__: JSON.stringify(webOrigin),
-    // VAPID public key is not secret (it's the whole point of VAPID — see
-    // scripts/send-pending-push.mjs for the private key, which must never
-    // be build-injected or committed).
-    VITE_VAPID_PUBLIC_KEY: JSON.stringify(process.env.VAPID_PUBLIC_KEY      ?? ""),
-    // Builds only: `vite dev` and tests leave every feature on (src/lib/features.ts),
-    // unless FEATURES_FROM_ENV=1 asks for a build's switches (the billing
-    // end-to-end tests run a dev server with the paywall on).
-    ...(command === "build" || process.env.FEATURES_FROM_ENV === "1"
-      ? { __FEATURES__: JSON.stringify(featuresFromEnv(process.env)) }
-      : {}),
-    __APP_RELEASE__: JSON.stringify(process.env.APP_RELEASE ?? process.env.GITHUB_SHA?.slice(0, 7) ?? "dev"),
-  },
+  define,
   server: {
     port: 5173,
     // Only for `vite dev`: `vite build` must not shell out to icp.

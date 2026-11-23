@@ -38,7 +38,7 @@ they win over older patterns in this file or the code. The weekly
 | **mentorship**  | Mentor links, shared exam answer snapshots, mentor annotations |
 | **association** | Officiating associations, join codes, coordinator-assigned study assignments |
 | **report**      | Shareable performance report cards |
-| **frontend**  | Serves frontend/dist (`@dfinity/static-site`, certified assets; `_headers` / `_redirects` in frontend/public) |
+| **frontend**  | Serves frontend/dist (`@dfinity/static-site`, certified assets; `_headers` in frontend/public; `_redirects`, robots.txt, sitemap and prerendered pages written by `frontend/build-config/seo.ts`) |
 
 All canisters use `persistent actor` — all variables are implicitly stable.
 Use `mo:core` (never `mo:base`), `.values()` (not `.vals()`), and the `ic`

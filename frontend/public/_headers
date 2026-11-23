@@ -1,7 +1,7 @@
 # Response headers for the certified-assets canister (static-site skill).
 # Replaces the legacy asset canister's .ic-assets.json5, which this canister
-# does not read. Patterns match files, not URLs: /index.html covers every
-# SPA route rewritten to it. Every matching block contributes (same-name
+# does not read. Patterns match files, not URLs: /app.html covers every
+# app route rewritten to it. Every matching block contributes (same-name
 # values are joined), so each Cache-Control below targets disjoint files.
 
 # Content-Security-Policy follows DFINITY's default for asset canisters
@@ -24,10 +24,22 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# The shell and the service worker must always revalidate, or clients can
-# get stuck on a stale build after a redeploy.
+# The pages and the service worker must always revalidate, or clients can
+# get stuck on a stale build after a redeploy. index.html, privacy/ and terms/
+# are prerendered pages; app.html is the app shell every app route is
+# rewritten to (build-config/seo.ts writes _redirects), never a search result.
 /index.html
   Cache-Control: no-cache, must-revalidate
+
+/privacy/index.html
+  Cache-Control: no-cache, must-revalidate
+
+/terms/index.html
+  Cache-Control: no-cache, must-revalidate
+
+/app.html
+  Cache-Control: no-cache, must-revalidate
+  X-Robots-Tag: noindex
 
 /sw.js
   Cache-Control: no-cache, must-revalidate
